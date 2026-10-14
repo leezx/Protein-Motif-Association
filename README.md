@@ -19,12 +19,26 @@ PMA is an association reference, not a recruitment-mechanism study.
 
 ## Current status
 
-Design stage. v0.2 scope frozen; next is the PMA Statistical Framework
-v0.1 design. No compute or data acquisition yet.
+v0.2 scope frozen. Active workstream: **PMA Human Motif Reference**
+(`design/motif_resources.md`). Step 1 is a Codebook 2026 vs JASPAR 2026
+architecture pilot (`docs/STEP1_MOTIF_PILOT_DESIGN.md`).
 
 ## Data
 
 **No data files live in this repo.** All data lives under
 `/Volumes/Stelligen_SSD/Stelligen/DATA/<data_type>/<dataset_id>/`
 (see `docs/PROJECT_CHARTER.md` §2.3). This repo holds code, manifests
-and docs only.
+and docs only. PMA data root: `$BIO_DATA/2.PROJECTS/PMA/` (paths set in
+`config/pma_env.sh`).
+
+## Layout
+
+- `config/pma_env.sh`: data and tool paths, built on the workspace `setup_env.sh`
+- `scripts/<NN>_<step>/`: code for each step
+- `results/<NN>_<step>/`: small summary tables only
+- `datasets/<id>/dataset.md`: manifest for each dataset
+
+## Tools
+
+- MEME Suite 5.5.9 (TOMTOM): `$BIO_SOFTWARES/tools/meme-5.5.9`, built from source
+- Python: workspace `python-main` venv (numpy, pandas, openpyxl)

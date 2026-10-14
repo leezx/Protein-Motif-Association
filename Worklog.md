@@ -8,7 +8,7 @@ see `PR/_TEMPLATE/WORKLOG_TEMPLATE.md`.
 | Step | Status | PR | Notes |
 |---|---|---|---|
 | 0. Scope freeze (v0.2) + repo init | closed | — | design/PMA_pseudo_figures_v0.2.md |
-| 1. Motif reference pilot (Codebook vs JASPAR) | PR open, awaiting review | step1-motif-pilot | docs/STEP1_MOTIF_PILOT_RESULTS.md |
+| 1. Motif reference pilot (Codebook vs JASPAR) | PR #1 open; review round 1 fixes pushed | step1-motif-pilot | docs/STEP1_MOTIF_PILOT_RESULTS.md |
 | 2. Multi-source motif import + QC (HOCOMOCO, CisBP, Factorbook) | not started | — | needs design: HOCOMOCO version, length-aware match criterion |
 | 3. Motif clustering + CORE/EXTENDED | not started | — | |
 | 4. Motif reference QC + freeze v0.1 (gates G1–G4) | not started | — | |
@@ -51,8 +51,9 @@ randomised π₀ estimate.
 **Real findings**:
 - TF coverage is near-complete: 759 of 762 JASPAR human TFs are in Codebook.
 - Motif coverage is partial: 66 % of JASPAR human motifs match a same-TF
-  Codebook PWM. 105 are absent even at q < 0.05: composites,
-  ChIP-derived ZNF/ZBTB, TALE.
+  Codebook PWM under the primary criterion. 105 have no match even at
+  q < 0.05: 69 are ≤ 10 bp (power-limited), 18 are composites and 18 are
+  longer single-protein motifs.
 - The fixed q-threshold is length-biased: 27 % of ≤ 8 bp motifs are
   missed versus 12 % of > 15 bp.
 - Codebook Table-10 clusters have a coarse tail (one cluster of 225
@@ -60,4 +61,12 @@ randomised π₀ estimate.
   build its own clusters and use Codebook as a benchmark.
 - 4 Codebook PWMs contain all-zero spacer rows, set to uniform.
 
-**Review**: Quick inline review only. ChatGPT review conversation is not set yet.
+**Review**: ChatGPT (RA-Xiaolu / PMA项目), round 1: REQUEST CHANGES, 4
+merge conditions, all verified as valid:
+- objective labels instead of paralog/unrelated;
+- cutoff-dependent wording instead of "absent";
+- universe assertions and BH tests;
+- Q3 framed as an agreement check between similarity definitions.
+
+All were fixed. The 105 split, prompted by the review, overturned my
+earlier characterisation: most of the 105 are short motifs.

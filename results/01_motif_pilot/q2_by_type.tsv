@@ -1,4 +1,4 @@
-type	not_represented	other_TF_only
+type	no_match_primary	other_TF_only
 CAP-SELEX	2	6
 COMPILED	2	0
 CUT&RUN	1	0

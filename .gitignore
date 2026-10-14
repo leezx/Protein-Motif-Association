@@ -1,0 +1,23 @@
+# No data files in this repo — all data lives under DATA/. This is a safety net, not the primary control.
+*.h5ad
+*.h5
+*.loom
+*.rds
+*.mtx
+*.mtx.gz
+*.fastq.gz
+*.fastq
+*.bam
+*.cram
+*.tar.gz
+*.ndpi
+*.tif
+*.tiff
+
+.DS_Store
+.ipynb_checkpoints/
+__pycache__/
+*.pyc
+.Rhistory
+.RData
+renv/library/

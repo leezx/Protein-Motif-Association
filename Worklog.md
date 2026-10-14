@@ -8,8 +8,8 @@ see `PR/_TEMPLATE/WORKLOG_TEMPLATE.md`.
 | Step | Status | PR | Notes |
 |---|---|---|---|
 | 0. Scope freeze (v0.2) + repo init | closed | — | design/PMA_pseudo_figures_v0.2.md |
-| 1. Motif reference pilot (Codebook vs JASPAR) | PR #1 open; review round 1 fixes pushed | step1-motif-pilot | docs/STEP1_MOTIF_PILOT_RESULTS.md |
-| 2. Multi-source motif import + QC (HOCOMOCO, CisBP, Factorbook) | not started | — | needs design: HOCOMOCO version, length-aware match criterion |
+| 1. Motif reference pilot (Codebook vs JASPAR) | APPROVED (round 2); awaiting user merge confirmation | #1 | step1-motif-pilot | docs/STEP1_MOTIF_PILOT_RESULTS.md |
+| 2. Multi-source motif import + QC (HOCOMOCO, CisBP, Factorbook) | design rev 1 after REQUEST CHANGES; raw sources fetched | #2 (draft) | needs a manual-review curator; Factorbook HT-SELEX deferred |
 | 3. Motif clustering + CORE/EXTENDED | not started | — | |
 | 4. Motif reference QC + freeze v0.1 (gates G1–G4) | not started | — | |
 | 5. Statistical Framework v0.1 design | not started | — | core association risk |
@@ -18,8 +18,8 @@ Weights against the 100 % definition in the charter: motif reference
 (steps 1–4) 25 %; occupancy reference 20 %; association statistics
 25 %; evidence grading + replication 15 %; Fig. 1/2 + release 15 %.
 
-Overall: `5% → 9% (+4%)`. Step 1 is ~15 % of the motif-reference
-workstream. Engineering progress only; no association result exists yet.
+Overall: `9% → 11% (+2%)`: Step 1 approved, Step 2 sources fetched and
+design revised. Step 1 is ~15 % of the motif-reference workstream. Engineering progress only; no association result exists yet.
 
 ---
 

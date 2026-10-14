@@ -23,7 +23,7 @@ finalize() {  # write checksums + unpack zips once
   local dir=$1
   ( cd "$dir"
     for z in *.zip; do [[ -e "$z" ]] || continue
-      [[ -d "unpacked/${z%.zip}" ]] || unzip -q -o "$z" -d "unpacked/${z%.zip}"; done
+      [[ -d "unpacked/${z%.zip}" ]] || { mkdir -p unpacked; unzip -q -o "$z" -d "unpacked/${z%.zip}"; }; done
     find . -type f ! -name checksums.md5 ! -name source_manifest.tsv ! -path '*/__MACOSX/*' \
       | sort | xargs md5 -r > checksums.md5 )
 }

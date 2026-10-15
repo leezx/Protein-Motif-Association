@@ -1,0 +1,31 @@
+set	source	n_tf	unique_to_source	union
+any_link	Codebook	1418	20.0	1769.0
+any_link	JASPAR	1099	18.0	1769.0
+any_link	HOCOMOCO	1107	1.0	1769.0
+any_link	CisBP	1402	12.0	1769.0
+any_link	Factorbook	1030	299.0	1769.0
+any_link	Codebook&JASPAR	1068		
+any_link	Codebook&HOCOMOCO	1103		
+any_link	Codebook&CisBP	1383		
+any_link	Codebook&Factorbook	711		
+any_link	JASPAR&HOCOMOCO	989		
+any_link	JASPAR&CisBP	1060		
+any_link	JASPAR&Factorbook	565		
+any_link	HOCOMOCO&CisBP	1096		
+any_link	HOCOMOCO&Factorbook	576		
+any_link	CisBP&Factorbook	708		
+human_supported	Codebook	795	1.0	927.0
+human_supported	JASPAR	584	10.0	927.0
+human_supported	HOCOMOCO	659	1.0	927.0
+human_supported	CisBP	912	88.0	927.0
+human_supported	Factorbook	0	0.0	927.0
+human_supported	Codebook&JASPAR	551		
+human_supported	Codebook&HOCOMOCO	637		
+human_supported	Codebook&CisBP	794		
+human_supported	Codebook&Factorbook	0		
+human_supported	JASPAR&HOCOMOCO	488		
+human_supported	JASPAR&CisBP	571		
+human_supported	JASPAR&Factorbook	0		
+human_supported	HOCOMOCO&CisBP	655		
+human_supported	HOCOMOCO&Factorbook	0		
+human_supported	CisBP&Factorbook	0		

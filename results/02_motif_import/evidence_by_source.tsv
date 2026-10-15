@@ -1,0 +1,9 @@
+	assay_class	assay_class	assay_class	assay_class	assay_class	direct_binding_evidence	direct_binding_evidence	direct_binding_evidence	direct_binding_evidence	species_basis	species_basis	species_basis	species_basis	species_basis	experiment_identity	experiment_identity	experiment_identity	derived_from
+	in_vitro_array	in_vitro_selection	in_vivo_occupancy	literature_compiled	unknown	not_established	supported	transferred	unknown	human	mouse_ortholog	non_vertebrate	other_vertebrate	unknown	accession	publication_record	unknown	recorded
+src																		
+CisBP:Homo_sapiens_all_motifs	679	3761	1099	1874	21	2761	3648	1004	21	6430	0	0	0	1004	0	4098	3336	3336
+Codebook:representative	144	936	408	196	1	554	950	180	1	1576	88	0	21	0	0	1257	428	251
+Factorbook:ChIP-seq_MEME	0	0	10477	0	0	10477	0	0	0	9914	563	0	0	0	10477	0	0	0
+HOCOMOCO:H14CORE	20	816	750	0	9	750	836	0	9	1346	240	0	0	9	901	685	9	177
+JASPAR:CORE_vertebrates_nr	33	581	322	3	80	325	614	0	80	857	156	0	6	0	0	0	1019	17
+JASPAR:UNVALIDATED_nr	140	655	173	1	62	174	795	0	62	625	11	394	1	0	0	0	1031	0

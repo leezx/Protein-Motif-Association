@@ -59,9 +59,14 @@ Source-file caveats found during fetch:
   - `raw_matrix_hash` is the sha1 of the source matrix exactly as
     parsed (source units: counts or probabilities). It checks source
     integrity.
-  - `normalized_matrix_hash` is the sha1 of the row-normalised matrix,
-    serialised at full float64 repr. It identifies strict duplicates
-    across sources.
+  - `normalized_matrix_hash` is the sha1 of the row-normalised matrix.
+    It identifies strict duplicates across sources.
+  - **Serialisation (both hashes):** rows in motif order, columns
+    A,C,G,T; little-endian IEEE-754 float64 (`numpy '<f8'`, C order);
+    the byte string is prefixed with the length as uint32 little-endian.
+    Gap rows are hashed as they were in the source (all zero) for
+    `raw_matrix_hash`, and as uniform for `normalized_matrix_hash`.
+    A unit test pins the hash of a fixed matrix.
   - `rounded_equiv_group` groups motifs whose normalised matrices agree
     at 4 decimals, in either orientation. It is not called an exact
     duplicate. Each member records `equiv_orientation` (`fwd`/`rc`).
@@ -159,7 +164,7 @@ from similarity scores.
 
 | Set | Definition | Role |
 |---|---|---|
-| **P-high** | (a) Codebook Supp. Table 13 PWMs labelled "consistent with codebook motif" with classification `ok`, each paired with the Codebook PWM of the same TF. (b) Pairs confirmed equivalent in the manual review (below). | ground-truth positives |
+| **P-high** | (a) Codebook Supp. Table 13 PWMs labelled "consistent with codebook motif" with classification `ok`, each paired with the Codebook PWM of the same TF. (b) Pairs confirmed equivalent in the manual review (below). Each pair records `label_source` (`codebook_t13` / `manual_review`). | expert-curated positives; not an experimental gold standard |
 | **P-provisional** | same HGNC TF; both `direct_binding_evidence = supported`; monomer; no shared `experiment_ids` | weak-label concordance, descriptive only; never used to pick thresholds |
 | **N-high** | pairs confirmed as different patterns in the manual review | ground-truth negatives |
 | **N-challenge** | different TFClass superclass, length within ±2 bp, sharing a ≥ 5-mer of the IUPAC consensus | challenge set; reports the cross-family link rate; not assumed negative |
@@ -173,9 +178,11 @@ sheet shows logos and lengths only. TF names and TOMTOM scores are
 hidden.
 
 **Calibration vs evaluation.** Pairs are split **by TFClass family**
-(HOCOMOCO masterlist), so no family appears in both partitions. Pairs
-whose motifs span families go to the partition of the query motif's
-family; cross-partition leakage is reported.
+(HOCOMOCO masterlist), so no family appears in both partitions. The
+split is enforced at the **motif** level: no motif appears in both
+partitions. A pair whose two motifs fall in different partitions is
+excluded from the primary calibration and evaluation and reported as a
+separate cross-family challenge set, with its count.
 - Thresholds are chosen on the calibration partition only.
 - The evaluation partition is run **once**.
 - If labels are too few for a held-out split (< 30 per length bin),
@@ -187,7 +194,8 @@ Choose among a uniform BH q cutoff, a uniform best-alignment
 Pearson-similarity cutoff and length-stratified q. Report per-bin
 sensitivity, specificity and precision with bootstrap 95 % CIs (1,000
 resamples, grouped by family). Min-bin F1 is reported as a secondary
-measure only. Output: `statistical_match_v0.2`, with `v0.1` kept
+measure only. Sensitivity is also reported stratified by P-high
+`label_source`. Output: `statistical_match_v0.2`, with `v0.1` kept
 alongside it.
 
 **Fallback if no human curator is available (pre-specified).** P-high
@@ -196,8 +204,10 @@ no ground truth, so no threshold is selected and `statistical_match_v0.2`
 is **not issued**. `statistical_match_v0.1` (BH q < 0.01, overlap ≥ 60 %)
 stays the operational rule. Step 2 reports, descriptively: P-high
 sensitivity of v0.1 by length bin with grouped-bootstrap CIs, and the
-N-challenge link rate by length bin. Done criterion 3 is then met by
-these descriptive tables. The calibration is reopened when manual
+N-challenge link rate by length bin. The Table 13 recall is not
+generalised to all human motifs, and the N-challenge link rate is not
+called a false-positive rate. Done criterion 3 is then met by these
+descriptive tables. The calibration is reopened when manual
 labels exist.
 
 ## 9. Outputs
@@ -226,11 +236,11 @@ Argos or an O2 sbatch array, following the O2 DUO rules.
    HT-SELEX catalog. Counts reconcile with the source manifests, and
    every exclusion has a flag.
 2. 100 % of motifs have `pma_id`, `source_*`, `assay_class`,
-   `tf_assignment` and `species_basis`. The share with
+   `motif_tf_assignment` and `species_basis`. The share with
    `discovery_dataset_known` is reported for ChIP-derived motifs.
 3. The label sets are built, including the manual review sheet. The
    calibration/evaluation split is frozen, and `statistical_match_v0.2`
    is chosen on the calibration partition and evaluated once, with CIs.
    Without a curator, the §8 fallback tables replace this item.
 4. The whole pipeline reruns from raw with one command and gives
-   identical `matrix_md5` and metadata.
+   identical `raw_matrix_hash`, `normalized_matrix_hash` and metadata.

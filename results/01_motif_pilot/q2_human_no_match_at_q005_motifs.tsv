@@ -1,0 +1,106 @@
+pma_id	name	components_hgnc	is_human	n_components	type	tf_class	length	ic_total	n_hits	n_same_tf_hits	best_target	best_target_tf	best_q	tf_has_codebook_pwm	coverage_class	other_tf_same_codebook_cluster	best_target_any	best_p_any	best_q_any	best_ov_frac_any	near_miss	no_match_group	length_bin
+JA26_MA1966.2	TFAP4::ETV1	TFAP4;ETV1	True	2	HT-SELEX	Basic helix-loop-helix factors (bHLH);Tryptophan cluster factors	13	14.48804533436531	0	0				True	no_match_primary	False	CB26_ZNF311	0.000159939	0.19539803548387097	1.0	False	composite	13-15
+JA26_MA1967.2	TFAP4::FLI1	TFAP4;FLI1	True	2	HT-SELEX	Basic helix-loop-helix factors (bHLH);Tryptophan cluster factors	14	21.015019741224723	0	0				True	no_match_primary	False	CB26_GABPA	0.000177773	0.16383356100000002	1.0	False	composite	13-15
+JA26_MA1958.2	HOXD12::ELK1	HOXD12;ELK1	True	2	HT-SELEX	Homeo domain factors;Tryptophan cluster factors	13	20.57275605058635	0	0				True	no_match_primary	False	CB26_HOXC9_1	0.000775097	0.26539803125	0.8	False	composite	13-15
+JA26_MA0159.1	RARA::RXRA	RARA;RXRA	True	2	COMPILED	Nuclear receptors with C4 zinc fingers	17	16.004318609757807	0	0				True	no_match_primary	False	CB26_RORA_1	9.90133e-05	0.091473595	1.0	False	composite	>15
+JA26_MA0140.3	GATA1::TAL1	GATA1;TAL1	True	2	ChIP-seq	Other C4 zinc finger-type factors;Basic helix-loop-helix factors (bHLH)	17	14.200048492767738	0	0				True	no_match_primary	False	CB26_NFE2L3	0.000540963	0.5259264125	1.0	False	composite	>15
+JA26_MA1960.2	MGA::EVX1	MGA;EVX1	True	2	HT-SELEX	T-Box factors;Homeo domain factors	11	13.843828125818415	0	0				True	no_match_primary	False	CB26_AC092835	0.000115772	0.10675907250000001	1.0	False	composite	11-12
+JA26_MA1934.2	ERF::FIGLA	ERF;FIGLA	True	2	HT-SELEX	Tryptophan cluster factors;Basic helix-loop-helix factors (bHLH)	13	17.986580695645657	0	0				True	no_match_primary	False	CB26_DEAF1_1	4.27823e-05	0.0720881755	1.0	False	composite	13-15
+JA26_MA1941.2	ETV2::FIGLA	ETV2;FIGLA	True	2	HT-SELEX	Tryptophan cluster factors;Basic helix-loop-helix factors (bHLH)	13	15.336349634052848	0	0				True	no_match_primary	False	CB26_GABPA	0.00057009	0.23108464444444443	0.9090909090909091	False	composite	13-15
+JA26_MA1945.2	ETV5::FIGLA	ETV5;FIGLA	True	2	HT-SELEX	Tryptophan cluster factors;Basic helix-loop-helix factors (bHLH)	14	17.375395118174275	0	0				True	no_match_primary	False	CB26_TCF12	0.000434762	0.22115236153846154	0.875	False	composite	13-15
+JA26_MA1936.2	ERF::FOXO1	ERF;FOXO1	True	2	HT-SELEX	Tryptophan cluster factors;Fork head/winged helix factors	12	12.94356728678995	0	0				True	no_match_primary	False	CB26_ETV3L	5.96771e-05	0.057043989999999996	0.9	False	composite	11-12
+JA26_MA1946.2	ETV5::FOXI1	ETV5;FOXI1	True	2	HT-SELEX	Tryptophan cluster factors;Fork head/winged helix factors	12	14.00584851148791	0	0				True	no_match_primary	False	CB26_FOXO4	4.84051e-05	0.05025624833333333	1.0	False	composite	11-12
+JA26_MA1947.2	ETV5::FOXO1	ETV5;FOXO1	True	2	HT-SELEX	Tryptophan cluster factors;Fork head/winged helix factors	10	11.569915283144416	0	0				True	no_match_primary	False	CB26_FOXO4	0.000180258	0.138546766	1.0	False	composite	9-10
+JA26_MA1950.2	FLI1::FOXI1	FLI1;FOXI1	True	2	HT-SELEX	Tryptophan cluster factors;Fork head/winged helix factors	11	12.95587843380004	0	0				True	no_match_primary	False	CB26_ETV3L	0.000139451	0.21252652249999998	0.9	False	composite	11-12
+JA26_MA1937.2	ERF::HOXB13	ERF;HOXB13	True	2	HT-SELEX	Tryptophan cluster factors;Homeo domain factors	13	11.856520153369695	0	0				True	no_match_primary	False	CB26_CDX1_1	0.000488005	0.27210342857142855	0.8888888888888888	False	composite	13-15
+JA26_MA1940.2	ETV2::DRGX	ETV2;DRGX	True	2	HT-SELEX	Tryptophan cluster factors;Homeo domain factors	12	14.021389416167182	0	0				True	no_match_primary	False	CB26_ETV7_1	0.000102639	0.057329878333333334	1.0	False	composite	11-12
+JA26_MA1943.2	ETV2::HOXB13	ETV2;HOXB13	True	2	HT-SELEX	Tryptophan cluster factors;Homeo domain factors	13	15.699132815084749	0	0				True	no_match_primary	False	CB26_ETV2_1	0.000170059	0.12819842923076924	0.8181818181818182	False	composite	13-15
+JA26_MA1944.2	ETV5::DRGX	ETV5;DRGX	True	2	HT-SELEX	Tryptophan cluster factors;Homeo domain factors	12	13.166106660023711	0	0				True	no_match_primary	False	CB26_ETV7_1	0.000120743	0.055695887878787875	1.0	False	composite	11-12
+JA26_MA1948.2	ETV5::HOXA2	ETV5;HOXA2	True	2	HT-SELEX	Tryptophan cluster factors;Homeo domain factors	12	14.061202501123567	0	0				True	no_match_primary	False	CB26_ZNF528_1	6.69207e-05	0.0572736606060606	0.9166666666666666	False	composite	11-12
+JA26_MA1638.2	HAND2	HAND2	True	1	ChIP-seq	Basic helix-loop-helix factors (bHLH)	6	11.062731076987404	0	0				True	no_match_primary	False	CB26_ZBTB18	8.17291e-05	0.13771353349999998	1.0	False	short_le10bp	<=8
+JA26_MA1108.3	MXI1	MXI1	True	1	ChIP-seq	Basic helix-loop-helix factors (bHLH)	6	10.735336544507168	0	0				True	no_match_primary	False	CB26_ZSCAN23	3.57701e-05	0.0602726185	1.0	False	short_le10bp	<=8
+JA26_MA1109.2	NEUROD1	NEUROD1	True	1	ChIP-seq	Basic helix-loop-helix factors (bHLH)	8	11.784757881097653	0	0				True	no_match_primary	False	CB26_TCF24	0.000173012	0.084985334	1.0	False	short_le10bp	<=8
+JA26_MA1642.2	NEUROG2	NEUROG2	True	1	ChIP-seq	Basic helix-loop-helix factors (bHLH)	7	10.780224552710845	0	0				True	no_match_primary	False	CB26_LYL1	0.000203726	0.11442610333333332	1.0	False	short_le10bp	<=8
+JA26_MA0833.3	ATF4	ATF4	True	1	ChIP-seq	Basic leucine zipper factors (bZIP)	10	14.635059610441049	0	0				True	no_match_primary	False	CB26_NFIL3	0.000572754	0.2569673142857143	1.0	False	short_le10bp	9-10
+JA26_MA0836.3	CEBPD	CEBPD	True	1	ChIP-seq	Basic leucine zipper factors (bZIP)	8	11.49770271014487	0	0				True	no_match_primary	False	CB26_CEBPA	0.000298079	0.14765767333333332	1.0	False	short_le10bp	<=8
+JA26_MA1636.2	CEBPG	CEBPG	True	1	ChIP-seq	Basic leucine zipper factors (bZIP)	10	13.299451038999829	0	0				True	no_match_primary	False	CB26_NFIL3	0.000416418	0.21463058200000001	1.0	False	short_le10bp	9-10
+JA26_MA0043.4	HLF	HLF	True	1	ChIP-seq	Basic leucine zipper factors (bZIP)	9	13.09979516588958	0	0				True	no_match_primary	False	CB26_TEF	5.99025e-05	0.07752544583333333	1.0	False	short_le10bp	9-10
+JA26_MA2324.1	BCL11A	BCL11A	True	1	ChIP-seq	C2H2 zinc finger factors	7	9.321947065007834	0	0				True	no_match_primary	False	CB26_ZNF14	7.13738e-05	0.12026485299999999	1.0	False	short_le10bp	<=8
+JA26_MA2504.1	BCL11A	BCL11A	True	1	CUT&RUN	C2H2 zinc finger factors	8	11.86403065841316	0	0				True	no_match_primary	False	CB26_ANHX	0.00286667	1.0	1.0	False	short_le10bp	<=8
+JA26_MA2588.1	FAM200B	ZBED11	True	1	ChIP-seq	C2H2 zinc finger factors	8	11.72433079731756	0	0				True	no_match_primary	False	CB26_FAM200B	3.20979e-05	0.05408496150000001	1.0	False	short_le10bp	<=8
+JA26_MA2341.1	FEZF2	FEZF2	True	1	ChIP-exo	C2H2 zinc finger factors	8	10.616794989112671	0	0				True	no_match_primary	False	CB26_ZNF770	5.70572e-05	0.096141382	1.0	False	short_le10bp	<=8
+JA26_MA1508.2	IKZF1	IKZF1	True	1	ChIP-seq	C2H2 zinc finger factors	8	10.932310435615149	0	0				True	no_match_primary	False	CB26_ZNF84	0.000145999	0.178530805	1.0	False	short_le10bp	<=8
+JA26_MA2326.1	IKZF2	IKZF2	True	1	ChIP-seq	C2H2 zinc finger factors	6	11.232165883498348	0	0				True	no_match_primary	False	CB26_ZNF436	0.000179863	0.19698998	1.0	False	short_le10bp	<=8
+JA26_MA0056.3	MZF1	MZF1	True	1	ChIP-seq	C2H2 zinc finger factors	8	11.139337473004952	0	0				True	no_match_primary	False	CB26_ZNF718	0.000307479	0.22994219473684213	1.0	False	short_le10bp	<=8
+JA26_MA2559.1	NACC2	NACC2	True	1	HT-SELEX	C2H2 zinc finger factors	5	9.239832078475096	0	0				True	no_match_primary	False	CB26_FOXO1	0.000138803	0.233883055	1.0	False	short_le10bp	<=8
+JA26_MA1646.2	OSR2	OSR2	True	1	ChIP-seq	C2H2 zinc finger factors	8	10.19383795351066	0	0				True	no_match_primary	False	CB26_OSR2	0.000372944	0.4140828525	1.0	False	short_le10bp	<=8
+JA26_MA0508.4	PRDM1	PRDM1	True	1	ChIP-seq	C2H2 zinc finger factors	7	11.15739985476181	0	0				True	no_match_primary	False	CB26_ZNF442	0.000133516	0.22497446	1.0	False	short_le10bp	<=8
+JA26_MA2537.1	SALL3	SALL3	True	1	GHT-SELEX	C2H2 zinc finger factors	9	13.499955637718788	0	0				True	no_match_primary	False	CB26_SALL3	0.000272409	0.281875899	1.0	False	short_le10bp	9-10
+JA26_MA2542.1	SCAND3	SCAND3	True	1	GHT-SELEX	C2H2 zinc finger factors	8	11.857722177995353	0	0				True	no_match_primary	False	CB26_ZBED9	4.76397e-05	0.0802728945	1.0	False	short_le10bp	<=8
+JA26_MA2602.1	ZBED5	ZBED5	True	1	ChIP-seq	C2H2 zinc finger factors	8	10.40789376657802	0	0				True	no_match_primary	False	CB26_ZBED5	0.000273281	0.460478485	1.0	False	short_le10bp	<=8
+JA26_MA1649.2	ZBTB12	ZBTB12	True	1	ChIP-seq	C2H2 zinc finger factors	7	10.021349288425096	0	0				True	no_match_primary	False	CB26_ZBTB12	9.84552e-05	0.165897012	1.0	False	short_le10bp	<=8
+JA26_MA1650.2	ZBTB14	ZBTB14	True	1	ChIP-seq	C2H2 zinc finger factors	8	11.217475010641063	0	0				True	no_match_primary	False	CB26_ZNF541	0.000584553	0.6014107711864407	1.0	False	short_le10bp	<=8
+JA26_MA1579.2	ZBTB26	ZBTB26	True	1	ChIP-seq	C2H2 zinc finger factors	8	11.39993001216002	0	0				True	no_match_primary	False	CB26_ZNF600	0.000127974	0.21563618999999998	1.0	False	short_le10bp	<=8
+JA26_MA1581.2	ZBTB6	ZBTB6	True	1	ChIP-seq	C2H2 zinc finger factors	9	11.913249119035992	0	0				True	no_match_primary	False	CB26_ZNF577	0.000170442	0.28719477	1.0	False	short_le10bp	9-10
+JA26_MA0750.4	ZBTB7A	ZBTB7A	True	1	ChIP-seq	C2H2 zinc finger factors	8	10.369873083631578	0	0				True	no_match_primary	False	CB26_ZNF521	0.00023051	0.23175827	1.0	False	short_le10bp	<=8
+JA26_MA2579.1	ZBTB8B	ZBTB8B	True	1	ChIP-seq	C2H2 zinc finger factors	7	10.288404303895078	0	0				True	no_match_primary	False	CB26_ZNF524	0.00027075	0.45621375	1.0	False	short_le10bp	<=8
+JA26_MA2582.1	ZNF121	ZNF121	True	1	ChIP-seq	C2H2 zinc finger factors	10	17.12221369525982	0	0				True	no_match_primary	False	CB26_ZNF549	0.000930991	0.999557627824019	0.9	False	short_le10bp	9-10
+JA26_MA1725.2	ZNF189	ZNF189	True	1	ChIP-seq	C2H2 zinc finger factors	9	12.0411563090487	0	0				True	no_match_primary	False	CB26_ZNF189_1	3.81954e-05	0.064359249	1.0	False	short_le10bp	9-10
+JA26_MA1710.2	ZNF257	ZNF257	True	1	ChIP-exo	C2H2 zinc finger factors	10	13.372914624836191	0	0				True	no_match_primary	False	CB26_ZNF530	0.000558115	0.36411165	1.0	False	short_le10bp	9-10
+JA26_MA1593.2	ZNF317	ZNF317	True	1	ChIP-seq	C2H2 zinc finger factors	8	11.281130050064164	0	0				True	no_match_primary	False	CB26_ZNF317_1	9.22907e-05	0.1051819125	1.0	False	short_le10bp	<=8
+JA26_MA2511.1	ZNF335	ZNF335	True	1	GHT-SELEX	C2H2 zinc finger factors	8	13.561357956147804	0	0				True	no_match_primary	False	CB26_PRDM4_1	0.000617849	0.4852491083333333	1.0	False	short_le10bp	<=8
+JA26_MA1655.2	ZNF341	ZNF341	True	1	ChIP-seq	C2H2 zinc finger factors	8	10.543105364922605	0	0				True	no_match_primary	False	CB26_ZNF677	0.000152006	0.25613010999999997	1.0	False	short_le10bp	<=8
+JA26_MA2333.1	ZNF35	ZNF35	True	1	ChIP-seq	C2H2 zinc finger factors	7	8.653001758721242	0	0				True	no_match_primary	False	CB26_ZNF136	0.00123334	1.0	1.0	False	short_le10bp	<=8
+JA26_MA2552.1	ZNF367	ZNF367	True	1	GHT-SELEX	C2H2 zinc finger factors	9	12.224747256024337	0	0				True	no_match_primary	False	CB26_ZNF367	4.71183e-05	0.056344293749999996	1.0	False	short_le10bp	9-10
+JA26_MA2566.1	ZNF395	ZNF395	True	1	HT-SELEX	C2H2 zinc finger factors	6	8.991303578082473	0	0				True	no_match_primary	False	CB26_ZNF704	4.14753e-05	0.0698858805	1.0	False	short_le10bp	<=8
+JA26_MA1979.2	ZNF416	ZNF416	True	1		C2H2 zinc finger factors	10	12.824948051057117	0	0				True	no_match_primary	False	CB26_TP73	0.00054015	0.8835522166666667	1.0	False	short_le10bp	9-10
+JA26_MA1656.2	ZNF449	ZNF449	True	1	ChIP-seq	C2H2 zinc finger factors	10	13.130671470104073	0	0				True	no_match_primary	False	CB26_ZNF449	3.04814e-05	0.051361158999999997	1.0	False	short_le10bp	9-10
+JA26_MA2495.1	ZNF490	ZNF490	True	1	ChIP-seq	C2H2 zinc finger factors	10	12.825380118777485	0	0				True	no_match_primary	False	CB26_ZNF679	0.000369144	0.31100382	0.9	False	short_le10bp	9-10
+JA26_MA2575.1	ZNF536	ZNF536	True	1	SMiLE-seq	C2H2 zinc finger factors	5	8.644240186283415	0	0				True	no_match_primary	False	CB26_ZFP91	7.89653e-05	0.1330565305	1.0	False	short_le10bp	<=8
+JA26_MA2520.1	ZNF678	ZNF678	True	1	GHT-SELEX	C2H2 zinc finger factors	9	13.598862089976652	0	0				True	no_match_primary	False	CB26_ZNF658	0.000118561	0.199775285	1.0	False	short_le10bp	9-10
+JA26_MA2099.1	ZNF770	ZNF770	True	1	ChIP-seq	C2H2 zinc finger factors	8	11.55504680987194	0	0				True	no_match_primary	False	CB26_ZNF770	0.00025825	0.43515125000000004	1.0	False	short_le10bp	<=8
+JA26_MA2572.1	ZNF827	ZNF827	True	1	HT-SELEX	C2H2 zinc finger factors	5	6.578701139983132	0	0				True	no_match_primary	False	CB26_ZNF773	0.000150778	0.25406093	1.0	False	short_le10bp	<=8
+JA26_MA2336.1	ZSCAN21	ZSCAN21	True	1	ChIP-seq	C2H2 zinc finger factors	7	9.513272083065644	0	0				True	no_match_primary	False	CB26_ZNF615_2	0.000291693	0.43805619	1.0	False	short_le10bp	<=8
+JA26_MA1105.3	GRHL2	GRHL2	True	1	ChIP-seq	Grainyhead domain factors	8	10.979781631973076	0	0				True	no_match_primary	False	CB26_SCRT1	0.000269925	0.1600705066666667	1.0	False	short_le10bp	<=8
+JA26_MA0502.3	NFYB	NFYB	True	1	ChIP-seq	Heteromeric CCAAT-binding factors	9	11.92705734864658	0	0				True	no_match_primary	False	CB26_NFYB_2	7.15359e-05	0.0537331335	1.0	False	short_le10bp	9-10
+JA26_MA0442.3	SOX10	SOX10	True	1	ChIP-seq	High-mobility group (HMG) domain factors	6	10.689217776072608	0	0				True	no_match_primary	False	CB26_SOX4	0.000103053	0.173644305	1.0	False	short_le10bp	<=8
+JA26_MA0143.5	SOX2	SOX2	True	1	ChIP-seq	High-mobility group (HMG) domain factors	7	9.814187927589494	0	0				True	no_match_primary	False	CB26_SOX14	5.84351e-05	0.050942155666666676	1.0	False	short_le10bp	<=8
+JA26_MA0877.4	BARHL1	BARHL1	True	1	CAP-SELEX	Homeo domain factors	6	9.705548165067093	0	0				True	no_match_primary	False	CB26_BARHL1_1	0.000197016	0.33197196	1.0	False	short_le10bp	<=8
+JA26_MA0774.1	MEIS2	MEIS2	True	1	HT-SELEX	Homeo domain factors	8	10.957913841312592	0	0				True	no_match_primary	False	CB26_MEIS1	5.37099e-05	0.0905011815	1.0	False	short_le10bp	<=8
+JA26_MA1640.2	MEIS2	MEIS2	True	1	ChIP-seq	Homeo domain factors	9	11.461529690687613	0	0				True	no_match_primary	False	CB26_POU3F4	0.000169545	0.118885175	1.0	False	short_le10bp	9-10
+JA26_MA0775.2	MEIS3	MEIS3	True	1	HT-SELEX	Homeo domain factors	7	8.85210853564158	0	0				True	no_match_primary	False	CB26_MEIS1	6.23213e-05	0.1050113905	1.0	False	short_le10bp	<=8
+JA26_MA1645.2	NKX2-2	NKX2-2	True	1	ChIP-seq	Homeo domain factors	8	10.645395691951592	0	0				True	no_match_primary	False	CB26_NKX3-1	0.000251056	0.18524097058823527	1.0	False	short_le10bp	<=8
+JA26_MA0063.3	NKX2-5	NKX2-5	True	1	ChIP-seq	Homeo domain factors	7	10.205797525028022	0	0				True	no_match_primary	False	CB26_ZNF302	0.000105896	0.17843476	1.0	False	short_le10bp	<=8
+JA26_MA1113.3	PBX2	PBX2	True	1	ChIP-seq	Homeo domain factors	9	11.710336914687185	0	0				True	no_match_primary	False	CB26_POU3F4	0.000154272	0.11810277333333334	1.0	False	short_le10bp	9-10
+JA26_MA0782.3	PKNOX1	PKNOX1	True	1	ChIP-seq	Homeo domain factors	10	12.209691888319748	0	0				True	no_match_primary	False	CB26_ZNF302	7.75551e-05	0.13068034350000002	1.0	False	short_le10bp	9-10
+JA26_MA1963.2	SATB1	SATB1	True	1		Homeo domain factors	7	11.91352567151594	0	0				True	no_match_primary	False	CB26_HOXA13	0.0010433	0.17277218898305083	1.0	False	short_le10bp	<=8
+JA26_MA0724.1	VENTX	VENTX	True	1	HT-SELEX	Homeo domain factors	9	11.04611871025364	0	0				True	no_match_primary	False	CB26_BARX1_1	0.000125484	0.06510980416666666	0.8888888888888888	False	short_le10bp	9-10
+JA26_MA2327.1	PGR	PGR	True	1	ChIP-seq	Nuclear receptors with C4 zinc fingers	9	10.19574496571445	0	0				True	no_match_primary	False	CB26_NR3C1_2	0.000195975	0.330217875	1.0	False	short_le10bp	9-10
+JA26_MA2557.1	ZGLP1	ZGLP1	True	1	PBM	Other C4 zinc finger-type factors	4	5.796529168808384	0	0				True	no_match_primary	False	CB26_GATA6	5.52932e-05	0.09316904200000001	1.0	False	short_le10bp	<=8
+JA26_MA0014.4	PAX5	PAX5	True	1	ChIP-seq	Paired box factors	8	10.608937246365276	0	0				True	no_match_primary	False	CB26_PAX5	0.000314231	0.11438973541666668	1.0	False	short_le10bp	<=8
+JA26_MA1117.2	RELB	RELB	True	1	ChIP-seq	Rel homology region (RHR) factors	7	9.77177963585122	0	0				True	no_match_primary	False	CB26_NFKB2_1	0.000229336	0.25759100500000004	1.0	False	short_le10bp	<=8
+JA26_MA0684.3	RUNX3	RUNX3	True	1	ChIP-seq	Runt domain factors	8	10.169703057481758	0	0				True	no_match_primary	False	CB26_ZNF135_1	0.00017795	0.21546305625	1.0	False	short_le10bp	<=8
+JA26_MA2540.1	SP140L	SP140L	True	1	GHT-SELEX	SAND domain factors	6	9.371442638174756	0	0				True	no_match_primary	False	CB26_MTF1_1	0.000130361	0.219658285	1.0	False	short_le10bp	<=8
+JA26_MA0161.3	NFIC	NFIC	True	1	ChIP-seq	SMAD/NF-1 DNA-binding domain factors	7	10.50308906711767	0	0				True	no_match_primary	False	CB26_NFIA_2	4.70035e-05	0.07920089749999999	1.0	False	short_le10bp	<=8
+JA26_MA1964.2	SMAD2	SMAD2	True	1		SMAD/NF-1 DNA-binding domain factors	6	10.582326143782824	0	0				False	no_match_primary	False	CB26_HAND1	0.000753185	1.0	1.0	False	short_le10bp	<=8
+JA26_MA2558.1	MSANTD4	MSANTD4	True	1	HT-SELEX	Tryptophan cluster factors	9	11.422452404006984	0	0				True	no_match_primary	False	CB26_MSANTD4	4.48547e-05	0.0755801695	1.0	False	short_le10bp	9-10
+JA26_MA0100.4	MYB	MYB	True	1	ChIP-seq	Tryptophan cluster factors	6	11.056101606017767	0	0				True	no_match_primary	False	CB26_ZNF772	0.000126787	0.213636095	1.0	False	short_le10bp	<=8
+JA26_MA2599.1	TIGD3	TIGD3	True	1	ChIP-seq		8	11.016854278522311	0	0				True	no_match_primary	False	CB26_ZNF146	0.000396862	0.24970520499999999	1.0	False	short_le10bp	<=8
+JA26_MA2560.1	POGK	POGK	True	1	HT-SELEX	C2H2 zinc finger factors	14	24.55225713559247	0	0				True	no_match_primary	False	CB26_POGK	6.02888e-05	0.101586628	1.0	False	single_protein	13-15
+JA26_MA2331.1	ZNF157	ZNF157	True	1	ChIP-seq	C2H2 zinc finger factors	21	23.768182884139247	0	0				True	no_match_primary	False	CB26_ZNF45	0.000590921	0.68353373	1.0	False	single_protein	>15
+JA26_MA2547.1	ZNF215	ZNF215	True	1	GHT-SELEX	C2H2 zinc finger factors	11	14.733359705095433	0	0				True	no_match_primary	False	CB26_ZNF215	4.63595e-05	0.07811575750000001	1.0	False	single_protein	11-12
+JA26_MA2462.1	ZNF250	ZNF250	True	1		C2H2 zinc finger factors	14	16.35384169016799	0	0				True	no_match_primary	False	CB26_ARID3C	0.000268114	0.225886045	1.0	False	single_protein	13-15
+JA26_MA2687.1	ZNF251	ZNF251	True	1	ChIP-seq	C2H2 zinc finger factors	20	23.248551691675907	0	0				True	no_match_primary	False	CB26_ZNF737	0.000570128	0.5121863863636364	1.0	False	single_protein	>15
+JA26_MA0116.2	ZNF423	ZNF423	True	1	ChIP-seq	C2H2 zinc finger factors	13	11.75966263496409	0	0				True	no_match_primary	False	CB26_EBF3	5.08191e-05	0.0856301835	1.0	False	single_protein	13-15
+JA26_MA1712.2	ZNF454	ZNF454	True	1	ChIP-exo	C2H2 zinc finger factors	17	14.943656307590244	0	0				True	no_match_primary	False	CB26_ZFP64	0.000143835	0.242361975	0.9333333333333333	False	single_protein	>15
+JA26_MA2554.1	ZNF471	ZNF471	True	1	GHT-SELEX	C2H2 zinc finger factors	14	16.562137083354017	0	0				True	no_match_primary	False	CB26_ZFP28	6.90882e-05	0.07212263375	1.0	False	single_protein	13-15
+JA26_MA2496.1	ZNF596	ZNF596	True	1	ChIP-seq	C2H2 zinc finger factors	11	12.94581982262944	0	0				True	no_match_primary	False	CB26_ZNF212	0.000131464	0.22151684	1.0	False	single_protein	11-12
+JA26_MA0799.3	RFX4	RFX4	True	1	CAP-SELEX	Fork head/winged helix factors	13	20.005221402165873	0	0				True	no_match_primary	False	CB26_RFX6	0.000224579	0.378415615	1.0	False	single_protein	13-15
+JA26_MA1114.2	PBX3	PBX3	True	1	ChIP-seq	Homeo domain factors	11	12.965683237695965	0	0				True	no_match_primary	False	CB26_ZNF302	0.000729514	0.5915091400000001	1.0	False	single_protein	11-12
+JA26_MA1119.2	SIX2	SIX2	True	1	ChIP-seq	Homeo domain factors	11	12.422206257493883	0	0				True	no_match_primary	False	CB26_ZNF32	4.0169e-05	0.06768476500000001	1.0	False	single_protein	11-12
+JA26_MA1969.2	THRA	THRA	True	1		Nuclear receptors with C4 zinc fingers	18	19.8906451585686	0	0				True	no_match_primary	False	CB26_NR1I3_1	7.60223e-05	0.07311747105263158	1.0	False	single_protein	>15
+JA26_MA1546.2	PAX3	PAX3	True	1	HT-SELEX	Paired box factors	14	14.652606907032812	0	0				True	no_match_primary	False	CB26_POU3F2	0.000470791	0.12996869827586208	1.0	False	single_protein	13-15
+JA26_MA2584.1	DNTTIP1	DNTTIP1	True	1	ChIP-seq	Rel homology region (RHR) factors	11	16.342733001477857	0	0				True	no_match_primary	False	CB26_NRF1	0.00050431	0.551343795	1.0	False	single_protein	11-12
+JA26_MA0154.5	EBF1	EBF1	True	1	ChIP-seq	Rel homology region (RHR) factors	11	12.865464107933704	0	0				True	no_match_primary	False	CB26_EBF1	0.000111112	0.18722372	1.0	False	single_protein	11-12
+JA26_MA0776.1	MYBL1	MYBL1	True	1	HT-SELEX	Tryptophan cluster factors	12	15.28097146141102	0	0				True	no_match_primary	False	CB26_MYBL1	0.000427913	0.28437688833333336	0.7272727272727273	False	single_protein	11-12
+JA26_MA0777.1	MYBL2	MYBL2	True	1	HT-SELEX	Tryptophan cluster factors	15	16.773969143954933	0	0				True	no_match_primary	False	CB26_MYBL1	0.000167951	0.10807421500000002	0.8181818181818182	False	single_protein	13-15

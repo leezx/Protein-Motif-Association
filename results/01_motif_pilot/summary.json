@@ -1,0 +1,92 @@
+{
+  "criterion": {
+    "q": 0.01,
+    "overlap_frac_of_shorter": 0.6,
+    "q_family": "per-query BH over all targets (not a global FDR)"
+  },
+  "tomtom_universe": {
+    "jaspar_vs_codebook": {
+      "expected_pairs": 1717015,
+      "observed_pairs": 1717015,
+      "unique_queries": 1019,
+      "unique_targets": 1685
+    },
+    "codebook_vs_codebook": {
+      "expected_pairs": 2839225,
+      "observed_pairs": 2839225,
+      "unique_queries": 1685,
+      "unique_targets": 1685
+    }
+  },
+  "inputs": {
+    "codebook_pwms": 1685,
+    "codebook_tfs": 1421,
+    "codebook_direct": 1505,
+    "codebook_inferred": 180,
+    "jaspar_nr": 1019,
+    "jaspar_human": 857,
+    "jaspar_heterodimer": 77
+  },
+  "q1_tf_coverage": {
+    "jaspar_human_component_tfs": 762,
+    "with_any_codebook_pwm": 759,
+    "with_direct_codebook_pwm": 732
+  },
+  "q1_motif_coverage": {
+    "human": {
+      "same_TF": 565,
+      "no_match_primary": 177,
+      "other_TF_only": 115
+    },
+    "nonhuman": {
+      "same_TF": 69,
+      "no_match_primary": 49,
+      "other_TF_only": 44
+    }
+  },
+  "q1_q2_refined_human": {
+    "other_TF_same_Codebook_cluster": 51,
+    "other_TF_different_Codebook_cluster": 64,
+    "no_match_primary_near_miss_q_lt_0_05": 72,
+    "no_match_at_q_0_05": 105,
+    "no_match_at_q_0_05_by_group": {
+      "short_le10bp": 69,
+      "composite": 18,
+      "single_protein": 18
+    }
+  },
+  "q2_multi_motif_tfs": {
+    "n_tfs": 35,
+    "n_motifs": 76,
+    "tfs_with_unmatched_motif": 15,
+    "tfs_all_motifs_same_best": 14
+  },
+  "q3": {
+    "edge_rule": "either",
+    "n_edges": 10191,
+    "n_clustered_pwms": 1652,
+    "n_clusters": 613,
+    "within_pairs": 33823,
+    "within_matched_frac": 0.2606214705969311,
+    "between_pairs": 1329903,
+    "between_matched_frac": 0.0009940574613336462,
+    "between_matched_n": 1322,
+    "frac_edges_crossing_clusters": 0.13041333727927396,
+    "jaspar_multi_hit_queries": 640,
+    "jaspar_multi_hit_single_cluster_frac": 0.4921875
+  },
+  "q3_both_directions": {
+    "edge_rule": "both",
+    "n_edges": 8015,
+    "n_clustered_pwms": 1652,
+    "n_clusters": 613,
+    "within_pairs": 33823,
+    "within_matched_frac": 0.21414422138781303,
+    "between_pairs": 1329903,
+    "between_matched_frac": 0.0005504160829774803,
+    "between_matched_n": 732,
+    "frac_edges_crossing_clusters": 0.09178683385579937,
+    "jaspar_multi_hit_queries": 640,
+    "jaspar_multi_hit_single_cluster_frac": 0.4921875
+  }
+}

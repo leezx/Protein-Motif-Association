@@ -1,0 +1,12 @@
+type	no_match_primary	other_TF_only
+CAP-SELEX	2	6
+COMPILED	2	0
+CUT&RUN	1	0
+ChIP-exo	3	0
+ChIP-seq	98	44
+GHT-SELEX	15	3
+HT-SELEX	45	36
+HT-SELEX, Methyl-HT-SELEX	0	3
+PBM	2	1
+SELEX	0	4
+SMiLE-seq	1	14

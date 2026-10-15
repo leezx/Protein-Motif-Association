@@ -51,7 +51,9 @@ repeat what they already say, only what's specific to this pattern.
   compare peak overlap, summit-centered enrichment, matched genomic
   background and within-biosample specificity; decide primary vs.
   auxiliary estimators and independent validation.
-- **ChatGPT review conversation**: `TBD — set on first PR`.
+- **ChatGPT review conversation**: ChatGPT project **RA-Xiaolu** → conversation "PMA项目",
+  https://chatgpt.com/g/g-p-6a70c0b8e77c81919ffc6390e12eacb0/c/6acfe12c-a128-83ea-8465-9bf5feca5a0b
+  (set 2026-10-14; reuse for every PR).
 - **Compute location**: `TBD`.
 
 ---

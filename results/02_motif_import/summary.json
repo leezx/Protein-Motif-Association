@@ -1,11 +1,12 @@
 {
-  "n_motifs": 23241,
-  "n_in_meme": 22238,
-  "n_links": 28929,
-  "n_tf_hgnc_any": 1769,
+  "n_motifs": 29941,
+  "n_in_meme": 28938,
+  "n_links": 35629,
+  "n_tf_hgnc_any": 1771,
   "unmapped_links": {
     "CisBP": 11,
     "Codebook": 3,
+    "Factorbook": 18,
     "JASPAR": 383
   },
   "exact_dup_motifs": 1500,

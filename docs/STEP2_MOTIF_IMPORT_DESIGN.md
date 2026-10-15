@@ -33,7 +33,7 @@ Raw files are under `$BIO_DATA/2.PROJECTS/PMA/motif_reference/raw/<source>/2026-
 | HOCOMOCO | v14 (website final bundle) | H14CORE | 1,595 (1,107 TFs) | quality A–D; 240 built from mouse data; v14 already includes Codebook/MEX-derived motifs. There is no versioned Zenodo record for v14, so the fetch date is the version anchor. |
 | CisBP | 3.10 (updated 2026-04-26) | human, all motifs | 7,434 IDs (1,407 TFs) | TF–motif links: 6,430 direct, 6,202 inferred; 1,003 Transfac motifs have **no matrix** (license) |
 | Factorbook | fetched 2026-10-14 | ChIP-seq MEME catalog | 10,477 | ENCODE experiment and file accession, target, biosample |
-| Factorbook | — | HT-SELEX ZMotif catalog | 6,700 | `source_status = deferred`: factorbook.org returns HTTP 429 to scripts. Incremental import is kept open. |
+| Factorbook | downloaded 2026-10-15 | HT-SELEX ZMotif catalog | 6,700 | Downloaded manually in a browser after factorbook.org returned HTTP 429 to scripts (amendment 2026-10-15). Motif IDs are ENA run accessions. TF, ligand and batch come from ENA run reports for PRJEB9797 (Yin 2017) and PRJEB3289 (Jolma 2013); all runs resolve. |
 
 The v0.2 raw layer is a **snapshot of the sources available on
 2026-10-14**. It is not a claim of a complete human motif collection.
@@ -51,8 +51,15 @@ Source-file caveats found during fetch:
 ## 3. Motif identity (frozen)
 
 - `pma_id` = `<SRC>_<source_motif_id>`, where SRC ∈ {CB26, JA26, JU26,
-  HO14, CI310, FBC}. JU26 marks JASPAR UNVALIDATED; FBC marks Factorbook
-  ChIP. The ID is stable across rebuilds of the same source version.
+  HO14, CI310, FBC, FBS}. JU26 marks JASPAR UNVALIDATED; FBC marks
+  Factorbook ChIP; FBS marks Factorbook HT-SELEX. The ID is stable across
+  rebuilds of the same source version.
+- **SELEX experiment key** (amendment 2026-10-15, implements §5):
+  `SELEX:<publication>.<ligand>.<batch>` for Yin 2017 and Jolma 2013.
+  It is derived from ENA sample aliases (Factorbook) and from HOCOMOCO
+  `origin`, so motifs from the same SELEX experiment carry the same
+  experiment ID across sources. All cycles of one experiment share a
+  key.
 - Each motif also stores `source_db`, `source_version`, `fetch_date`,
   `source_motif_id`, `source_file` and `source_status`.
 - **Hash semantics:**
@@ -271,9 +278,8 @@ Argos or an O2 sbatch array, following the O2 DUO rules.
 
 ## 11. Done criteria (Step 2)
 
-1. Every source in §2 is imported, except the deferred Factorbook
-   HT-SELEX catalog. Counts reconcile with the source manifests, and
-   every exclusion has a flag.
+1. Every source in §2 is imported. Counts reconcile with the source
+   manifests, and every exclusion has a flag.
 2. 100 % of motifs have `pma_id`, `source_*`, `assay_class`,
    `motif_tf_assignment` and `species_basis`. The share with
    `discovery_dataset_known` is reported for ChIP-derived motifs.

@@ -205,6 +205,8 @@ def hocomoco_experiment(name, origin, dtype):
         return f"GTRD:{origin}", "", ""
     if CODENAME.search(name):
         return f"CODEBOOK:{origin}", "Codebook", ""
+    if re.match(r"^(Yin2017|Jolma2013)\.", origin):
+        return selex_key(*origin.split(".")[:3]), "", ""
     if re.match(r"^(Yin|Jolma|Yang)\d{4}\.", origin):
         return f"{origin.split('.')[0]}:{origin}", "", ""
     return f"HOCOMOCO_origin:{origin}", "", ""
@@ -308,6 +310,49 @@ def import_factorbook(b):
     return t
 
 
+# ---- Factorbook HT-SELEX (ZMotif) ----------------------------------------
+
+SELEX_PUB = {"PRJEB9797": ("Yin2017", "PMID:28473536"), "PRJEB3289": ("Jolma2013", "PMID:23332764")}
+LIGAND = re.compile(r"^[ACGT]*\d+N[ACGT]*$")
+
+
+def selex_key(pub, ligand, batch):
+    """Experiment-series key shared by ENA aliases and HOCOMOCO origins:
+    publication + SELEX ligand + batch (all cycles of one experiment)."""
+    return f"SELEX:{pub}.{ligand.upper()}.{batch.upper()}"
+
+
+def parse_alias(alias):
+    t = alias.split("_")
+    lig = next(x for x in t if LIGAND.match(x))
+    batch = next((x for x in t[1:] if re.fullmatch(r"[A-Z]{1,3}", x)), "")
+    cyc = next((x for x in t[1:] if x.isdigit()), "")
+    return t[0], lig, batch, cyc
+
+
+def import_factorbook_selex(b):
+    ena = pd.concat([pd.read_csv(FB / f"ena_read_run_{s}.tsv", sep="\t", dtype=str) for s in SELEX_PUB])
+    ena = ena.drop_duplicates("run_accession").set_index("run_accession")
+    for run, _alt, raw in pm.read_meme(FB / "unpacked" / "all-selex-motifs.meme"):
+        r = ena.loc[run]  # KeyError = unresolved run; all 6,700 resolve
+        tf, lig, batch, cyc = parse_alias(r.sample_alias)
+        pub, pmid = SELEX_PUB[r.study_accession]
+        assay = "Methyl-HT-SELEX" if str(r.sample_title).startswith("mHT-SELEX") else "HT-SELEX"
+        # Jolma 2013 includes mouse proteins, named in mouse case (e.g. Msx3)
+        species = "mouse_ortholog" if re.search(r"[a-z]", tf) else "human"
+        basis, direct = pm.evidence("in_vitro_selection")
+        b.add(f"FBS_{run}", raw, dict(
+            **base("Factorbook", "2026-10-15", "HT-SELEX_ZMotif", run, "all-selex-motifs.meme"),
+            motif_name=tf, assay_raw=assay, assay_class="in_vitro_selection", assayed_target=tf,
+            assignment_basis=basis, direct_binding_evidence=direct, source_link_status="",
+            species_basis=species, species_raw=r.scientific_name, source_quality="",
+            is_composite=False, n_components=1, components_hgnc="", publication=pmid,
+            source_identifier=r.sample_alias,
+            experiment_ids=f"ENA:{run};{selex_key(pub, lig, batch)}",
+            selex_cycle=cyc, derived_from=""),
+            [(tf, "")])
+
+
 # ---- curation labels (Codebook Supp. Tables 13 and 16) --------------------
 
 def artifact_ids():
@@ -354,6 +399,7 @@ def main():
     import_hocomoco(b, arts)
     import_cisbp(b)
     fb = import_factorbook(b)
+    import_factorbook_selex(b)
     md = pd.DataFrame(b.rows)
     assert md.pma_id.is_unique, md.pma_id[md.pma_id.duplicated()].tolist()[:5]
 
@@ -368,7 +414,7 @@ def main():
     # record ID, which names the experiment series but is not an accession.
     eid = md.experiment_ids.fillna("")
     md["experiment_identity"] = np.select(
-        [eid == "", eid.str.match(r"^(ENCODE|GTRD|CODEBOOK):")],
+        [eid == "", eid.str.match(r"^(ENCODE|GTRD|CODEBOOK|ENA|SELEX):")],
         ["unknown", "accession"], "publication_record")
     occ = md.assay_class == "in_vivo_occupancy"
     md["discovery_dataset_known"] = np.where(occ, md.discovery_dataset.fillna("") != "", pd.NA)

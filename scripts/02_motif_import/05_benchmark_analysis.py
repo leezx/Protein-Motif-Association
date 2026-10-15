@@ -61,7 +61,7 @@ def boot_ci(x, groups, rng):
 
 def rate_table(p, by, rng):
     rows = []
-    for key, g in p.groupby(by, sort=False):
+    for key, g in p.groupby(by, sort=False, observed=True):
         key = key if isinstance(key, tuple) else (key,)
         e, b = match(g)
         for rule, v in (("either", e), ("both", b)):
@@ -79,8 +79,9 @@ def main():
     t_bin = rate_table(p, ["set", "len_bin"], rng)
     t_all = rate_table(p, ["set"], rng)
     t_part = rate_table(p[p.set != "P_high"], ["set", "partition"], rng)
-    t_src = rate_table(p[p.set == "P_provisional"].assign(
-        src_pair=[" vs ".join(sorted(x)) for x in zip(p.src1, p.src2)]), ["src_pair"], rng)
+    pp = p[p.set == "P_provisional"]
+    t_src = rate_table(pp.assign(
+        src_pair=[" vs ".join(sorted(x)) for x in zip(pp.src1, pp.src2)]), ["src_pair"], rng)
     # cutoff sensitivity (descriptive only; not threshold selection)
     grid = []
     for q in (0.001, 0.01, 0.05):

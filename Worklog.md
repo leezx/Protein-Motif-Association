@@ -9,7 +9,7 @@ see `PR/_TEMPLATE/WORKLOG_TEMPLATE.md`.
 |---|---|---|---|
 | 0. Scope freeze (v0.2) + repo init | closed | — | design/PMA_pseudo_figures_v0.2.md |
 | 1. Motif reference pilot (Codebook vs JASPAR) | merged | #1 | docs/STEP1_MOTIF_PILOT_RESULTS.md |
-| 2. Multi-source motif import + QC + calibration benchmark | done; results in review; awaiting user merge confirmation | #2 (draft) | docs/STEP2_MOTIF_IMPORT_RESULTS.md; §8 fallback (no curator), v0.1 stays operational |
+| 2. Multi-source motif import + QC + calibration benchmark | APPROVED (results round 2); awaiting user merge confirmation | #2 (draft) | docs/STEP2_MOTIF_IMPORT_RESULTS.md; §8 fallback (no curator), v0.1 stays operational |
 | 3. Motif clustering + CORE/EXTENDED | not started | — | |
 | 4. Motif reference QC + freeze v0.1 (gates G1–G4) | not started | — | |
 | 5. Statistical Framework v0.1 design | not started | — | core association risk |
@@ -111,6 +111,10 @@ merge conditions, each verified in the code and fixed in b091c88:
 - F2/F3: N-challenge and CI wording narrowed to the sampled benchmark.
 - F4: query-set and row-count assertions.
 
-**Next**: re-review of b091c88; user merge confirmation for PR #2;
+Round 2 (b091c88): APPROVE. Non-blocking: F8 CIs stay descriptive; F9
+Step 3 must not treat v0.1 as a calibrated equivalence classifier (check
+short motifs, composites, large clusters and threshold sensitivity).
+
+**Next**: user merge confirmation for PR #2;
 Step 3 compute location. Unresolved pairs must not count as independent
 replication in later evidence grading.

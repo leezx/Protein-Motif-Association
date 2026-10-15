@@ -1,13 +1,13 @@
 set	partition	rule	n	n_match	rate	ci_lo	ci_hi
-N_challenge	cross_family	either	285	18	0.063	0.024	0.108
-N_challenge	cross_family	both	285	9	0.032	0.009	0.062
-N_challenge	calibration	either	162	4	0.025	0.0	0.068
-N_challenge	calibration	both	162	3	0.019	0.0	0.061
+N_challenge	cross_family	either	285	18	0.063	0.024	0.11
+N_challenge	cross_family	both	285	9	0.032	0.009	0.063
+N_challenge	calibration	either	162	4	0.025	0.0	0.064
+N_challenge	calibration	both	162	3	0.019	0.0	0.064
 N_challenge	evaluation	either	53	2	0.038	0.0	0.078
 N_challenge	evaluation	both	53	0	0.0	0.0	0.0
-P_provisional	calibration	either	345	248	0.719	0.628	0.791
-P_provisional	calibration	both	345	229	0.664	0.559	0.747
-P_provisional	evaluation	either	154	105	0.682	0.591	0.774
-P_provisional	evaluation	both	154	94	0.61	0.506	0.719
-P_provisional	unassigned	either	1	1	1.0	1.0	1.0
-P_provisional	unassigned	both	1	1	1.0	1.0	1.0
+P_provisional	calibration	either	345	248	0.719	0.614	0.797
+P_provisional	calibration	both	345	229	0.664	0.56	0.749
+P_provisional	evaluation	either	154	105	0.682	0.597	0.774
+P_provisional	evaluation	both	154	94	0.61	0.5	0.721
+P_provisional	unassigned	either	1	1	1.0		
+P_provisional	unassigned	both	1	1	1.0		

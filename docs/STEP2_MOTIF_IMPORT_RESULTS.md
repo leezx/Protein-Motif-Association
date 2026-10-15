@@ -141,30 +141,37 @@ independent agreement.
   pair's length bin is set by its shorter motif.
 - 1,740 query motifs, each compared with all 28,938 raw-layer motifs
   (TOMTOM 5.5.9, Step 1 arguments). BH is applied per query over the full
-  universe, which is asserted complete for every query.
-- Output: 2,038 directed rows, both directions for all 1,019 pairs.
+  universe. `bh_extract.py` asserts 28,938 distinct targets per query (the
+  MEME file has 28,938 unique IDs). `05_benchmark_analysis.py` asserts
+  that the TOMTOM query set equals `benchmark_queries.txt` and that the
+  output holds exactly 2 × 1,019 distinct directed rows. All checks pass.
+  The distinct-target assertion was added after the run; it follows from
+  the asserted per-query count, no duplicates, and unique target IDs.
 - Rule `statistical_match_v0.1`: q < 0.01 and overlap ≥ 60 % of the
   shorter motif. "Either" means at least one direction passes; "both"
   means both directions pass.
-- 95 % CIs: bootstrap grouped by family pair (1,000 resamples, seed
-  20261015).
+- 95 % CIs: bootstrap clustered by family pair (1,000 resamples, seed
+  20261015). They describe this sampled benchmark only (100 pairs per
+  length bin, ≤ 3 per TF pair), not the population of all motif pairs.
+  They do not capture dependence through TFs or motifs shared across
+  family pairs. Groups with n < 5 get no CI.
 
 ### v0.1 link rates (`results/02_motif_import/benchmark_v01_by_length.tsv`)
 
 | Set | n | Either | 95 % CI | Both | 95 % CI |
 |---|---|---|---|---|---|
 | P-high (Codebook Table 13 consistent/ok) | 19 | 0.737 | 0.33–1.00 | 0.579 | 0.00–0.73 |
-| P-provisional (same TF, independent sources) | 500 | 0.708 | 0.63–0.77 | 0.648 | 0.56–0.72 |
+| P-provisional (same TF, different sources; independence mostly unresolved) | 500 | 0.708 | 0.64–0.77 | 0.648 | 0.56–0.72 |
 | N-challenge (different superclass, shared 5-mer) | 500 | 0.048 | 0.02–0.08 | 0.024 | 0.01–0.05 |
 
 By length bin (either direction):
 
 | Shorter motif | P-provisional | N-challenge |
 |---|---|---|
-| ≤ 8 | 0.56 (0.46–0.64) | 0.15 (0.07–0.22) |
-| 9–10 | 0.67 (0.54–0.78) | 0.01 (0.00–0.03) |
-| 11–12 | 0.72 (0.59–0.84) | 0.06 (0.00–0.14) |
-| 13–15 | 0.77 (0.62–0.87) | 0.01 (0.00–0.03) |
+| ≤ 8 | 0.56 (0.47–0.64) | 0.15 (0.07–0.22) |
+| 9–10 | 0.67 (0.55–0.77) | 0.01 (0.00–0.03) |
+| 11–12 | 0.72 (0.58–0.85) | 0.06 (0.00–0.14) |
+| 13–15 | 0.77 (0.61–0.87) | 0.01 (0.00–0.03) |
 | > 15 | 0.82 (0.74–0.89) | 0.01 (0.00–0.03) |
 
 - **Short motifs drive both weaknesses.** At ≤ 8 bp, v0.1 links 15 % of
@@ -185,13 +192,50 @@ By length bin (either direction):
 - **By source pair (F10).** The P-provisional either-rate ranges from
   0.56 (CisBP vs JASPAR, n = 18) to 0.84 (Factorbook vs HOCOMOCO,
   n = 43). CisBP vs Factorbook has the most pairs (n = 252, 0.66). Some
-  of those may be the same Yin 2017 experiment (see Limitations). See
+  of those may be the same Yin 2017 experiment (see below). See
   `benchmark_v01_pprov_by_source_pair.tsv`.
+
+### Experiment independence of P-provisional pairs (results review F1)
+
+Pair selection excluded only pairs with a *known* shared experiment, so
+"different source records" does not mean "independent experiments".
+Each pair now carries an `independence_status`
+(`benchmark_pair_independence.tsv`):
+- `confirmed_distinct` when both motifs carry an experiment-level SELEX
+  key (`publication.ligand.batch`) and the keys differ;
+- `known_shared` when an experiment ID is shared (0 pairs; excluded by
+  construction);
+- `independence_unresolved` otherwise, i.e. when either motif has an
+  unknown or only TF-level identity.
+
+Most P-provisional pairs are Yin 2017 / Jolma 2013 HT-SELEX motifs
+re-derived by several databases, so independence is rarely resolvable.
+See `benchmark_v01_pprov_by_independence.tsv`.
+
+| Status | Publications | n | Either | 95 % CI |
+|---|---|---|---|---|
+| confirmed_distinct | all | 36 | 0.83 | 0.69–0.95 |
+| independence_unresolved | all | 464 | 0.70 | 0.63–0.76 |
+| independence_unresolved | same publication | 241 | 0.76 | 0.67–0.83 |
+| independence_unresolved | different publications | 153 | 0.60 | 0.51–0.67 |
+| independence_unresolved | publication unknown | 70 | 0.71 | 0.59–0.81 |
+
+- The 36 confirmed-distinct pairs are all Factorbook SELEX vs HOCOMOCO
+  pairs with different SELEX experiments.
+- Among unresolved pairs, those from the same publication link more
+  often than those from different publications (0.76 vs 0.60). This is
+  consistent with shared underlying experiments inflating the rate, but
+  is not proof of it.
+- The P-provisional rate therefore measures same-TF agreement between
+  database records. It is not independent cross-experiment
+  reproducibility, and the unresolved pairs must not be used as
+  independent replication in later evidence grading.
 
 ### What the N-challenge links are
 
-21 of the 24 N-challenge links are plausible shared specificities across
-superclasses, not spurious hits:
+In this sampled challenge set, v0.1 links 24 of 500 pairs. By manual
+reading, not verification, 21 of the 24 look like plausible shared
+sequence patterns across superclasses:
 - CAGGTG E-boxes: SNAI1/2/3 against TCF4 and FIGLA (6).
 - MyoD-family CAGCTG sites against the TGACAG(CTGTCA) sites of the TALE
   homeodomains MEIS2, PKNOX1 and TGIF1 (4).
@@ -203,13 +247,20 @@ superclasses, not spurious hits:
 
 The other 3 are RFX3 vs NFATC4, ETV2 vs ZNF140 and E2F2 vs SOX10.
 
-So the N-challenge link rate is an upper bound on cross-class
-similarity, not a false-positive rate. Only curator labels can separate
-true from false links.
+Some of these share only a short core (for example, CAGCTG within the
+longer TALE site), so a match is not full motif equivalence. The
+observed link rate describes similarity detected by the v0.1 rule
+within this sampled challenge set. It is neither a false-positive rate
+nor a specificity, and it is not a bound for cross-superclass pairs in
+general: it depends on length matching, the shared-5-mer requirement,
+sampling and v0.1's own misses. Only curator labels can separate true
+from false links.
 
 ### P-high (`benchmark_p_high_pairs.tsv`)
 
-- 14 of 19 pairs link (either direction).
+- 14 of 19 pairs link (either direction). This is a small sanity
+  check, not v0.1's sensitivity. Most length bins hold 1–7 pairs; bins
+  with n < 5 get no CI.
 - All 7 pairs with a shorter motif > 15 bp link.
 - The 5 non-links:
   - two ZXDB pairs and one DACH1 pair (p ≥ 9e-5; the Factorbook ChIP
@@ -233,11 +284,14 @@ true from false links.
 
 ### Limitations
 
-- P-provisional cannot exclude Factorbook SELEX vs CisBP pairs that come
-  from one Yin 2017 experiment. CisBP gives only a TF-level record ID,
-  so the SELEX key cannot be matched. Such pairs inflate the CisBP vs
-  Factorbook rate.
+- 464 of 500 P-provisional pairs have unresolved independence (see
+  above). CisBP and Codebook give only TF-level record IDs, so their
+  copies of Yin 2017 / Jolma 2013 experiments cannot be matched by
+  SELEX key.
 - P-high is small (19 pairs), so its CIs span most of [0, 1].
-- The CIs treat family pairs as independent. They do not account for
-  TFs that appear in several pairs. Sampling allows at most 3 pairs per
-  TF pair.
+- CIs are clustered by family pair only (see Set-up).
+- Reproducibility is shown only for the frozen raw inputs in the same
+  environment: identical md5s on rerun and 9 passing tests. It is not
+  shown across operating systems, library versions or re-downloads. A
+  release will record input checksums, software versions and an
+  environment lock (Step 4).

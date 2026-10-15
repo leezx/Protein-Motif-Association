@@ -27,6 +27,7 @@ def main(path, n_targets, pairs_path, out):
                     usecols=["Query_ID", "Target_ID", "Optimal_offset", "p-value", "Overlap", "Orientation"])
     size = t.groupby("Query_ID").size()
     assert (size == n_targets).all(), f"{path}: incomplete universe {size[size != n_targets].head()}"
+    assert t.Target_ID.nunique() == n_targets, f"{path}: target set size != {n_targets}"
     assert not t.duplicated(["Query_ID", "Target_ID"]).any(), f"{path}: duplicate pairs"
     assert t["p-value"].between(0, 1).all(), f"{path}: p out of range"
     p = t["p-value"].to_numpy(float)

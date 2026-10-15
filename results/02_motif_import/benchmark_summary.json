@@ -14,5 +14,10 @@
     "P_high": 0.579,
     "P_provisional": 0.648
   },
+  "pprov_independence": {
+    "independence_unresolved": 464,
+    "confirmed_distinct": 36
+  },
+  "ci_note": "family-pair clustered bootstrap for the sampled benchmark; not population uncertainty; no CI when n < 5",
   "statistical_match_v02": "not issued (no curator labels; design \u00a78 fallback)"
 }

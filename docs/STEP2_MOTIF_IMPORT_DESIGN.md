@@ -190,6 +190,16 @@ resamples, grouped by family). Min-bin F1 is reported as a secondary
 measure only. Output: `statistical_match_v0.2`, with `v0.1` kept
 alongside it.
 
+**Fallback if no human curator is available (pre-specified).** P-high
+is Table 13 only (35 pairs) and N-high is empty. Specificity then has
+no ground truth, so no threshold is selected and `statistical_match_v0.2`
+is **not issued**. `statistical_match_v0.1` (BH q < 0.01, overlap ≥ 60 %)
+stays the operational rule. Step 2 reports, descriptively: P-high
+sensitivity of v0.1 by length bin with grouped-bootstrap CIs, and the
+N-challenge link rate by length bin. Done criterion 3 is then met by
+these descriptive tables. The calibration is reopened when manual
+labels exist.
+
 ## 9. Outputs
 
 - **Processed** (`processed/v0.2_raw_layer/`):
@@ -221,5 +231,6 @@ Argos or an O2 sbatch array, following the O2 DUO rules.
 3. The label sets are built, including the manual review sheet. The
    calibration/evaluation split is frozen, and `statistical_match_v0.2`
    is chosen on the calibration partition and evaluated once, with CIs.
+   Without a curator, the §8 fallback tables replace this item.
 4. The whole pipeline reruns from raw with one command and gives
    identical `matrix_md5` and metadata.

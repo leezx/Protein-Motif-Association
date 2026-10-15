@@ -101,5 +101,16 @@ layer, and a description of how the v0.1 match rule behaves.
 9 tests pass. Bug fixed in `05_benchmark_analysis.py` before any output
 was written (source-pair labels were built from the full table).
 
-**Next**: ChatGPT review of results; user merge confirmation for PR #2;
-Step 3 compute location.
+**Review**: ChatGPT results review round 1 (14c5215): REQUEST CHANGES, 3
+merge conditions, each verified in the code and fixed in b091c88:
+- F1 (P1): P-provisional excluded only *known* shared experiments.
+  Per-pair `independence_status` gives 36/500 confirmed distinct (all
+  Factorbook SELEX vs HOCOMOCO, 0.83); 464 unresolved. Unresolved
+  same-publication pairs link more than different-publication pairs
+  (0.76 vs 0.60).
+- F2/F3: N-challenge and CI wording narrowed to the sampled benchmark.
+- F4: query-set and row-count assertions.
+
+**Next**: re-review of b091c88; user merge confirmation for PR #2;
+Step 3 compute location. Unresolved pairs must not count as independent
+replication in later evidence grading.

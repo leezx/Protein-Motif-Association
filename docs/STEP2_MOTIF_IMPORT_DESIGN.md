@@ -210,6 +210,45 @@ called a false-positive rate. Done criterion 3 is then met by these
 descriptive tables. The calibration is reopened when manual
 labels exist.
 
+### 8.1 Benchmark implementation (amendment 2026-10-15, after import, before any TOMTOM)
+
+The import showed that Table 13 resolves only partly to the raw layer.
+Its 14 HOCOMOCO **v12** IDs do not exist in v14, so 21 of the 35
+consistent/ok rows map: 17 Factorbook and 4 JASPAR. The rules below
+were fixed before any benchmark similarity was computed.
+
+- **Universe.** Targets are the whole v0.2 raw layer (all motifs in
+  `PMA_motifs_raw.meme`). Every motif in a benchmark pair is a query,
+  and BH is per query over all targets, with self-pairs inside the
+  family (the Step 1 convention). Undirected pairs are reported under
+  both rules, `either` and `both` directions.
+- **Eligible motifs** for P-provisional and N-challenge are monomers
+  with `direct_binding_evidence = supported`, `species_basis = human`,
+  no `derived_from` record, and no QC flag other than `low_ic`.
+- **P-provisional** pairs come from different source databases. They
+  must not share an `exact_dup_group` or `rounded_equiv_group`, and must
+  not share a recorded experiment ID. A pair where one side has no
+  recorded experiment ID is allowed, since independence is then
+  unverified rather than refuted.
+- **N-challenge.** TFClass superclass comes from the HOCOMOCO v14
+  masterlist via HGNC. The IUPAC consensus uses standard rules: a base
+  with p ≥ 0.6; a two-base code when the pair sums to ≥ 0.75 and each is
+  ≥ 0.25; otherwise N. A shared 5-mer has no N and is matched in either
+  orientation.
+- **Sampling.** The length bin is that of the shorter motif. P-high
+  keeps every pair. P-provisional and N-challenge each draw up to 100
+  pairs per length bin, at most 3 pairs per TF pair, with seed
+  20261015.
+- **Family partition.** A motif's family is the TFClass family of its
+  first HGNC TF. A family goes to calibration if the last hex digit of
+  `sha1(family)` is even, and to evaluation otherwise. A motif with no
+  family goes to neither partition. Pairs whose motifs fall in
+  different partitions form the cross-family challenge set.
+- **Manual review sheet.** 20 pairs per length bin each from
+  P-provisional and N-challenge, 200 in total. The pairs are shuffled
+  and the sheet shows logos only, with both orientations of the second
+  motif. The answer key is a separate file.
+
 ## 9. Outputs
 
 - **Processed** (`processed/v0.2_raw_layer/`):

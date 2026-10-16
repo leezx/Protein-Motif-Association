@@ -11,3 +11,4 @@ S=$PMA_MOTIF_RESULT/step3_motif_clustering
 bash "$S/tomtom/02_run_tomtom.sh" "$S/tomtom" finalize
 "$PY" -I 03_build_edges.py
 "$PY" -I 09_representatives.py
+"$PY" -I 11_validate.py

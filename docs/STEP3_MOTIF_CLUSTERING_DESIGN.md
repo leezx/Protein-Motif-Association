@@ -190,3 +190,39 @@ QC report and grid tables: `docs/STEP3_MOTIF_CLUSTERING_RESULTS.md`,
 5. Unit tests for the similarity score, floor splitting, representative
    ranking and tier rules pass.
 6. Two runs from the same TOMTOM edges give identical checksums.
+
+## 6. Review round 2 (ChatGPT, 37914c8: APPROVE) and implementation notes
+
+Pre-compute approval granted; F24–F27 become assertions/tests, F28 is
+wording.
+- **F24 node identity.** Verified: Step 2 `normalized_matrix_hash` is
+  orientation-specific, so `exact_dup_group` misses reverse-complement
+  duplicates. Nodes use key = min(sha1(m), sha1(revcomp(m))) of the
+  matrix as written in `PMA_motifs_raw.meme` (6 dp, what TOMTOM reads);
+  canonical orientation = the strand with the smaller hash; each motif
+  records `node_orientation` (fwd/rc). Result: 29,778 motifs → 27,777
+  nodes (806 merges are reverse-complement only, 428 are matrices equal
+  at 6 dp); 27,751 clusterable (27,262 monomer, 489 composite; no node
+  mixes composite and monomer records); 26 `short_lt5`.
+- **F25 floors.** Floor splitting happens inside each average-linkage
+  candidate and never re-merges across candidates. Outputs assert the
+  realised minimum pair similarity over **all member pairs** (0.50 in a
+  fine cluster, 0.30 in an archetype).
+- **F26 experiment counting.** Distinct experiments = distinct
+  `experiment_ids` accessions after Step 2 lineage (`derived_from`,
+  shared IDs); different strings in different namespaces for the same
+  experiment are not counted twice when Step 2 links them. Unknown and
+  publication_record count zero.
+- **F27 scanning representatives.** Each archetype keeps
+  `archetype_medoid` (sequence centre of the whole archetype) and, per
+  tier, a `core_scan_representative` chosen only from members of
+  CORE-sequence fine clusters (and a CORE-occupancy one only from
+  CORE-occupancy clusters). A CORE scanning PWM never comes from an
+  EXTENDED-only cluster.
+- **F28.** The 5 %/10 % and 1 %/2 % rules are pre-registered guardrails
+  against over-merging, not FPRs or validated cluster sizes. If every
+  grid point fails, the most conservative point is kept and reported as
+  failing; thresholds are not tuned after seeing results.
+- **Compute.** MEME 5.5.9 built from the official source tarball (md5
+  c4e74834…, identical to the local build) on rcapps8 (aarch64, 128
+  cores); 64 parallel TOMTOM processes over 560 query chunks.

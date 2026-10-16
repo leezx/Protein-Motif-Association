@@ -181,3 +181,47 @@ def hgnc_resolver(path):
                 return "", f"{how}_ambiguous"
         return "", "unmapped"
     return resolve
+
+
+# ---- HOCOMOCO collections (design §12) -------------------------------------
+
+def pcm_key(pcm):
+    """Parsed exact count-matrix identity, orientation-independent."""
+    x = np.asarray(pcm, float)
+    return min(x.tobytes(), x[::-1, ::-1].copy().tobytes())
+
+
+def hocomoco_experiment_key(a):
+    """Same TF, origin dataset and assay: one source experiment."""
+    om = a["original_motif"]
+    return a["tf"], om["origin"], om["motif_datatype"]
+
+
+def merge_hocomoco(entries):
+    """entries: [(collection, annotation, pcm)], CORE first.
+    An entry is merged into an earlier record only when the count matrix is
+    identical AND it comes from the same source experiment; otherwise it is
+    its own record (exact duplicates are then flagged, not merged).
+    Returns (records, memberships): records are [annotation, pcm, collections,
+    alt_names]; memberships has one row per entry (no provenance is dropped)."""
+    records, memberships, index = [], [], {}
+    for coll, a, pcm in entries:
+        k = (pcm_key(pcm), hocomoco_experiment_key(a))
+        om = a["original_motif"]
+        if k in index:
+            rec = records[index[k]]
+            rec[2].append(coll)
+            rec[3].append(a["name"])
+            match = "same_original_motif" if om["name"] == rec[0]["original_motif"]["name"] \
+                else "same_experiment_other_original_motif"
+        else:
+            index[k] = len(records)
+            rec = [a, pcm, [coll], []]
+            records.append(rec)
+            match = "representative"
+        memberships.append(dict(
+            pma_id=f"HO14_{rec[0]['name']}", collection=coll, source_motif_name=a["name"],
+            original_motif=om["name"], tf=a["tf"], origin=om["origin"],
+            motif_datatype=om["motif_datatype"], collection_datatype=a["datatype"],
+            quality=a["quality"], match=match))
+    return records, memberships

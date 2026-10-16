@@ -216,43 +216,25 @@ def hocomoco_experiment(name, origin, dtype):
     return f"HOCOMOCO_origin:{origin}", "", ""
 
 
-def pcm_key(pcm):
-    """Exact count-matrix identity, orientation-independent."""
-    x = np.asarray(pcm, float)
-    return min(x.tobytes(), x[::-1, ::-1].copy().tobytes())
-
-
 def hocomoco_collections():
-    """[(annotation, pcm, collections, other_names)], one entry per distinct matrix.
-    v0.2: H14CORE only. v0.2.1 adds H14INVITRO/H14INVIVO matrices not identical
-    to an H14CORE matrix; a matrix in both sub-collections is one record (§12)."""
+    """(records, memberships) via pm.merge_hocomoco (design §12).
+    v0.2: H14CORE only. v0.2.1 adds H14INVITRO/H14INVIVO entries; an entry is
+    merged into an existing record only for an identical count matrix from the
+    same source experiment."""
     pcms = pm.read_fasta_pcm(HO / "H14CORE_pcms.txt")
-    out, by_key = [], {}
-    for line in open(HO / "H14CORE_annotation.jsonl"):
-        a = json.loads(line)
-        by_key[pcm_key(pcms[a["name"]])] = len(out)
-        out.append([a, pcms[a["name"]], ["H14CORE"], []])
-    if LAYER == "v0.2":
-        return out
-    n_core = len(out)
-    for coll in ("H14INVITRO", "H14INVIVO"):
-        for line in open(HO / f"{coll}_annotation.jsonl"):
-            a = json.loads(line)
-            k = pcm_key(a["pcm"])
-            if k in by_key:
-                e = out[by_key[k]]
-                e[2].append(coll)
-                if e[2][0] != "H14CORE":
-                    e[3].append(a["name"])
-            else:
-                by_key[k] = len(out)
-                out.append([a, a["pcm"], [coll], []])
-    assert len(out) - n_core == 840, len(out) - n_core  # design §12 count
-    return out
+    entries = [("H14CORE", a, pcms[a["name"]]) for a in map(json.loads, open(HO / "H14CORE_annotation.jsonl"))]
+    if LAYER != "v0.2":
+        for coll in ("H14INVITRO", "H14INVIVO"):
+            entries += [(coll, a, a["pcm"]) for a in map(json.loads, open(HO / f"{coll}_annotation.jsonl"))]
+    records, memberships = pm.merge_hocomoco(entries)
+    if LAYER != "v0.2":
+        assert len(records) - 1595 == 840, len(records) - 1595  # design §12 count
+    return records, memberships
 
 
 def import_hocomoco(b, artifacts):
-    for a, pcm, colls, alt in hocomoco_collections():
+    records, memberships = hocomoco_collections()
+    for a, pcm, colls, alt in records:
         om = a["original_motif"]
         dtype = om["motif_datatype"]
         sp = om["species"]
@@ -285,6 +267,7 @@ def import_hocomoco(b, artifacts):
             tfclass_superclass=tfc.get("tfclass_superclass"),
             artifact_flag=artifacts.get(om["name"], ""), **extra),
             [(sym, "")])
+    return pd.DataFrame(memberships)
 
 
 # ---- CisBP ----------------------------------------------------------------
@@ -437,7 +420,7 @@ def main():
     arts = artifact_ids()
     import_codebook(b)
     import_jaspar(b)
-    import_hocomoco(b, arts)
+    ho_members = import_hocomoco(b, arts)
     import_cisbp(b)
     fb = import_factorbook(b)
     import_factorbook_selex(b)
@@ -474,6 +457,9 @@ def main():
     md[prov_cols].to_csv(OUT / "PMA_motif_provenance.tsv", sep="\t", index=False)
     md.to_csv(OUT / "PMA_motif_metadata.tsv", sep="\t", index=False)
     pd.DataFrame(b.links).to_csv(OUT / "PMA_motif_tf_links.tsv", sep="\t", index=False)
+    if LAYER != "v0.2":  # one row per HOCOMOCO collection entry (design §12)
+        assert set(ho_members.pma_id) <= set(md.pma_id)
+        ho_members.to_csv(OUT / "PMA_hocomoco_collection_memberships.tsv", sep="\t", index=False)
     print(md.groupby(["source_db", "source_set"]).size().to_string())
     print(f"total {len(md)}; in MEME {int(ok.sum())}; links {len(b.links)}")
 

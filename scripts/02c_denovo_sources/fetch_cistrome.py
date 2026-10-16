@@ -91,8 +91,14 @@ def motifs_one(i):
         if not str(m.get("id", "")).startswith("denovo"):
             continue
         sr = m.get("seqpos_results", "") or ""
-        st = {k: (rx.search(sr).group(1) if rx.search(sr) else None) for k, rx in STAT.items()}
-        den.append(dict(motif=m["id"], pssm=json.loads(m["pssm"].replace("'", '"')) if m.get("pssm") else None, **st))
+        if isinstance(sr, dict):  # some samples carry a parsed object instead of a string
+            st = {k: (None if sr.get(k) is None else str(sr.get(k))) for k in STAT}
+        else:
+            st = {k: (rx.search(sr).group(1) if rx.search(sr) else None) for k, rx in STAT.items()}
+        ps = m.get("pssm")
+        if isinstance(ps, str):
+            ps = json.loads(ps.replace("'", '"'))
+        den.append(dict(motif=m["id"], pssm=ps or None, **st))
     return dict(id=i, ok=True, denovo=den)
 
 

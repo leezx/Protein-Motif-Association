@@ -378,3 +378,5 @@ data and does not block the Step 3 freeze.
 **9.6 Wording (F40).** "An objectively selected, reproducible,
 sequence-fidelity-constrained non-redundant motif reference";
 never "the optimal number of biological motif clusters".
+
+Implementation note (2026-10-16, before results): only 50 PCs were computed, so representation B at d = 50 uses PCs 2:50 (49 dimensions) instead of 2:51.

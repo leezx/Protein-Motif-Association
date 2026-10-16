@@ -37,7 +37,7 @@ if (mode == "grid") {
     emb <- emb_of(part)
     out <- data.frame(node_id = rownames(emb))
     for (rep in c("A", "B")) for (d in DIMS) for (k in KS) {
-      cols <- if (rep == "A") 1:d else 2:(d + 1)
+      cols <- if (rep == "A") 1:d else 2:min(d + 1, ncol(emb))  # only 50 PCs exist: B at d=50 uses 2:50
       g <- FindNeighbors(emb[, cols], k.param = k, compute.SNN = TRUE, verbose = FALSE)
       cl <- FindClusters(g$snn, resolution = RES, algorithm = 1, random.seed = SEED, verbose = FALSE)
       for (j in seq_along(RES)) out[[sprintf("%s_d%d_k%d_r%s", rep, d, k, RES[j])]] <- as.character(cl[[j]])
@@ -49,7 +49,7 @@ if (mode == "grid") {
 } else if (mode == "stability") {
   part <- args[3]; rep <- args[4]; d <- as.integer(args[5]); k <- as.integer(args[6]); res <- as.numeric(args[7])
   emb <- emb_of(part)
-  emb <- emb[, if (rep == "A") 1:d else 2:(d + 1)]
+  emb <- emb[, if (rep == "A") 1:d else 2:min(d + 1, ncol(emb))]
   strata <- read.delim(file.path(sd, paste0("strata_", part, ".tsv")))  # node_id, stratum
   strata <- strata$stratum[match(rownames(emb), strata$node_id)]
   out <- data.frame(node_id = rownames(emb))

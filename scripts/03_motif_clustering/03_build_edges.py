@@ -87,6 +87,10 @@ def main():
                             partition=part[both[same].a])
     out = out[["a", "b", "s", "s_dir_ab", "s_dir_ba", "q_ab", "q_ba", "partition"]].sort_values(["a", "b"])
     out.to_csv(R / "edges.tsv.gz", sep="\t", index=False, float_format="%.6g")
+    # directed v0.1-eligible pairs (coverage in §8.3); q < 0.01 rows are a
+    # subset of the kept q < 0.05 rows, so this set is exact
+    pd.DataFrame({"query": np.array(ids)[d.qi], "target": np.array(ids)[d.ti], "s_dir": d.s_dir}).to_csv(
+        R / "eligible_directed.tsv.gz", sep="\t", index=False, float_format="%.6g")
     cross = either[part[either.a] != part[either.b]].copy()
     comp_is_a = part[cross.a] == "composite"
     cc = pd.DataFrame({"composite_node": np.where(comp_is_a, np.array(ids)[cross.a], np.array(ids)[cross.b]),

@@ -299,20 +299,37 @@ already in raw (`hocomoco_v14/2026-10-14/H14{INVITRO,INVIVO}_annotation.jsonl`,
 field `pcm`); nothing new is fetched. HOCOMOCO v13 was assessed and not
 imported (refits of v14 motifs, no new TFs; `raw/hocomoco_v13/README.md`).
 
-Rules:
-- Identity is the exact count matrix, orientation-independent. A sub-collection
-  matrix identical to an H14CORE matrix is not a new record; the CORE record
-  lists the collection in `hocomoco_collections`.
-- Every other sub-collection matrix is one record: 421 INVITRO + 422 INVIVO,
-  3 in both, giving **840** new records (asserted). `source_set` is the first
-  collection (INVITRO before INVIVO); the other name goes in `hocomoco_alt_names`.
+Rules (revised after review F10/F11):
+- An INVITRO/INVIVO entry is merged into an existing record only when its
+  parsed count matrix is identical (either orientation) AND it comes from the
+  same source experiment (same TF, `original_motif.origin` and
+  `motif_datatype`). Otherwise it is its own record; identical matrices across
+  records are flagged as exact duplicates, never merged (§3).
+- Result on the data: all 2,334 matrix-identical entries share TF, origin and
+  assay with the record they merge into (0 cross-TF or cross-experiment
+  matches; 2 RXRG entries come from the same peak set PEAKS035283 with a
+  different peak-calling score and are labelled
+  `same_experiment_other_original_motif`). New records: 421 INVITRO + 422
+  INVIVO entries; 3 are in both, so **840** records (asserted), of which
+  `source_set` is INVITRO for 421 and INVIVO for 419.
+- No provenance is dropped: `PMA_hocomoco_collection_memberships.tsv` has one
+  row per HOCOMOCO entry (4,769: pma_id, collection, source motif name,
+  original motif, TF, origin, assay, collection datatype, collection quality,
+  match type). Collection-specific quality lives there, not in the record.
+  Records also carry `hocomoco_collections` and `hocomoco_alt_names`.
 - Fields, evidence model, TF mapping and QC flags are the same as H14CORE (§3–§7).
   Nothing in other sources changes.
 - Output: `processed/v0.2.1_raw_layer/` (expected 30,781 records). v0.2 stays
   frozen as the layer the §8 benchmark was run on; `PMA_RAW_LAYER=v0.2`
   rebuilds it and must reproduce its checksums. The benchmark is not rerun:
-  it is a record of v0.2, and the 840 records only add variants of TFs that
-  are already covered. Step 3 uses v0.2.1.
+  it is bound to v0.2 (benchmark_dataset_version = v0.2; 28,938 targets) and
+  is not a v0.2.1 calibration. Step 3 uses v0.2.1 and recomputes its own
+  similarity scores and per-query BH over the v0.2.1 universe (29,778
+  targets); v0.2 q-values are never reused.
+- Evidence counting (Step 3 acceptance condition): the 840 records are
+  alternative profiles, not independent experiments. Several HOCOMOCO records
+  (CORE/INVITRO/INVIVO) of one TF from one origin count as one experiment;
+  unresolved experiment identity stays `independence_unresolved`.
 - QC tables for v0.2.1 go to `results/02_motif_import/v0.2.1/`.
 
 Done when: v0.2.1 builds with 840 extra HOCOMOCO records and no other change

@@ -1,0 +1,9 @@
+src	n	discovery_dataset_known
+CisBP:Homo_sapiens_all_motifs	1099	0
+Codebook:representative	408	0
+Factorbook:ChIP-seq_MEME	10477	10477
+HOCOMOCO:H14CORE	750	750
+HOCOMOCO:H14INVITRO	98	98
+HOCOMOCO:H14INVIVO	311	311
+JASPAR:CORE_vertebrates_nr	322	171
+JASPAR:UNVALIDATED_nr	173	51

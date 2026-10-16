@@ -1,0 +1,11 @@
+src	n_motifs	no_matrix_license	qc_fail_format	qc_fail_norm	short_lt5	long_gt40	low_ic	in_meme	n_tf_hgnc	composite
+CisBP:Homo_sapiens_all_motifs	7434	1003	0	0	0	2	497	6431	1402	0
+Codebook:representative	1685	0	0	0	0	1	118	1685	1418	0
+Factorbook:ChIP-seq_MEME	10477	0	0	0	0	0	17	10477	1030	0
+Factorbook:HT-SELEX_ZMotif	6700	0	0	0	19	0	193	6700	613	0
+HOCOMOCO:H14CORE	1595	0	0	0	0	0	7	1595	1107	0
+HOCOMOCO:H14INVITRO	421	0	0	0	0	0	1	421	338	0
+HOCOMOCO:H14INVIVO	419	0	0	0	0	0	0	419	354	0
+JASPAR:CORE_vertebrates_nr	1019	0	0	0	1	0	0	1019	878	77
+JASPAR:UNVALIDATED_nr	1031	0	0	0	6	0	0	1031	407	412
+TOTAL	30781	1003	0	0	26	3	833	29778	1771	489

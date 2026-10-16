@@ -10,6 +10,7 @@ see `PR/_TEMPLATE/WORKLOG_TEMPLATE.md`.
 | 0. Scope freeze (v0.2) + repo init | closed | — | design/PMA_pseudo_figures_v0.2.md |
 | 1. Motif reference pilot (Codebook vs JASPAR) | merged | #1 | docs/STEP1_MOTIF_PILOT_RESULTS.md |
 | 2. Multi-source motif import + QC + calibration benchmark | merged (0318026, 2026-10-16) | #2 (draft) | docs/STEP2_MOTIF_IMPORT_RESULTS.md; §8 fallback (no curator), v0.1 stays operational |
+| 2b. Raw layer v0.2.1 (+840 HOCOMOCO INVITRO/INVIVO) | PR pending | #3 | docs/STEP2_MOTIF_IMPORT_RESULTS.md §3; design §12 |
 | 3. Motif clustering + CORE/EXTENDED | not started | — | |
 | 4. Motif reference QC + freeze v0.1 (gates G1–G4) | not started | — | |
 | 5. Statistical Framework v0.1 design | not started | — | core association risk |
@@ -18,11 +19,11 @@ Weights against the 100 % definition in the charter: motif reference
 (steps 1–4) 25 %; occupancy reference 20 %; association statistics
 25 %; evidence grading + replication 15 %; Fig. 1/2 + release 15 %.
 
-Overall: `17% → 19% (+2%)`: Step 2 raw layer v0.2 built from all 7
-sources (29,941 records, 1,771 TFs) and the v0.1 match rule benchmarked.
+Overall: `19% → 20% (+1%)`: completeness check closed the HOCOMOCO
+sub-collection gap; raw layer v0.2.1 (30,781 records, 1,771 TFs).
 Engineering and calibration progress only; no association result exists
 yet. Blocker for Step 3: compute location for the all-vs-all
-(~29k × 29k) TOMTOM. Curator labels remain optional (v0.2 rule not
+(~30k × 30k) TOMTOM. Curator labels remain optional (v0.2 rule not
 issued).
 
 ---
@@ -118,3 +119,18 @@ short motifs, composites, large clusters and threshold sensitivity).
 **Next**: PR #2 merged 2026-10-16 (0318026) on user confirmation;
 Step 3 compute location. Unresolved pairs must not count as independent
 replication in later evidence grading.
+
+## 2026-10-16 — Step 2b: completeness check + raw layer v0.2.1 (branch step2b-hocomoco-subcollections)
+
+**What**: Checked v0.2 against design §2. Only gap: HOCOMOCO H14INVITRO/
+H14INVIVO were never imported. Added the 840 matrices not identical to an
+H14CORE matrix as `processed/v0.2.1_raw_layer/` (design §12). HOCOMOCO v13
+(user download) assessed and archived only: refits of v14, no new TFs.
+TF coverage vs Lambert 2018: 1,536/1,639 with a motif; the 103 without are
+98 Lambert "No motif" + 5 renamed genes that are covered.
+
+**Checks**: v0.2 rebuild reproduces checksums; v0.2.1 rerun identical;
+no existing record changed except duplicate flags.
+
+**Next**: PR review (ChatGPT PMA conversation), merge on user confirmation;
+Step 3 on v0.2.1.

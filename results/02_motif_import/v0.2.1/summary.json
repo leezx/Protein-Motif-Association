@@ -1,0 +1,23 @@
+{
+  "n_motifs": 30781,
+  "n_in_meme": 29778,
+  "n_links": 36469,
+  "n_tf_hgnc_any": 1771,
+  "unmapped_links": {
+    "CisBP": 11,
+    "Codebook": 3,
+    "Factorbook": 18,
+    "JASPAR": 383
+  },
+  "exact_dup_motifs": 1502,
+  "rounded_equiv_motifs": 4525,
+  "table13_rows": 484,
+  "table13_mapped": 442,
+  "table13_consistent_ok": 35,
+  "table13_consistent_ok_mapped": 21,
+  "table13_mapped_by_source": {
+    "Factorbook_Downloaded_15122023": 431,
+    "Jaspar_2024": 11
+  },
+  "artifact_flagged": 0
+}

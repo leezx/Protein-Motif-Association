@@ -1,4 +1,4 @@
-"""Step 2: QC and summary tables for the v0.2 raw layer (design §7, §9).
+"""Step 2: QC and summary tables for the raw layer (design §7, §9, §12).
 
 Small tables go to the repo (results/02_motif_import/); nothing here
 changes the processed layer.
@@ -10,8 +10,10 @@ from pathlib import Path
 
 import pandas as pd
 
-IN = Path(os.environ["PMA_MOTIF_PROCESSED"]) / "v0.2_raw_layer"
-REPO = Path(__file__).resolve().parents[2] / "results" / "02_motif_import"
+LAYER = os.environ.get("PMA_RAW_LAYER", "v0.2.1")
+IN = Path(os.environ["PMA_MOTIF_PROCESSED"]) / f"{LAYER}_raw_layer"
+# v0.2 tables stay at the top level (frozen, benchmark record)
+REPO = Path(__file__).resolve().parents[2] / "results" / "02_motif_import" / ("" if LAYER == "v0.2" else LAYER)
 SRC = ["Codebook", "JASPAR", "HOCOMOCO", "CisBP", "Factorbook"]
 FLAGS = ["no_matrix_license", "qc_fail_format", "qc_fail_norm", "short_lt5", "long_gt40", "low_ic"]
 

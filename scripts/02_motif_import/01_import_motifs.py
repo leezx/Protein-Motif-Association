@@ -1,9 +1,11 @@
-"""Step 2: import all sources into the PMA raw motif layer (v0.2).
+"""Step 2: import all sources into the PMA raw motif layer (v0.2.1).
 
-Design: docs/STEP2_MOTIF_IMPORT_DESIGN.md §2-§7. No motif is dropped;
-QC only adds flags. Paths from config/pma_env.sh; run via run_import.sh.
+Design: docs/STEP2_MOTIF_IMPORT_DESIGN.md §2-§7 and §12 (v0.2.1 amendment:
+HOCOMOCO H14INVITRO/H14INVIVO matrices not identical to an H14CORE matrix).
+No motif is dropped; QC only adds flags. Paths from config/pma_env.sh; run
+via run_import.sh. PMA_RAW_LAYER=v0.2 rebuilds the frozen v0.2 layer.
 
-Outputs (processed/v0.2_raw_layer/):
+Outputs (processed/<PMA_RAW_LAYER>_raw_layer/):
   PMA_motifs_raw.meme, PMA_motif_metadata.tsv,
   PMA_motif_tf_links.tsv, PMA_motif_provenance.tsv
 """
@@ -21,7 +23,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import pma_motif as pm  # noqa: E402
 
 RAW = Path(os.environ["PMA_MOTIF_RAW"])
-OUT = Path(os.environ["PMA_MOTIF_PROCESSED"]) / "v0.2_raw_layer"
+LAYER = os.environ.get("PMA_RAW_LAYER", "v0.2.1")
+assert LAYER in ("v0.2", "v0.2.1"), LAYER
+OUT = Path(os.environ["PMA_MOTIF_PROCESSED"]) / f"{LAYER}_raw_layer"
 DATE = os.environ.get("PMA_FETCH_DATE", "2026-10-14")
 CB = RAW / "codebook_2026" / DATE
 CB_TABLES = CB / "unpacked" / "Nature2026_SupplementaryTables_MOESM3" / "2024-11-25439B-s3"
@@ -212,10 +216,25 @@ def hocomoco_experiment(name, origin, dtype):
     return f"HOCOMOCO_origin:{origin}", "", ""
 
 
-def import_hocomoco(b, artifacts):
+def hocomoco_collections():
+    """(records, memberships) via pm.merge_hocomoco (design §12).
+    v0.2: H14CORE only. v0.2.1 adds H14INVITRO/H14INVIVO entries; an entry is
+    merged into an existing record only for an identical count matrix from the
+    same source experiment."""
     pcms = pm.read_fasta_pcm(HO / "H14CORE_pcms.txt")
-    for line in open(HO / "H14CORE_annotation.jsonl"):
-        a = json.loads(line)
+    entries = [("H14CORE", a, pcms[a["name"]]) for a in map(json.loads, open(HO / "H14CORE_annotation.jsonl"))]
+    if LAYER != "v0.2":
+        for coll in ("H14INVITRO", "H14INVIVO"):
+            entries += [(coll, a, a["pcm"]) for a in map(json.loads, open(HO / f"{coll}_annotation.jsonl"))]
+    records, memberships = pm.merge_hocomoco(entries)
+    if LAYER != "v0.2":
+        assert len(records) - 1595 == 840, len(records) - 1595  # design §12 count
+    return records, memberships
+
+
+def import_hocomoco(b, artifacts):
+    records, memberships = hocomoco_collections()
+    for a, pcm, colls, alt in records:
         om = a["original_motif"]
         dtype = om["motif_datatype"]
         sp = om["species"]
@@ -230,8 +249,12 @@ def import_hocomoco(b, artifacts):
         basis, direct = pm.evidence(acls)
         exp, derived, _ = hocomoco_experiment(om["name"], om["origin"], dtype)
         tfc = a["masterlist_info"]
-        b.add(f"HO14_{a['name']}", pcms[a["name"]], dict(
-            **base("HOCOMOCO", "v14", "H14CORE", a["name"], "H14CORE_pcms.txt"),
+        sset = colls[0]
+        sfile = "H14CORE_pcms.txt" if sset == "H14CORE" else f"{sset}_annotation.jsonl"
+        extra = {} if LAYER == "v0.2" else dict(
+            hocomoco_collections=";".join(colls), hocomoco_alt_names=";".join(alt))
+        b.add(f"HO14_{a['name']}", pcm, dict(
+            **base("HOCOMOCO", "v14", sset, a["name"], sfile),
             motif_name=a["name"], assay_raw=pm.HOCOMOCO_DATATYPE[dtype], assay_class=acls,
             assayed_target=om["tf"], assignment_basis=basis, direct_binding_evidence=direct,
             source_link_status="", species_basis=species, species_raw=sp,
@@ -242,8 +265,9 @@ def import_hocomoco(b, artifacts):
             hocomoco_datatype_all=a["datatype"], tfclass_id=tfc.get("tfclass_id"),
             tf_class=tfc.get("tfclass_class"), tf_family=tfc.get("tfclass_family"),
             tfclass_superclass=tfc.get("tfclass_superclass"),
-            artifact_flag=artifacts.get(om["name"], "")),
+            artifact_flag=artifacts.get(om["name"], ""), **extra),
             [(sym, "")])
+    return pd.DataFrame(memberships)
 
 
 # ---- CisBP ----------------------------------------------------------------
@@ -396,7 +420,7 @@ def main():
     arts = artifact_ids()
     import_codebook(b)
     import_jaspar(b)
-    import_hocomoco(b, arts)
+    ho_members = import_hocomoco(b, arts)
     import_cisbp(b)
     fb = import_factorbook(b)
     import_factorbook_selex(b)
@@ -433,6 +457,9 @@ def main():
     md[prov_cols].to_csv(OUT / "PMA_motif_provenance.tsv", sep="\t", index=False)
     md.to_csv(OUT / "PMA_motif_metadata.tsv", sep="\t", index=False)
     pd.DataFrame(b.links).to_csv(OUT / "PMA_motif_tf_links.tsv", sep="\t", index=False)
+    if LAYER != "v0.2":  # one row per HOCOMOCO collection entry (design §12)
+        assert set(ho_members.pma_id) <= set(md.pma_id)
+        ho_members.to_csv(OUT / "PMA_hocomoco_collection_memberships.tsv", sep="\t", index=False)
     print(md.groupby(["source_db", "source_set"]).size().to_string())
     print(f"total {len(md)}; in MEME {int(ok.sum())}; links {len(b.links)}")
 

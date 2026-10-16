@@ -295,3 +295,36 @@ from false links.
   shown across operating systems, library versions or re-downloads. A
   release will record input checksums, software versions and an
   environment lock (Step 4).
+
+## 3. Raw layer v0.2.1 (2026-10-16; design §12)
+
+A completeness check against design §2 found that v0.2 had HOCOMOCO H14CORE
+only. v0.2.1 adds the 840 H14INVITRO/H14INVIVO matrices that are not identical
+to an H14CORE matrix from the same experiment (421 INVITRO + 422 INVIVO
+entries, 3 in both; by `source_set` 421 INVITRO + 419 INVIVO). All 2,334
+merged entries share TF, origin dataset and assay with their record. Every
+one of the 4,769 HOCOMOCO entries, with its collection-specific quality, is in
+`PMA_hocomoco_collection_memberships.tsv`.
+QC tables: `results/02_motif_import/v0.2.1/`.
+
+| | v0.2 | v0.2.1 |
+|---|---|---|
+| Records | 29,941 | 30,781 |
+| In MEME | 28,938 | 29,778 |
+| HGNC TFs | 1,771 | 1,771 |
+| Exact-duplicate motifs | 1,500 | 1,502 |
+
+- Existing records: none changed except duplicate-group flags.
+- New records: 428 direct-binding supported, 409 occupancy-derived (not_established),
+  3 unknown (legacy HOCOMOCO v11 datatype); 666 human, 171 mouse ortholog;
+  1 `low_ic` flag.
+- Checks: `PMA_RAW_LAYER=v0.2` rebuild reproduces the v0.2 checksums; a v0.2.1
+  rerun gives identical checksums; 12 tests pass (3 on the merge rule).
+- The §2 benchmark is not rerun; it is bound to v0.2 and is not a v0.2.1
+  calibration. Step 3 recomputes similarity and BH on v0.2.1 and counts the
+  HOCOMOCO collection profiles of one experiment as one experiment.
+- Also assessed and not imported: HOCOMOCO v13 (+ v10–v12 bundles), raw-archived
+  at `raw/hocomoco_v13/` (refits of v14 motifs, median same-gene similarity
+  0.988, a summary that does not rule out a few distinct alternatives; no new TFs;
+  v10/v11 add only FUBP1 and SMARCA1, both non-sequence-specific, kept as a coverage-gap note).
+  JASPAR redundant versions and Codebook MEX complete set stay out of scope.

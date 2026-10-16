@@ -1,0 +1,23 @@
+{
+  "n_pairs": {
+    "N_challenge": 500,
+    "P_high": 19,
+    "P_provisional": 500
+  },
+  "v01_either": {
+    "N_challenge": 0.048,
+    "P_high": 0.737,
+    "P_provisional": 0.708
+  },
+  "v01_both": {
+    "N_challenge": 0.024,
+    "P_high": 0.579,
+    "P_provisional": 0.648
+  },
+  "pprov_independence": {
+    "independence_unresolved": 464,
+    "confirmed_distinct": 36
+  },
+  "ci_note": "family-pair clustered bootstrap for the sampled benchmark; not population uncertainty; no CI when n < 5",
+  "statistical_match_v02": "not issued (no curator labels; design \u00a78 fallback)"
+}

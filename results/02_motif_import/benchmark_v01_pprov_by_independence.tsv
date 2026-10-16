@@ -1,0 +1,15 @@
+independence_status	rule	n	n_match	rate	ci_lo	ci_hi	publication_relation
+independence_unresolved	either	464	324	0.698	0.625	0.758	all
+independence_unresolved	both	464	295	0.636	0.55	0.708	all
+confirmed_distinct	either	36	30	0.833	0.689	0.946	all
+confirmed_distinct	both	36	29	0.806	0.656	0.923	all
+independence_unresolved	either	153	91	0.595	0.511	0.674	different
+independence_unresolved	both	153	75	0.49	0.4	0.576	different
+confirmed_distinct	either	15	13	0.867	0.615	1.0	different
+confirmed_distinct	both	15	12	0.8	0.571	1.0	different
+independence_unresolved	either	241	183	0.759	0.668	0.825	same
+independence_unresolved	both	241	174	0.722	0.634	0.793	same
+confirmed_distinct	either	21	17	0.81	0.65	0.955	same
+confirmed_distinct	both	21	17	0.81	0.636	1.0	same
+independence_unresolved	either	70	50	0.714	0.587	0.81	unknown
+independence_unresolved	both	70	46	0.657	0.5	0.775	unknown

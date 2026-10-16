@@ -1,0 +1,21 @@
+src_pair	rule	n	n_match	rate	ci_lo	ci_hi
+Codebook vs Factorbook	either	61	50	0.82	0.712	0.905
+Codebook vs Factorbook	both	61	48	0.787	0.678	0.882
+CisBP vs Factorbook	either	252	167	0.663	0.577	0.737
+CisBP vs Factorbook	both	252	148	0.587	0.493	0.671
+Factorbook vs HOCOMOCO	either	43	36	0.837	0.686	0.957
+Factorbook vs HOCOMOCO	both	43	33	0.767	0.638	0.889
+CisBP vs HOCOMOCO	either	31	21	0.677	0.476	0.833
+CisBP vs HOCOMOCO	both	31	20	0.645	0.428	0.806
+CisBP vs Codebook	either	30	21	0.7	0.533	0.852
+CisBP vs Codebook	both	30	21	0.7	0.533	0.875
+CisBP vs JASPAR	either	18	10	0.556	0.286	0.75
+CisBP vs JASPAR	both	18	9	0.5	0.25	0.692
+Factorbook vs JASPAR	either	39	30	0.769	0.594	0.889
+Factorbook vs JASPAR	both	39	28	0.718	0.531	0.854
+Codebook vs JASPAR	either	6	5	0.833	0.5	1.0
+Codebook vs JASPAR	both	6	5	0.833	0.5	1.0
+HOCOMOCO vs JASPAR	either	7	5	0.714	0.429	1.0
+HOCOMOCO vs JASPAR	both	7	4	0.571	0.222	1.0
+Codebook vs HOCOMOCO	either	13	9	0.692	0.467	0.917
+Codebook vs HOCOMOCO	both	13	8	0.615	0.333	0.909

@@ -8,8 +8,8 @@ see `PR/_TEMPLATE/WORKLOG_TEMPLATE.md`.
 | Step | Status | PR | Notes |
 |---|---|---|---|
 | 0. Scope freeze (v0.2) + repo init | closed | — | design/PMA_pseudo_figures_v0.2.md |
-| 1. Motif reference pilot (Codebook vs JASPAR) | PR #1 open; review round 1 fixes pushed | step1-motif-pilot | docs/STEP1_MOTIF_PILOT_RESULTS.md |
-| 2. Multi-source motif import + QC (HOCOMOCO, CisBP, Factorbook) | not started | — | needs design: HOCOMOCO version, length-aware match criterion |
+| 1. Motif reference pilot (Codebook vs JASPAR) | merged | #1 | docs/STEP1_MOTIF_PILOT_RESULTS.md |
+| 2. Multi-source motif import + QC + calibration benchmark | APPROVED (results round 2); awaiting user merge confirmation | #2 (draft) | docs/STEP2_MOTIF_IMPORT_RESULTS.md; §8 fallback (no curator), v0.1 stays operational |
 | 3. Motif clustering + CORE/EXTENDED | not started | — | |
 | 4. Motif reference QC + freeze v0.1 (gates G1–G4) | not started | — | |
 | 5. Statistical Framework v0.1 design | not started | — | core association risk |
@@ -18,8 +18,12 @@ Weights against the 100 % definition in the charter: motif reference
 (steps 1–4) 25 %; occupancy reference 20 %; association statistics
 25 %; evidence grading + replication 15 %; Fig. 1/2 + release 15 %.
 
-Overall: `5% → 9% (+4%)`. Step 1 is ~15 % of the motif-reference
-workstream. Engineering progress only; no association result exists yet.
+Overall: `17% → 19% (+2%)`: Step 2 raw layer v0.2 built from all 7
+sources (29,941 records, 1,771 TFs) and the v0.1 match rule benchmarked.
+Engineering and calibration progress only; no association result exists
+yet. Blocker for Step 3: compute location for the all-vs-all
+(~29k × 29k) TOMTOM. Curator labels remain optional (v0.2 rule not
+issued).
 
 ---
 
@@ -70,3 +74,47 @@ merge conditions, all verified as valid:
 
 All were fixed. The 105 split, prompted by the review, overturned my
 earlier characterisation: most of the 105 are short motifs.
+
+## 2026-10-15 — Step 2: multi-source import, QC, calibration benchmark (PR #2)
+
+**What**: Built raw layer v0.2 (`processed/v0.2_raw_layer/`): Codebook,
+JASPAR CORE + UNVALIDATED, HOCOMOCO v14, CisBP 3.10, Factorbook ChIP-seq
+and Factorbook HT-SELEX (downloaded manually; TF/ligand/batch from ENA
+run reports). 29,941 records, 28,938 matrices, 1,771 HGNC TFs. Ran the
+§8.1 benchmark: 1,740 queries × 28,938 targets.
+
+**Why**: Step 3 clustering needs every source in one provenance-aware
+layer, and a description of how the v0.1 match rule behaves.
+
+**Real findings**:
+- v0.1 links 71 % of P-provisional (same TF, independent sources) and
+  4.8 % of N-challenge pairs. Both weaknesses sit in ≤ 8 bp motifs
+  (56 % and 15 %); from 9 bp up, N-challenge ≤ 6 %.
+- 21 of the 24 N-challenge links are plausible shared specificities
+  (E-boxes, TALE/MyoD sites, MGA T-box, SKOR–TAATTA). The N-challenge
+  rate is therefore not an FPR.
+- The SELEX key makes 416 HOCOMOCO–Factorbook SELEX pairs one
+  experiment. CisBP/Codebook copies of Yin 2017 cannot be linked.
+- No curator: §8 fallback, `statistical_match_v0.2` not issued.
+
+**Repro**: rerun of `run_import.sh` after TOMTOM gave identical md5s;
+9 tests pass. Bug fixed in `05_benchmark_analysis.py` before any output
+was written (source-pair labels were built from the full table).
+
+**Review**: ChatGPT results review round 1 (14c5215): REQUEST CHANGES, 3
+merge conditions, each verified in the code and fixed in b091c88:
+- F1 (P1): P-provisional excluded only *known* shared experiments.
+  Per-pair `independence_status` gives 36/500 confirmed distinct (all
+  Factorbook SELEX vs HOCOMOCO, 0.83); 464 unresolved. Unresolved
+  same-publication pairs link more than different-publication pairs
+  (0.76 vs 0.60).
+- F2/F3: N-challenge and CI wording narrowed to the sampled benchmark.
+- F4: query-set and row-count assertions.
+
+Round 2 (b091c88): APPROVE. Non-blocking: F8 CIs stay descriptive; F9
+Step 3 must not treat v0.1 as a calibrated equivalence classifier (check
+short motifs, composites, large clusters and threshold sensitivity).
+
+**Next**: user merge confirmation for PR #2;
+Step 3 compute location. Unresolved pairs must not count as independent
+replication in later evidence grading.

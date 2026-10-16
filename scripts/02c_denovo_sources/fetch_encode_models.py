@@ -31,7 +31,8 @@ API = ("https://www.encodeproject.org/search/?type=Annotation&annotation_type={t
        "&field=files.md5sum&field=files.cloud_metadata.url&format=json")
 COLS = ["model_type", "annotation", "experiment", "target", "biosample", "biosample_class", "organ_slims",
         "cell_slims", "system_slims", "description", "file", "url", "md5", "size"]
-KEEP = re.compile(r"(\.PFM\.meme$|\.ppm\.fwd\.meme$|README\.txt$)")  # ppm.fwd: ProCapNet layout
+KEEP = re.compile(r"(\.PFM\.meme(\.ENCSR\w+)?$|\.ppm\.fwd\.meme$|README\.txt$)")  # ppm.fwd: ProCapNet; .ENCSR suffix: ChromBPNet
+MOTIF = re.compile(r"(\.PFM\.meme(\.ENCSR\w+)?$|\.ppm\.fwd\.meme$)")
 
 
 def get_json(url):
@@ -102,7 +103,7 @@ def fetch_one(row, out):
                     pass
             if src.h.hexdigest() != row["md5"]:
                 raise IOError(f"md5 mismatch {src.h.hexdigest()} != {row['md5']}")
-            if not any(k.endswith((".PFM.meme", ".ppm.fwd.meme")) for k in kept):
+            if not any(MOTIF.search(k) for k in kept):
                 raise IOError("no PFM.meme in tar")
             done.write_text(f"{row['file']}\t{row['md5']}\t{src.n}\t{';'.join(kept)}\n")
             return row["annotation"], "ok", src.n

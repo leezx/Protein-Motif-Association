@@ -247,3 +247,71 @@ clusters > 50 PWMs drops to 0.21; Codebook Table 10's largest cluster
 has 225 PWMs from 183 TFs). The N-challenge guardrails (5 %/10 %) are
 unchanged; node fraction, distinct-TF count, TF-family diversity and
 minimum pair similarity are still reported.
+
+## 8. Revision 2 (2026-10-16): Seurat-style clustering (supersedes §3.3–3.4)
+
+Requested by the user (PI) before any clustering result: an unbiased,
+similarity-based clustering of all motifs, a Seurat-style UMAP, Seurat's
+default clustering, and one best representative per cluster that keeps
+all member annotations. ChatGPT review: REQUEST CHANGES (F29–F34) on the
+representation contract and fidelity gate; the frozen contract below
+implements them. §3.0–3.2 (nodes, partitions, TOMTOM, edges) and §3.5
+(tiers) stay; average linkage, floors and the cut grid of §3.3 and the
+amendment in §7 are retired.
+
+**8.1 Representation (F29, frozen).** Per node (exact matrix):
+- probability floor 0.01, renormalise; log-odds lo = log2(p / 0.25);
+- 8-mer affinity a(k) = best over positions and both strands of the
+  mean per-position log-odds of k in an 8-column window (motifs with
+  L < 8 slide inside the 8-mer and are averaged over their L aligned
+  columns; flagged `length_lt8`);
+- features: the 32,896 reverse-complement-collapsed 8-mers (all, no
+  HVG selection);
+- per-motif normalisation: centre over k-mers, L2-normalise (cosine of
+  two profiles = Pearson correlation of their affinity profiles);
+- feature handling in Seurat: centred, **not** scaled per 8-mer
+  (ScaleData do.scale = FALSE), so rare low-variance k-mers get no extra
+  weight.
+Diagnostics before clustering: correlation of PC1–PC10 with length, GC,
+IC; P-high / P-provisional vs N-challenge profile-correlation separation.
+
+**8.2 Clustering (F30, F31).** Separately for the monomer (27,262) and
+composite (489) partitions: RunPCA 50 PCs → FindNeighbors(dims 1:30,
+k.param 20) → FindClusters(algorithm 1 Louvain, resolution 0.8, seed
+20261016) → RunUMAP(dims 1:30, n.neighbors 30, min.dist 0.3). UMAP is
+display only. Sensitivity (reported, never replaces the primary result):
+resolution 0.4/0.6/0.8/1.0/1.5/2.0 and dims 1:20 / 1:30 / 1:50.
+Compute runs on Argos (SGE), never on the Mac mini.
+
+**8.3 Representatives and fidelity gate (F32, F33).** Primary
+representative per cluster: medoid-first (mean affinity-profile
+correlation to members; candidates within 0.05 of the best), then the
+§3.4 evidence order (direct binding → source-native quality, same source
+only → distinct experiments per F26 → length). Coverage: a member node is
+covered by a representative when the pair passes `statistical_match_v0.1`
+in either direction. The kept TOMTOM rows (q < 0.05) contain every pair
+with q < 0.01, so coverage is exact; a missing row means "not covered",
+and no quantitative similarity is imputed for it. Gate: coverage is
+computed over member nodes with no QC flag. If below 90 %, a
+`representative_extra` is added greedily: the uncovered eligible member
+covering most uncovered members, ties broken by the representative
+ranking. This repeats until ≥ 90 % or no eligible uncovered member
+remains. CORE_sequence clusters whose primary representative is not
+itself a qualifying direct-binding motif also get a
+`core_scan_representative` from the qualifying members (F27).
+
+**8.4 Non-redundancy QC (F34).** Reported: cluster count, scanning PWM
+count, compression ratio; representative pairs passing v0.1 in both
+directions with s ≥ 0.85 (redundancy alerts, not merged); within-cluster
+coverage; P-high / N-challenge co-clustering; ARI and purity vs Codebook
+Table 10, Table 11 (H13 names mapped to v14 via HOCOMOCO previous-name
+records where possible) and HOCOMOCO H14CORE-CLUSTERED; family listings;
+length / GC / IC vs PCs and UMAP.
+
+**8.5 Outputs.** `processed/v0.3_reference/`: `PMA_motif_clusters.tsv`
+(every raw motif → node, partition, cluster, UMAP coordinates, tier),
+`PMA_motif_representatives.tsv` (primary / extra / core_scan, coverage),
+`PMA_motif_cluster_annotations.tsv` (per cluster: all member TFs,
+sources, assays, evidence, experiments, Codebook/HOCOMOCO clusters),
+`PMA_motifs_reference.meme` (all scanning representatives) plus tier
+files, UMAP figures, config, checksums, CHANGELOG.

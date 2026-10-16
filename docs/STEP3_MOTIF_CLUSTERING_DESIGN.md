@@ -208,11 +208,17 @@ wording.
   candidate and never re-merges across candidates. Outputs assert the
   realised minimum pair similarity over **all member pairs** (0.50 in a
   fine cluster, 0.30 in an archetype).
-- **F26 experiment counting.** Distinct experiments = distinct
-  `experiment_ids` accessions after Step 2 lineage (`derived_from`,
-  shared IDs); different strings in different namespaces for the same
-  experiment are not counted twice when Step 2 links them. Unknown and
-  publication_record count zero.
+- **F26 experiment counting.** Experiments are accessions from records
+  with `experiment_identity = accession`; ENA run IDs are excluded (they
+  are SELEX cycles of one experiment; the `SELEX:` key is used). Count =
+  the maximum over namespaces of distinct accessions in that namespace
+  (`pma_cluster.n_independent_experiments`), so one experiment under two
+  namespaces (e.g. an ENCODE ENCSR and the GTRD peak set derived from it)
+  is never counted twice. Unknown and publication_record count zero.
+- **Source quality (F21, implementation).** Native grades (HOCOMOCO A–D
+  per memberships table, JASPAR CORE/UNVALIDATED) are used only when
+  every remaining candidate comes from the same source; otherwise the
+  quality step is skipped.
 - **F27 scanning representatives.** Each archetype keeps
   `archetype_medoid` (sequence centre of the whole archetype) and, per
   tier, a `core_scan_representative` chosen only from members of
@@ -226,3 +232,18 @@ wording.
 - **Compute.** MEME 5.5.9 built from the official source tarball (md5
   c4e74834…, identical to the local build) on rcapps8 (aarch64, 128
   cores); 64 parallel TOMTOM processes over 560 query chunks.
+
+## 7. Amendment 2026-10-16 (before any clustering result; ChatGPT APPROVE)
+
+The size guardrail of §3.3 is measured in **distinct sequence-specific
+HGNC TFs** per cluster, not in nodes: fine fails if the largest fine
+cluster spans > 50 TFs, archetype fails if > 100 TFs. Reason (found in a
+600-node smoke test while TOMTOM was running): node counts are dominated
+by repeated ChIP profiles of one TF (CTCF 1,636 nodes = 5.9 % of nodes;
+POLR2A 348; EP300 222), so a correct single-pattern CTCF cluster would
+fail the node rule at every grid point. 50/100 are exploratory
+engineering thresholds (Step 1: TOMTOM agreement within Codebook
+clusters > 50 PWMs drops to 0.21; Codebook Table 10's largest cluster
+has 225 PWMs from 183 TFs). The N-challenge guardrails (5 %/10 %) are
+unchanged; node fraction, distinct-TF count, TF-family diversity and
+minimum pair similarity are still reported.

@@ -289,3 +289,32 @@ Argos or an O2 sbatch array, following the O2 DUO rules.
    Without a curator, the §8 fallback tables replace this item.
 4. The whole pipeline reruns from raw with one command and gives
    identical `raw_matrix_hash`, `normalized_matrix_hash` and metadata.
+
+## 12. Amendment v0.2.1 (2026-10-16): HOCOMOCO H14INVITRO / H14INVIVO
+
+Reason: the completeness check found that §2 named HOCOMOCO CORE + INVIVO +
+INVITRO but v0.2 imported H14CORE only. The sub-collections hold
+alternative-specificity variants that are not in CORE. Their matrices are
+already in raw (`hocomoco_v14/2026-10-14/H14{INVITRO,INVIVO}_annotation.jsonl`,
+field `pcm`); nothing new is fetched. HOCOMOCO v13 was assessed and not
+imported (refits of v14 motifs, no new TFs; `raw/hocomoco_v13/README.md`).
+
+Rules:
+- Identity is the exact count matrix, orientation-independent. A sub-collection
+  matrix identical to an H14CORE matrix is not a new record; the CORE record
+  lists the collection in `hocomoco_collections`.
+- Every other sub-collection matrix is one record: 421 INVITRO + 422 INVIVO,
+  3 in both, giving **840** new records (asserted). `source_set` is the first
+  collection (INVITRO before INVIVO); the other name goes in `hocomoco_alt_names`.
+- Fields, evidence model, TF mapping and QC flags are the same as H14CORE (§3–§7).
+  Nothing in other sources changes.
+- Output: `processed/v0.2.1_raw_layer/` (expected 30,781 records). v0.2 stays
+  frozen as the layer the §8 benchmark was run on; `PMA_RAW_LAYER=v0.2`
+  rebuilds it and must reproduce its checksums. The benchmark is not rerun:
+  it is a record of v0.2, and the 840 records only add variants of TFs that
+  are already covered. Step 3 uses v0.2.1.
+- QC tables for v0.2.1 go to `results/02_motif_import/v0.2.1/`.
+
+Done when: v0.2.1 builds with 840 extra HOCOMOCO records and no other change
+in record set; v0.2 rebuild reproduces its checksums; a v0.2.1 rerun gives
+identical checksums.

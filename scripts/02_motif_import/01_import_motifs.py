@@ -1,9 +1,11 @@
-"""Step 2: import all sources into the PMA raw motif layer (v0.2).
+"""Step 2: import all sources into the PMA raw motif layer (v0.2.1).
 
-Design: docs/STEP2_MOTIF_IMPORT_DESIGN.md §2-§7. No motif is dropped;
-QC only adds flags. Paths from config/pma_env.sh; run via run_import.sh.
+Design: docs/STEP2_MOTIF_IMPORT_DESIGN.md §2-§7 and §12 (v0.2.1 amendment:
+HOCOMOCO H14INVITRO/H14INVIVO matrices not identical to an H14CORE matrix).
+No motif is dropped; QC only adds flags. Paths from config/pma_env.sh; run
+via run_import.sh. PMA_RAW_LAYER=v0.2 rebuilds the frozen v0.2 layer.
 
-Outputs (processed/v0.2_raw_layer/):
+Outputs (processed/<PMA_RAW_LAYER>_raw_layer/):
   PMA_motifs_raw.meme, PMA_motif_metadata.tsv,
   PMA_motif_tf_links.tsv, PMA_motif_provenance.tsv
 """
@@ -21,7 +23,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import pma_motif as pm  # noqa: E402
 
 RAW = Path(os.environ["PMA_MOTIF_RAW"])
-OUT = Path(os.environ["PMA_MOTIF_PROCESSED"]) / "v0.2_raw_layer"
+LAYER = os.environ.get("PMA_RAW_LAYER", "v0.2.1")
+assert LAYER in ("v0.2", "v0.2.1"), LAYER
+OUT = Path(os.environ["PMA_MOTIF_PROCESSED"]) / f"{LAYER}_raw_layer"
 DATE = os.environ.get("PMA_FETCH_DATE", "2026-10-14")
 CB = RAW / "codebook_2026" / DATE
 CB_TABLES = CB / "unpacked" / "Nature2026_SupplementaryTables_MOESM3" / "2024-11-25439B-s3"
@@ -212,10 +216,43 @@ def hocomoco_experiment(name, origin, dtype):
     return f"HOCOMOCO_origin:{origin}", "", ""
 
 
-def import_hocomoco(b, artifacts):
+def pcm_key(pcm):
+    """Exact count-matrix identity, orientation-independent."""
+    x = np.asarray(pcm, float)
+    return min(x.tobytes(), x[::-1, ::-1].copy().tobytes())
+
+
+def hocomoco_collections():
+    """[(annotation, pcm, collections, other_names)], one entry per distinct matrix.
+    v0.2: H14CORE only. v0.2.1 adds H14INVITRO/H14INVIVO matrices not identical
+    to an H14CORE matrix; a matrix in both sub-collections is one record (§12)."""
     pcms = pm.read_fasta_pcm(HO / "H14CORE_pcms.txt")
+    out, by_key = [], {}
     for line in open(HO / "H14CORE_annotation.jsonl"):
         a = json.loads(line)
+        by_key[pcm_key(pcms[a["name"]])] = len(out)
+        out.append([a, pcms[a["name"]], ["H14CORE"], []])
+    if LAYER == "v0.2":
+        return out
+    n_core = len(out)
+    for coll in ("H14INVITRO", "H14INVIVO"):
+        for line in open(HO / f"{coll}_annotation.jsonl"):
+            a = json.loads(line)
+            k = pcm_key(a["pcm"])
+            if k in by_key:
+                e = out[by_key[k]]
+                e[2].append(coll)
+                if e[2][0] != "H14CORE":
+                    e[3].append(a["name"])
+            else:
+                by_key[k] = len(out)
+                out.append([a, a["pcm"], [coll], []])
+    assert len(out) - n_core == 840, len(out) - n_core  # design §12 count
+    return out
+
+
+def import_hocomoco(b, artifacts):
+    for a, pcm, colls, alt in hocomoco_collections():
         om = a["original_motif"]
         dtype = om["motif_datatype"]
         sp = om["species"]
@@ -230,8 +267,12 @@ def import_hocomoco(b, artifacts):
         basis, direct = pm.evidence(acls)
         exp, derived, _ = hocomoco_experiment(om["name"], om["origin"], dtype)
         tfc = a["masterlist_info"]
-        b.add(f"HO14_{a['name']}", pcms[a["name"]], dict(
-            **base("HOCOMOCO", "v14", "H14CORE", a["name"], "H14CORE_pcms.txt"),
+        sset = colls[0]
+        sfile = "H14CORE_pcms.txt" if sset == "H14CORE" else f"{sset}_annotation.jsonl"
+        extra = {} if LAYER == "v0.2" else dict(
+            hocomoco_collections=";".join(colls), hocomoco_alt_names=";".join(alt))
+        b.add(f"HO14_{a['name']}", pcm, dict(
+            **base("HOCOMOCO", "v14", sset, a["name"], sfile),
             motif_name=a["name"], assay_raw=pm.HOCOMOCO_DATATYPE[dtype], assay_class=acls,
             assayed_target=om["tf"], assignment_basis=basis, direct_binding_evidence=direct,
             source_link_status="", species_basis=species, species_raw=sp,
@@ -242,7 +283,7 @@ def import_hocomoco(b, artifacts):
             hocomoco_datatype_all=a["datatype"], tfclass_id=tfc.get("tfclass_id"),
             tf_class=tfc.get("tfclass_class"), tf_family=tfc.get("tfclass_family"),
             tfclass_superclass=tfc.get("tfclass_superclass"),
-            artifact_flag=artifacts.get(om["name"], "")),
+            artifact_flag=artifacts.get(om["name"], ""), **extra),
             [(sym, "")])
 
 

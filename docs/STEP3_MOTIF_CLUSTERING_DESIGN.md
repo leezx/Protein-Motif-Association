@@ -315,3 +315,66 @@ length / GC / IC vs PCs and UMAP.
 sources, assays, evidence, experiments, Codebook/HOCOMOCO clusters),
 `PMA_motifs_reference.meme` (all scanning representatives) plus tier
 files, UMAP figures, config, checksums, CHANGELOG.
+
+## 9. Selection contract (frozen 2026-10-16, before any TOMTOM-based metric; ChatGPT F35–F40)
+
+**Transparency.** Already seen before freezing: the res 0.4–2.0 cluster
+counts (69–136), dims 1:20/1:50 counts at res 0.8 (83/99), the res 0.8
+UMAP, and the PC bias table (PC1 vs GC rho = −0.94). No TOMTOM-based
+metric, gate value or external-concordance value has been computed.
+This is a prospective amendment, not a blind pre-registration.
+
+**9.1 GC (F35).** Representation A = PCs 1:d (primary); B = PCs 2:(d+1)
+(GC-dominance sensitivity). B replaces A only if all hold in a stratified
+bootstrap (strata: source × GC quintile, 200 resamples): external AMI
+improves by ≥ 0.03 and mean cluster fidelity by ≥ 5 percentage points;
+no motif class (AT-rich: GC < 0.35; GC-rich: GC > 0.60; CpG: max_i
+p(C_i)·p(G_i+1) ≥ 0.5) loses > 5 points of fidelity; B splits at most 1
+more P-high pair than A. Otherwise A. A GC-adjusted affinity (C) is not
+part of this selection.
+
+**9.2 Grid (F36).** Monomer partition: dims {1:20, 1:30, 1:50} ×
+k.param {15, 20, 30} × resolution {0.8, 1.2, 1.6, 2.0, 2.5, 3.0, 4.0,
+5.0, 6.0, 8.0} = 90 configurations (plus the same 90 for B). Louvain
+(algorithm 1), seed 20261016. Stability: seeds 20261016–20261025;
+10 subsamples of 80 % nodes stratified by source × GC quintile. UMAP is
+display only. Composite partition (489 nodes): same procedure, own grid
+result. No cluster-count target (Codebook 613, HOCOMOCO 648 are not
+targets).
+
+**9.3 Gates (F37).** Evaluated in order; thresholds are prospective
+engineering guardrails, not calibrated equivalence criteria.
+
+| Gate | Metric | Pass |
+|---|---|---|
+| G1 single-rep fidelity | primary (medoid-first) representative covers member nodes by v0.1 (either direction) | ≥ 80 % of clusters have coverage ≥ 90 % |
+| G2 rescue fidelity | after minimal `representative_extra` | every cluster ≥ 90 %; all nodes ≥ 95 % |
+| G3 over-splitting | scanning representatives with a v0.1 both-direction, s ≥ 0.85 neighbour in another cluster | ≤ 15 % of representatives |
+| G4 negative challenge | N-challenge pairs in one cluster | ≤ 5 % (not an FPR) |
+| G5 seed stability | pairwise ARI over 10 seeds | median ≥ 0.85 |
+| G6 subsample stability | ARI vs full data on shared nodes, 10 × 80 % | median ≥ 0.75 |
+| G7 external concordance | AMI vs Codebook T10 and HOCOMOCO H14CORE-CLUSTERED, on shared identified motifs only | each within 1 bootstrap SE of the grid's best |
+
+Coverage uses the binary v0.1 rule from the kept TOMTOM rows (exact);
+a missing row is "not covered", never a quantitative similarity of 0.
+Fidelity and external metrics are reported node-weighted,
+source-balanced and TF-balanced (primary: node-weighted). G5/G6 run
+only for candidates passing G1–G4 and G7. If no configuration passes a
+gate, "no feasible model" is reported; thresholds are not relaxed.
+
+**9.4 Selection (F37, F38).** Among configurations passing G1–G7: the
+fewest scanning PWMs K_scan = K_primary + K_extra; if within 2 %, higher
+mean cluster fidelity; then higher subsample stability; then smaller
+resolution, k = 20, dims 1:30. K_clusters and K_scan are outputs, and
+K_scan is reported per tier (CORE_sequence / CORE_occupancy / EXTENDED).
+
+**9.5 Sensitivity (F39).** Reported for the chosen model: neighbouring
+resolutions, dims 20/30/50, k 15/20/30, A vs B, and a Factorbook-ChIP
+ablation (cluster structure on shared motifs). Downstream robustness
+(top-20 enrichment Jaccard ≥ 0.75, effect-size Spearman ≥ 0.90, TF
+top-5 recall drop ≤ 5 points) is checked later on held-out ChIP/ATAC
+data and does not block the Step 3 freeze.
+
+**9.6 Wording (F40).** "An objectively selected, reproducible,
+sequence-fidelity-constrained non-redundant motif reference";
+never "the optimal number of biological motif clusters".

@@ -10,7 +10,7 @@ see `PR/_TEMPLATE/WORKLOG_TEMPLATE.md`.
 | 0. Scope freeze (v0.2) + repo init | closed | — | design/PMA_pseudo_figures_v0.2.md |
 | 1. Motif reference pilot (Codebook vs JASPAR) | merged | #1 | docs/STEP1_MOTIF_PILOT_RESULTS.md |
 | 2. Multi-source motif import + QC + calibration benchmark | merged (0318026, 2026-10-16) | #2 (draft) | docs/STEP2_MOTIF_IMPORT_RESULTS.md; §8 fallback (no curator), v0.1 stays operational |
-| 2b. Raw layer v0.2.1 (+840 HOCOMOCO INVITRO/INVIVO) | PR pending | #3 | docs/STEP2_MOTIF_IMPORT_RESULTS.md §3; design §12 |
+| 2b. Raw layer v0.2.1 (+840 HOCOMOCO INVITRO/INVIVO) | review APPROVE (07de20e), awaiting merge | #3 | docs/STEP2_MOTIF_IMPORT_RESULTS.md §3; design §12 |
 | 3. Motif clustering + CORE/EXTENDED | not started | — | |
 | 4. Motif reference QC + freeze v0.1 (gates G1–G4) | not started | — | |
 | 5. Statistical Framework v0.1 design | not started | — | core association risk |
@@ -132,5 +132,13 @@ TF coverage vs Lambert 2018: 1,536/1,639 with a motif; the 103 without are
 **Checks**: v0.2 rebuild reproduces checksums; v0.2.1 rerun identical;
 no existing record changed except duplicate flags.
 
-**Next**: PR review (ChatGPT PMA conversation), merge on user confirmation;
-Step 3 on v0.2.1.
+**Review** (ChatGPT PMA conversation): round 1 REQUEST CHANGES. F10:
+merge on identical matrix alone could merge across TFs/experiments
+(verified: 0 such of 2,334; rule now also requires same TF, origin,
+assay). F11: merged entries lost provenance (fix: per-entry
+`PMA_hocomoco_collection_memberships.tsv`, 4,769 rows; 817 keep their own
+collection quality). F12–F15 docs/tests. Round 2 (07de20e): APPROVE.
+For Step 3: F16 read collection-specific quality from the membership
+table; F17 experiment count is not cluster size.
+
+**Next**: merge on user confirmation; Step 3 on v0.2.1.

@@ -118,14 +118,26 @@ class Rows:
 
 # ---- ENCODE BPNet / ChromBPNet / ProCapNet ----------------------------------
 
-MODISCO = re.compile(r"^(pos|neg)_patterns\.(.+)_(counts|profile)_pattern_(\d+)$")
+MC_NAME = re.compile(r"^(pos|neg)_patterns\..*_(ENCSR\w+)_(counts|profile)_pattern_(\d+)$")
+PAT = re.compile(r"^(?:(pos|neg)_patterns\.)?(?:.*_)?pattern_(\d+)$")
 PROCAP = re.compile(r"\.(counts|profile)\.(pos|neg)\.motif_(\d+)\.ppm\.fwd\.meme$")
 
 
 def import_encode(b, stats):
+    """Per-model PFMs joined to the MotifCompendium per-pattern index on
+    (model annotation, head, pattern index, posneg). Three motif-name
+    layouts occur: '<pos|neg>_patterns.<...>_<annot>_<head>_pattern_<i>',
+    the same without the posneg prefix, and bare 'pattern_<i>'. Without a
+    prefix, posneg comes from the index only when exactly one of pos/neg
+    exists for the key; otherwise the join is ambiguous/unmatched."""
     models = pd.read_csv(ENC / "models.tsv", sep="\t", dtype=str).fillna("")
     mc = pd.read_csv(ENC / "ENCODE-MotifCompendium.index.tsv", sep="\t", low_memory=False)
-    mc = mc.set_index("name")
+    key = mc.name.str.extract(MC_NAME)
+    assert key.notna().all().all(), mc.name[key.isna().any(axis=1)].head().tolist()
+    mc["k"] = list(zip(key[1], key[2], key[3].astype(int), key[0]))
+    dup = mc.k.duplicated(keep=False)
+    stats["mc_index_duplicate_keys"] = int(dup.sum())
+    mc = mc[~dup].set_index("k")
     geo = pd.read_csv(ENC / "experiment_dbxrefs.tsv", sep="\t", dtype=str).fillna("")
     parsed = []
     for r in models.itertuples():
@@ -139,35 +151,46 @@ def import_encode(b, stats):
             if procap and f.name.endswith(".ppm.fwd.meme"):
                 mm = PROCAP.search(f.name)
                 for mid, _, mat in pm.read_meme(f):
-                    parsed.append((r, f, mid, mat, mm.group(1), mm.group(2), mm.group(3), True))
+                    parsed.append((r, f, mid, mat, mm.group(1), mm.group(2), int(mm.group(3)), True))
             elif ".PFM.meme" in f.name:
+                head = "counts" if f.name.startswith("counts__") else "profile"
+                assert f.name.startswith(head + "__"), f
                 for mid, _, mat in pm.read_meme(f):
-                    mm = MODISCO.match(mid)
+                    mm = PAT.match(mid)
                     assert mm, (f, mid)
-                    parsed.append((r, f, mid, mat, mm.group(3), mm.group(1), mm.group(4), False))
-    names = Counter(p[2] for p in parsed if not p[7])
+                    parsed.append((r, f, mid, mat, head, mm.group(1) or "", int(mm.group(2)), False))
+    seen = Counter((p[0].annotation, p[4], p[6], p[5]) for p in parsed)
     for r, f, mid, mat, head, posneg, pat, procap in parsed:
         prefix = "ENPC" if procap else ("ENBP" if r.model_type == "BPNet" else "ENCB")
+        row, join = None, "not_applicable"
+        if not procap:
+            if posneg:
+                cands = [posneg]
+            else:
+                cands = [x for x in ("pos", "neg") if (r.annotation, head, pat, x) in mc.index]
+                stats["encode_name_without_posneg"] += 1
+            if seen[(r.annotation, head, pat, posneg)] > 1 or len(cands) > 1:
+                join = "ambiguous"
+            elif cands and (r.annotation, head, pat, cands[0]) in mc.index:
+                posneg, join = cands[0], "matched"
+                row = mc.loc[(r.annotation, head, pat, posneg)]
+            else:
+                join = "unmatched"
+        posneg = posneg or "unknown"
         pid = f"{prefix}_{r.annotation}_{head}_{posneg}_{pat}"
-        if procap:
-            join, row = "not_applicable", None
-        elif names[mid] > 1:
-            join, row = "ambiguous", None
-        elif mid in mc.index:
-            join, row = "matched", mc.loc[mid]
-        else:
-            join, row = "unmatched", None
         g = lambda k: (row[k] if row is not None and pd.notna(row[k]) else "")  # noqa: E731
         reasons = []
         if procap:
             reasons.append("procap_annotation_only")
         if head != "counts":
             reasons.append("profile_head")
-        if posneg != "pos":
+        if posneg == "neg":
             reasons.append("negative_pattern")
+        elif posneg == "unknown":
+            reasons.append("posneg_unknown")
         if not procap and join != "matched":
             reasons.append(f"mc_join_{join}")
-        elif join == "matched" and bool(row["flag_remove"]):
+        elif join == "matched" and str(row["flag_remove"]) == "True":
             reasons.append("mc_flag_remove")
         dt = g("direct_type")
         nsub = g("num_subunit")

@@ -327,7 +327,7 @@ HIGH 的单体 core 来源记录覆盖为 97 %，unique motif 覆盖却不到 90
 - `hub_marginal.tsv`、`hub_marginal_summary.tsv`
 - `PMA_composite_supplement.meme`、`composite_supplement.tsv`
 - `stability.tsv`
-- `MANIFEST.json`
+- `MANIFEST.json`（27 个文件的 sha256；完整性检查：三档 MEME 条数 = 簇摘要行数 = 500 / 1,000 / 2,000，无孤立的 reference_cluster_id）
 
 ## Discussion
 
@@ -345,6 +345,6 @@ HIGH 的单体 core 来源记录覆盖为 97 %，unique motif 覆盖却不到 90
 
 ## 下一步
 
-1. 外部审阅确认交付物后关闭 Step 3b（带 QC 标记）。
+1. Step 3b 已于 2026-10-17 按外部审阅 CLOSE WITH CONDITIONS 关闭（QC 标记保留；F53 清单递归校验、F54 映射语义已修正，完整性检查通过）。分支合并仍需 PI 确认。
 2. 绘制 Figure 1C 面板：来源 → QC → 去冗余 → core → 三档的数量流，以及 hub 数与覆盖率（样本内 / 未保留）的关系。
 3. 后续步骤中，用这些面板扫描 occupancy 数据，并在独立数据上评估代表性。

@@ -141,8 +141,8 @@ def build():
             key_df = pd.DataFrame({"lab": lab, "cov": cov, "ms": mean_s, "h": ~hm.high.fillna(False).to_numpy(),
                                    "e": -hm.n_exp.fillna(0).to_numpy(), "u": gn.unique_id.to_numpy()})
             key_df = key_df[key_df.lab >= 0]
-            best = key_df.groupby("lab").cov.transform("max")
-            cand = key_df[key_df.cov >= best - 0.01 * size[key_df.lab]]
+            best = key_df.groupby("lab")["cov"].transform("max")
+            cand = key_df[key_df["cov"] >= best - 0.01 * size[key_df.lab]]
             hub = cand.sort_values(["lab", "ms", "h", "e", "u"], ascending=[True, False, True, True, True]) \
                 .drop_duplicates("lab").set_index("lab")
             hub_row = np.array([row[u] for u in hub.reindex(range(nc)).u])

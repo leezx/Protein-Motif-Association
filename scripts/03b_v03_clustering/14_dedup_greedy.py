@@ -115,7 +115,7 @@ def apply(thr):
         uid = {r: f"PMU_{part[0].upper()}{k + 1:06d}" for k, r in enumerate(sorted(r_ids, key=lambda r: ids[r]))}
         nm = pd.DataFrame({"node_id": ids, "unique_id": [uid[r] for r in rep], "representative_node": ids[rep],
                            "s_to_representative": s_rep, "partition": part})
-        x = nodes.merge(nm, on="node_id").merge(md, on="pma_id")
+        x = nodes.drop(columns="partition", errors="ignore").merge(nm, on="node_id").merge(md, on="pma_id")
         mem.append(x)
         g = x.groupby("unique_id")
         uniq.append(pd.DataFrame({

@@ -29,7 +29,8 @@ for (b in names(groups)) {
     for (r in subres) out[[sprintf("sub_r%s", r)]][ix] <- paste0(b, ".0")
     next
   }
-  cl <- FindClusters(as.Graph(m[ix, ix]), resolution = subres, algorithm = 1, random.seed = SEED, verbose = FALSE)
+  cl <- FindClusters(as.Graph(m[ix, ix]), resolution = subres, algorithm = 1, random.seed = SEED,
+                     group.singletons = FALSE, verbose = FALSE)  # isolated nodes inside a subgraph stay alone
   for (j in seq_along(subres)) out[[sprintf("sub_r%s", subres[j])]][ix] <- paste0(b, ".", as.character(cl[[j]]))
 }
 cat(part, base_col, "subres:", subres, "\nK:", sapply(subres, function(r) length(unique(out[[sprintf("sub_r%s", r)]]))),

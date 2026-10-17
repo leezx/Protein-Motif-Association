@@ -111,12 +111,14 @@ def ami_boot(ref, lab, rng):
     return float(a), float(np.std(bs, ddof=1))
 
 
-def main(part, rep, dims):
+def main(part, rep, dims, only=None, tau_override=None):
+    """only + tau_override: strict-tau sensitivity (§13) on one selected config."""
     out = R / "gates"
     out.mkdir(parents=True, exist_ok=True)
     tau = json.loads((R / "tau_calibration" / "tau.json").read_text())
     assert tau["status"] == "ok", tau
-    tau = float(tau["tau"])
+    tau = float(tau_override if tau_override is not None else tau["tau"])
+    tag = f"_tau{tau:g}" if tau_override is not None else ""
     ids = pd.read_csv(R / "pca" / f"nodes_{part}.tsv", sep="\t").node_id.to_numpy()
     idx = {n: i for i, n in enumerate(ids)}
     F = np.load(R / "pca" / f"features_{part}.f16", mmap_mode="r")
@@ -129,7 +131,8 @@ def main(part, rep, dims):
 
     grid = pd.read_csv(R / "grid" / f"grid_{part}_{rep}_d{dims}.tsv.gz", sep="\t", dtype=str)
     grid = grid.set_index("node_id").reindex(ids)
-    cfgs = list(grid.columns)
+    cfgs = [c for c in grid.columns if only is None or c == only]
+    assert cfgs, only
     labs = [pd.factorize(grid[c])[0] for c in cfgs]
     means = community_means(F, labs)
     corrs = mean_corr(F, labs, means)
@@ -201,7 +204,7 @@ def main(part, rep, dims):
         rng = np.random.default_rng(SEED)
         ami_cb, se_cb = ami_boot(cb_ref, final[cb_node], rng) if len(cb_ref) else (np.nan, np.nan)
         ami_ho, se_ho = ami_boot(ho_ref, final[ho_node], rng) if len(ho_ref) else (np.nan, np.nan)
-        rows.append(dict(config=c, part=part, rep=rep, dims=dims, n_nodes=len(ids), K_louvain=int(ncomm),
+        rows.append(dict(config=c, part=part, rep=rep, dims=dims, tau=tau, n_nodes=len(ids), K_louvain=int(ncomm),
                          K_final=int(final.max() + 1), communities_split=nsplit,
                          fragmentation_mean=float(np.mean(frag)) if frag else 1.0,
                          compute_limited=";".join(map(str, limited)),
@@ -219,9 +222,12 @@ def main(part, rep, dims):
         finals[f"{c}|rep"] = ids[final_rep]
         print(c, rows[-1]["K_louvain"], rows[-1]["K_final"], round(g1, 3), round(g2, 3),
               round(rows[-1]["G3"], 3), g4, flush=True)
-    pd.DataFrame(rows).to_csv(out / f"gates_{part}_{rep}_d{dims}.tsv", sep="\t", index=False, float_format="%.6g")
-    pd.DataFrame(finals).to_csv(out / f"final_{part}_{rep}_d{dims}.tsv.gz", sep="\t", index=False)
+    pd.DataFrame(rows).to_csv(out / f"gates_{part}_{rep}_d{dims}{tag}.tsv", sep="\t", index=False,
+                              float_format="%.6g")
+    pd.DataFrame(finals).to_csv(out / f"final_{part}_{rep}_d{dims}{tag}.tsv.gz", sep="\t", index=False)
 
 
 if __name__ == "__main__":
-    main(sys.argv[1], sys.argv[2], int(sys.argv[3]))
+    # usage: 05_gates.py <part> <rep> <dims> [<config> <tau>]   (strict-tau sensitivity)
+    a = sys.argv[1:]
+    main(a[0], a[1], int(a[2]), a[3] if len(a) > 3 else None, float(a[4]) if len(a) > 4 else None)

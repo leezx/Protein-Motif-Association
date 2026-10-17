@@ -63,7 +63,8 @@ def node_props(part):
 
 
 def candidates():
-    t = pd.concat([pd.read_csv(f, sep="\t") for f in sorted(G.glob("gates_*.tsv"))], ignore_index=True)
+    files = [f for f in sorted(G.glob("gates_*.tsv")) if "_tau" not in f.name]  # strict-tau files excluded
+    t = pd.concat([pd.read_csv(f, sep="\t") for f in files], ignore_index=True)
     for part, g in t.groupby("part"):
         for ref in ("codebook", "hocomoco"):
             a, se = g[f"AMI_{ref}"], g[f"AMI_{ref}_se"]

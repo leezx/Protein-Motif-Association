@@ -6,6 +6,7 @@
 #   grid         12 parallel jobs: part x rep x dims (Seurat, r4p3)
 #   gates        12 parallel jobs -> deterministic gates -> candidates + G6 strata
 #   stability    G5/G6 runs for candidates (16 parallel) -> selection
+#   strict       strict-tau (0.95) sensitivity on the selected configs (§13)
 #   annotate     clusters, one PWM per cluster
 #   all          import .. annotate (post_tomtom must have finished)
 # usage: bash run_v03.sh <stage>   (from the repo clone; logs in result/step3b_v03/logs)
@@ -94,12 +95,20 @@ stage_stability() {
   "$PY" -I 06_select.py select
 }
 
+stage_strict() {  # §13 strict-tau sensitivity on the selected config of each partition
+  "$PY" -c "import json,sys; d=json.load(open(sys.argv[1]))
+[print(p, s['rep'], s['dims'], s['config']) for p, s in d.items() if s.get('status') == 'selected']" \
+    "$R3/gates/selection.json" | while read -r p r d c; do
+    NUMBA_NUM_THREADS=32 "$PY" -I 05_gates.py "$p" "$r" "$d" "$c" 0.95 > "$LOG/strict_${p}.log" 2>&1
+  done
+}
+
 stage_annotate() {
   "$PY" -I 07_annotate_clusters.py "$R3/reference"
 }
 
 case "$1" in
-  all) for s in import nodes_pca grid gates stability annotate; do echo "== $s $(date)"; "stage_$s"; done ;;
+  all) for s in import nodes_pca grid gates stability strict annotate; do echo "== $s $(date)"; "stage_$s"; done ;;
   *) "stage_$1" ;;
 esac
 echo "== done $1 $(date)"

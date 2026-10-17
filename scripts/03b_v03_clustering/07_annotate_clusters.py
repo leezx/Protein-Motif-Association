@@ -17,6 +17,10 @@ cluster); accessibility_only (every member accessibility/transcription
 derived); unresolved (otherwise).
 recurrent_uncharacterized: no candidate TF, >= 3 independent experiments
 across >= 2 studies and >= 2 biosamples.
+PMA_TIER_GRAPH=greedy (§19): tiers from align_tiers_greedy/. Only hub clusters are summarised
+and exported to PMA_representatives.meme (the scanning panel); isolated / unassigned /
+core_unassigned motifs keep their own rows in PMA_motif_to_cluster.tsv (membership, s_to_hub)
+and are listed in PMA_unrepresented_motifs.tsv.
 """
 import json
 import os
@@ -34,7 +38,8 @@ import pma_motif as pm  # noqa: E402
 R = Path(os.environ["PMA_MOTIF_RESULT"]) / "step3b_v03"
 PROC = Path(os.environ["PMA_MOTIF_PROCESSED"]) / "v0.3_raw_layer"
 EVID = Path(os.environ["PMA_MOTIF_PROCESSED"]) / "annotations" / "evidence_v2" / "PMA_motif_evidence.tsv"
-TIERS = R / ("align_tiers" if os.environ.get("PMA_TIER_GRAPH", "kmer") == "align" else "tiers")
+GRAPH = os.environ.get("PMA_TIER_GRAPH", "kmer")
+TIERS = R / {"kmer": "tiers", "align": "align_tiers", "greedy": "align_tiers_greedy"}[GRAPH]
 NO_PROTEIN = {"accessibility_model_derived", "transcription_model_derived"}
 
 
@@ -53,7 +58,8 @@ def main(out, tier=None):
         sel = {"tier": tier, **json.loads((TIERS / "tier_choice.json").read_text())["tiers"][tier]}
         f = pd.read_csv(TIERS / f"final_tier_{tier}.tsv.gz", sep="\t", dtype={"cluster": str})
         a = pd.DataFrame({"node_id": f.node_id, "partition": f.partition, "louvain": f.cluster, "cluster": f.cluster,
-                          "rep_node": f.rep_node, "covered_presplit": f.covered.astype(int)})
+                          "rep_node": f.rep_node, "covered_presplit": f.covered.astype(int),
+                          "membership": f.get("membership", "connected"), "s_to_hub": f.get("s_to_hub", np.nan)})
     else:
         sel = json.loads((R / "gates" / "selection.json").read_text())
         assign = []
@@ -74,14 +80,23 @@ def main(out, tier=None):
 
     x = md[["pma_id", "source_db", "cluster_pool", "pool_exclusion", "qc_flags"]].merge(
         nodes[["pma_id", "node_id", "exact_node", "near_dup_of", "unclusterable"]], on="pma_id", how="left").merge(
-        a[["node_id", "louvain_id", "cluster_id"]], on="node_id", how="left")
+        a[["node_id", "louvain_id", "cluster_id"] + (["membership", "s_to_hub"] if tier else [])], on="node_id",
+        how="left")
     x["status"] = np.select([x.cluster_pool.astype(str) != "True", x.unclusterable.astype(str) == "True",
                              x.cluster_id.notna()], ["excluded", "unclusterable_short", "clustered"], "unassigned")
     x.to_csv(out / "PMA_motif_to_cluster.tsv", sep="\t", index=False)
     assert not (x.status == "unassigned").any(), "pool profile without a cluster"
 
+    hub_clusters = set(a.cluster_id[a.partition.isin(["monomer", "composite"])])
+    if tier and GRAPH == "greedy":
+        un = f[~f.partition.isin(["monomer", "composite"])].drop_duplicates("unique_id")
+        un[["unique_id", "node_id", "membership", "partition", "s_to_hub", "rep_node"]].to_csv(
+            out / "PMA_unrepresented_motifs.tsv", sep="\t", index=False, float_format="%.4f")
+        go = pd.read_csv(TIERS / "greedy_order.tsv", sep="\t")
+        rank_of = dict(zip(go.unique_id, go["rank"]))
+        uid_of = dict(zip(f.node_id, f.unique_id))
     e = ev.merge(x[["pma_id", "node_id", "cluster_id"]], on="pma_id")
-    e = e[e.cluster_id.notna()].copy()
+    e = e[e.cluster_id.isin(hub_clusters)].copy()
     e = e.merge(md[["pma_id", "ic_total", "length"]], on="pma_id")
     exp = e.independent_experiment_id.where(~e.independence_status.isin(["unresolved", "independence_unresolved"]), "")
     e["exp"] = np.where(exp != "", exp, "solo:" + e.pma_id)
@@ -145,6 +160,7 @@ def main(out, tier=None):
             representative_coverage=round(float(cov_of[cid]), 4), parent_louvain_cluster=r.louvain_id,
             split_reason="" if n_final_per_louvain[r.louvain_id] == 1 else "presplit_coverage_lt_0.90",
             annotation_status=status, qc_flags=";".join(flags),
+            hub_greedy_rank=rank_of.get(uid_of.get(rn)) if tier and GRAPH == "greedy" else None,
             recurrent_uncharacterized=bool(not cand and n_exp >= 3 and studies >= 2 and len(bios) >= 2)))
     cs = pd.DataFrame(rows).sort_values("cluster_id")
     cs.to_csv(out / "PMA_cluster_summary.tsv", sep="\t", index=False)
@@ -154,7 +170,8 @@ def main(out, tier=None):
                 annotation_status=cs.annotation_status.value_counts().to_dict(),
                 recurrent_uncharacterized=int(cs.recurrent_uncharacterized.sum()),
                 split_clusters=int((cs.split_reason != "").sum()),
-                profiles=x.status.value_counts().to_dict())
+                profiles=x.status.value_counts().to_dict(),
+                membership=x.drop_duplicates("node_id").membership.value_counts().to_dict() if tier else None)
     (out / "reference_summary.json").write_text(json.dumps(summ, indent=2, default=float) + "\n")
     print(json.dumps(summ, indent=2, default=float))
 

@@ -157,34 +157,37 @@ def gn_part(P):
     return {"M": "monomer", "C": "composite"}[P]
 
 
-def greedy_order(meta, tv, kmax):
-    """Greedy max coverage at s >= tau over connected core motifs of both partitions (one global order)."""
-    nodes, nbrs, part_of, prio = [], [], [], []
+def load_core_tau_graph(meta):
+    """Connected-core tau graph over both partitions: (node table with gid, csr incl. self loops, tie rank)."""
+    from scipy import sparse
+    nodes, ab = [], []
     off = 0
     for part in PARTS:
         gn = pd.read_csv(U / f"graph_nodes_{part}.tsv", sep="\t")
         n = len(gn)
         z = np.load(U / f"tau_edges_{part}.npz")
-        a, b = z["q"].astype(np.int64) + off, z["t"].astype(np.int64) + off
-        nbrs.append((a, b))
+        ab.append((z["q"].astype(np.int64) + off, z["t"].astype(np.int64) + off))
         hm = meta.reindex(gn.unique_id)
         nodes.append(gn.assign(part=part, row=np.arange(n), gid=np.arange(n) + off,
                                h=~hm.high.fillna(False).to_numpy(), e=-hm.n_exp.fillna(0).to_numpy()))
         off += n
     nd = pd.concat(nodes, ignore_index=True)
-    a = np.concatenate([x[0] for x in nbrs])
-    b = np.concatenate([x[1] for x in nbrs])
-    from scipy import sparse
+    a = np.concatenate([x[0] for x in ab])
+    b = np.concatenate([x[1] for x in ab])
     g = sparse.csr_matrix((np.ones(2 * len(a), bool), (np.r_[a, b], np.r_[b, a])), shape=(off, off))
     g = (g + sparse.identity(off, dtype=bool, format="csr")).tocsr()
-    elig = ~nd.isolated.to_numpy()
     rank = np.empty(off, np.int64)
     rank[np.lexsort((nd.unique_id.to_numpy(), nd.e.to_numpy(), nd.h.to_numpy()))] = np.arange(off)
-    cov = ~elig  # isolated motifs are outside the coverage universe
+    return nd, g, rank
+
+
+def greedy_core(g, elig, rank, kmax):
+    """Greedy max coverage: g csr (self loops), elig = coverage universe and candidates. -> [(gid, gain, cum)]."""
+    cov = ~elig
     gain = np.asarray(g[:, elig].sum(1)).ravel().astype(np.int64)
     gain[~elig] = -1
     out = []
-    for k in range(kmax):
+    for _ in range(kmax):
         best = gain.max()
         if best <= 0:
             break
@@ -196,9 +199,16 @@ def greedy_order(meta, tv, kmax):
         for j in new:
             gain[g.indices[g.indptr[j]:g.indptr[j + 1]]] -= 1
         gain[i] = -1
-        out.append(dict(rank=k + 1, unique_id=nd.unique_id[i], partition=nd.part[i], row=int(nd.row[i]),
-                        gain=int(best), cum_coverage=float(cov[elig].mean())))
-    return pd.DataFrame(out)
+        out.append((i, int(best), float(cov[elig].mean())))
+    return out
+
+
+def greedy_order(meta, tv, kmax):
+    """Greedy max coverage at s >= tau over connected core motifs of both partitions (one global order)."""
+    nd, g, rank = load_core_tau_graph(meta)
+    out = greedy_core(g, ~nd.isolated.to_numpy(), rank, kmax)
+    return pd.DataFrame([dict(rank=k + 1, unique_id=nd.unique_id[i], partition=nd.part[i], row=int(nd.row[i]),
+                              gain=gain, cum_coverage=cum) for k, (i, gain, cum) in enumerate(out)])
 
 
 def build():

@@ -142,7 +142,7 @@ def noncore_assign(fg, hub_row, hub_node, gn, P):
         "membership": np.where(fiso, "isolated", np.where(has, "assigned", "unassigned")),
         "partition": np.where(fiso, "isolated", np.where(has, gn_part(P), "unassigned")),
         "cluster": np.where(fiso, "I_" + fn.unique_id.to_numpy()[rows],
-                            np.where(has, P + ci.astype(str), "N_" + fn.unique_id.to_numpy()[rows])),
+                            np.where(has, np.char.add(P, ci.astype(str)), "N_" + fn.unique_id.to_numpy()[rows])),
         "rep_node": np.where(has & ~fiso, hub_node[ci], own),
         "s_to_hub": np.where(fiso, 1.0, np.where(has, s, np.nan))})
 
@@ -218,7 +218,7 @@ def build():
                 "unique_id": gn.unique_id.to_numpy(),
                 "membership": np.where(iso, "isolated", "core" if SET == "core" else "connected"),
                 "partition": np.where(iso, "isolated", part),
-                "cluster": np.where(iso, "I_" + gn.unique_id.to_numpy(), P + lab.astype(str)),
+                "cluster": np.where(iso, "I_" + gn.unique_id.to_numpy(), np.char.add(P, lab.astype(str))),
                 "rep_node": np.where(iso, gn.node_id.to_numpy(), hub_node[np.maximum(lab, 0)]),
                 "s_to_hub": np.where(iso, 1.0, s_all)})
             if SET == "core":

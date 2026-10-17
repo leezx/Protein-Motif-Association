@@ -18,9 +18,15 @@ QC (reported, never tunes resolution): coverage of unique motifs and of source
 records by their hub at tau and at 0.95, coverage per source, hub redundancy
 (s >= 0.85 across clusters), N-challenge co-clustering, AMI vs Codebook T10 /
 HOCOMOCO, cross-tier mapping.
+PMA_TIER_SET=core (§18): the graph is unique_core/ (19_core_graph.py) and outputs go to
+align_tiers_core/. Every non-core unique motif joins the cluster of the hub with the
+highest exact s (s >= 0.65 edges of the full unique graph): membership `assigned`,
+or `unassigned` (own entry) when no hub is within 0.65. QC adds coverage of all
+non-isolated unique motifs / records at tau and the unassigned fraction.
 """
 import importlib
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -32,8 +38,10 @@ sys.path.insert(0, str(HERE))
 gt = importlib.import_module("05_gates")
 
 R = gt.R
-U = R / "unique"
-T = R / "align_tiers"
+SET = os.environ.get("PMA_TIER_SET", "unique")
+assert SET in ("unique", "core"), SET
+U = R / ("unique" if SET == "unique" else "unique_core")
+T = R / ("align_tiers" if SET == "unique" else "align_tiers_core")
 TARGETS = {"LOW": 500, "MEDIUM": 1000, "HIGH": 2000}
 PARTS = ("composite", "monomer")
 STRICT, S_RED = 0.95, 0.85
@@ -99,8 +107,48 @@ def unique_meta():
     return m, x, meta
 
 
+def load_full(part):
+    """Full unique graph (unique/) for assigning non-core motifs: nodes + s >= 0.65 edges as row indices."""
+    fn = pd.read_csv(R / "unique" / f"graph_nodes_{part}.tsv", sep="\t")
+    ge = pd.read_csv(R / "unique" / f"graph_edges_{part}.tsv", sep="\t")
+    cr = np.flatnonzero(~fn.isolated.to_numpy())
+    return fn, cr[ge.i.to_numpy()], cr[ge.j.to_numpy()], ge.s.to_numpy()
+
+
+def noncore_assign(fg, hub_row, hub_node, gn, P):
+    """Non-core unique motifs -> cluster of the hub with the highest s (cluster id = hub index)."""
+    fn, fa, fb, fs = fg
+    frow = {u: i for i, u in enumerate(fn.unique_id)}
+    is_core = np.zeros(len(fn), bool)
+    is_core[[frow[u] for u in gn.unique_id]] = True
+    hubcl = np.full(len(fn), -1, dtype=np.int64)
+    hubcl[[frow[u] for u in gn.unique_id.to_numpy()[hub_row]]] = np.arange(len(hub_row))
+    k1, k2 = (hubcl[fa] >= 0) & ~is_core[fb], (hubcl[fb] >= 0) & ~is_core[fa]
+    d = pd.DataFrame({"w": np.r_[fb[k1], fa[k2]], "c": np.r_[hubcl[fa[k1]], hubcl[fb[k2]]],
+                      "s": np.r_[fs[k1], fs[k2]]})
+    d = d.sort_values(["w", "s", "c"], ascending=[True, False, True]).drop_duplicates("w").set_index("w")
+    rows = np.flatnonzero(~is_core)
+    c, s = d.c.reindex(rows).to_numpy(), d.s.reindex(rows).to_numpy()
+    fiso, has = fn.isolated.to_numpy()[rows], ~np.isnan(c)
+    ci = np.where(has, c, 0).astype(np.int64)
+    own = fn.node_id.to_numpy()[rows]
+    return pd.DataFrame({
+        "unique_id": fn.unique_id.to_numpy()[rows],
+        "membership": np.where(fiso, "isolated", np.where(has, "assigned", "unassigned")),
+        "partition": np.where(fiso, "isolated", np.where(has, gn_part(P), "unassigned")),
+        "cluster": np.where(fiso, "I_" + fn.unique_id.to_numpy()[rows],
+                            np.where(has, P + ci.astype(str), "N_" + fn.unique_id.to_numpy()[rows])),
+        "rep_node": np.where(has & ~fiso, hub_node[ci], own),
+        "s_to_hub": np.where(fiso, 1.0, np.where(has, s, np.nan))})
+
+
+def gn_part(P):
+    return {"M": "monomer", "C": "composite"}[P]
+
+
 def build():
     tv = tau()
+    full = {p: load_full(p) for p in PARTS} if SET == "core" else {}
     choice = json.loads((U / "tier_choice.json").read_text())["tiers"]
     m, x, meta = unique_meta()
     qc, finals = [], {t: [] for t in TARGETS}
@@ -156,32 +204,45 @@ def build():
             hpair = np.isin(tq, hr) & np.isin(tt, hr) & (ts >= S_RED) & (lab[tq] != lab[tt])
             red = np.zeros(n, bool)
             red[tq[hpair]] = red[tt[hpair]] = True
-            # node-level output: every source node -> its unique motif's cluster
-            part_nodes = m[m.partition == part]
-            r = part_nodes.unique_id.map(row).to_numpy()
-            iso = gn.isolated.to_numpy()[r]
+            # per unique motif of this partition -> cluster, representative, s to hub
+            P = part[0].upper()
+            iso = gn.isolated.to_numpy()
             hub_node = gn.node_id.to_numpy()[hub_row]
-            f = pd.DataFrame({
-                "node_id": part_nodes.node_id.to_numpy(), "unique_id": part_nodes.unique_id.to_numpy(),
+            s_all = s_lookup(hub_row[np.maximum(lab, 0)], np.arange(n))
+            tab = pd.DataFrame({
+                "unique_id": gn.unique_id.to_numpy(),
+                "membership": np.where(iso, "isolated", "core" if SET == "core" else "connected"),
                 "partition": np.where(iso, "isolated", part),
-                "cluster": np.where(iso, "I" + part[0].upper() + pd.Series(r).astype(str).to_numpy(),
-                                    part[0].upper() + pd.Series(lab[r]).astype(str).to_numpy()),
-                "rep_node": np.where(iso, gn.node_id.to_numpy()[r], hub_node[np.maximum(lab[r], 0)]),
-                "covered": np.where(iso, 1, covered_u[r].astype(int)),
-                "covered_strict": np.where(iso, 1, strict_u[r].astype(int))}).drop_duplicates("node_id")
+                "cluster": np.where(iso, "I_" + gn.unique_id.to_numpy(), P + lab.astype(str)),
+                "rep_node": np.where(iso, gn.node_id.to_numpy(), hub_node[np.maximum(lab, 0)]),
+                "s_to_hub": np.where(iso, 1.0, s_all)})
+            if SET == "core":
+                tab = pd.concat([tab, noncore_assign(full[part], hub_row, hub_node, gn, P)], ignore_index=True)
+            hubbed = ~tab.membership.isin(["isolated", "unassigned"])
+            tab["covered"] = np.where(hubbed, tab.s_to_hub >= tv, tab.membership == "isolated").astype(int)
+            tab["covered_strict"] = np.where(hubbed, tab.s_to_hub >= STRICT, tab.membership == "isolated").astype(int)
+            # node-level output: every source node -> its unique motif's cluster
+            part_nodes = m.loc[m.partition == part, ["node_id", "unique_id"]]
+            f = part_nodes.merge(tab, on="unique_id", how="left", validate="m:1").drop_duplicates("node_id")
+            assert f.cluster.notna().all(), (part, name, "node without a unique-motif row")
             finals[name].append(f)
-            rec = x[x.partition == part].assign(cov=lambda d: covered_u[d.unique_id.map(row).to_numpy()],
-                                                iso=lambda d: gn.isolated.to_numpy()[d.unique_id.map(row).to_numpy()])
-            rec = rec[~rec.iso]
+            rec = x[x.partition == part].merge(tab[["unique_id", "membership", "covered"]], on="unique_id")
+            rc = rec[rec.membership.isin(["core", "connected"])]
+            ra = rec[rec.membership != "isolated"]
+            ta = tab[tab.membership != "isolated"]
             qc.append(dict(tier=name, part=part, res=t["res"], K=int(nc), unique_connected=int(len(members)),
                            unique_isolated=int(gn.isolated.sum()),
                            coverage_unique_tau=float(covered_u[members].mean()),
                            coverage_unique_strict=float(strict_u[members].mean()),
-                           coverage_records_tau=float(rec["cov"].mean()),
+                           coverage_records_tau=float(rc["covered"].mean()),
                            clusters_cov90=float((np.bincount(lab[members], weights=covered_u[members], minlength=nc)
                                                  / size >= 0.9).mean()),
                            hub_redundancy=float(red[hub_row].mean()),
-                           coverage_by_source=json.dumps(rec.groupby("source_db")["cov"].mean().round(3).to_dict())))
+                           unique_all_nonisolated=int(len(ta)),
+                           coverage_all_unique_tau=float(ta.covered.mean()),
+                           coverage_all_records_tau=float(ra["covered"].mean()),
+                           frac_unassigned=float((ta.membership == "unassigned").mean()),
+                           coverage_by_source=json.dumps(rc.groupby("source_db")["covered"].mean().round(3).to_dict())))
             print({k: v for k, v in qc[-1].items() if k != "coverage_by_source"}, flush=True)
     q = pd.DataFrame(qc)
     nodes_all = pd.read_csv(R / "nodes" / "motif_nodes.tsv", sep="\t")
@@ -208,6 +269,11 @@ def build():
                    coverage_unique_tau=float((g.coverage_unique_tau * g.unique_connected).sum() / g.unique_connected.sum()),
                    coverage_unique_strict=float((g.coverage_unique_strict * g.unique_connected).sum() / g.unique_connected.sum()),
                    hub_redundancy=float((g.hub_redundancy * g.K).sum() / g.K.sum()),
+                   unique_all_nonisolated=int(g.unique_all_nonisolated.sum()),
+                   coverage_all_unique_tau=float((g.coverage_all_unique_tau * g.unique_all_nonisolated).sum()
+                                                 / g.unique_all_nonisolated.sum()),
+                   frac_unassigned=float((g.frac_unassigned * g.unique_all_nonisolated).sum()
+                                         / g.unique_all_nonisolated.sum()),
                    n_challenge=float((a[ok] == b[ok]).mean()), n_challenge_pairs=int(ok.sum()))
         for rname, ref in refs.items():
             lab = ref.index.map(node_of).map(cl)
@@ -223,7 +289,7 @@ def build():
     for child, parent in (("HIGH", "MEDIUM"), ("MEDIUM", "LOW")):
         c = finals[child][["node_id", "cluster", "partition"]].merge(
             finals[parent][["node_id", "cluster"]], on="node_id", suffixes=("_child", "_parent"))
-        c = c[c.partition != "isolated"]
+        c = c[~c.partition.isin(["isolated", "unassigned"])]
         ct = c.groupby(["cluster_child", "cluster_parent"]).size().rename("n").reset_index()
         best = ct.sort_values(["cluster_child", "n"], ascending=[True, False]).drop_duplicates("cluster_child")
         best["purity"] = best.n.to_numpy() / c.groupby("cluster_child").size().reindex(best.cluster_child).to_numpy()

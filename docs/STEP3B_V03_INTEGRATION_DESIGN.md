@@ -691,3 +691,69 @@ The next step (clustering the unique motifs into the three PI tiers)
 awaits the PI's decision on isolated motifs. With isolated motifs counted
 toward K_total, LOW (≈ 500) and MEDIUM (≈ 1,000) are infeasible at the
 s ≥ 0.65 graph threshold.
+
+## 17. Result 2026-10-17: tiers on all connected unique motifs (QC FAIL, kept on record)
+
+**PI decision.** Tiers are built on connected unique motifs. The 1,477 isolated motifs (no partner at
+s ≥ 0.65; 1,274 monomer + 203 composite) form a separate, labelled set.
+
+**Method.**
+- LOW: whole-graph Louvain (`16_unique_louvain.R`, algorithm 1, seed 20261016). On the 41.5M-edge
+  monomer graph, whole-graph K grows only from 425 to 472 between r0.2 and r2, and r4 ran for more
+  than 60 min.
+- MEDIUM / HIGH: every LOW cluster is re-clustered on its own subgraph at sub-resolutions 0.1–8
+  (`18_subcluster.R`, `group.singletons = FALSE`, 8 workers by size rank).
+- sub_r2 was dropped: Louvain did not finish at that resolution on worker 2's clusters (> 30 min,
+  against < 30 s for every other resolution).
+
+**Result.** `align_tiers/tier_qc.tsv`
+
+| Tier | Column | K | Hub coverage at τ | at 0.95 | Hub redundancy | N-challenge | AMI Codebook / H14 |
+|---|---|---|---|---|---|---|---|
+| LOW | r0.2 | 531 | 0.074 | 0.014 | 0.000 | 0.382 | 0.40 / 0.40 |
+| MEDIUM | sub_r1 | 888 | 0.195 | 0.031 | 0.007 | 0.170 | 0.58 / 0.61 |
+| HIGH | sub_r8 | 1,551 | 0.325 | 0.058 | 0.060 | 0.106 | 0.59 / 0.63 |
+
+All three tiers are flagged `low_fidelity;possible_overmerging`.
+
+**Diagnosis.** The cause is structural, not a parameter problem.
+- 81,731 of the 99,133 monomer unique motifs are single-record motifs, most of them de novo.
+- The dedup scan shows that even a greedy cover at t = 0.85 needs 26,048 monomer centres.
+- 500–2,000 hubs therefore cannot represent every unique motif at s ≥ τ.
+
+## 18. Amendment 2026-10-17: PI-chosen core-set tiers
+
+**PI decision.** Option "core-set tiers": hubs are chosen only from well-supported motifs. Every
+other motif is assigned to its nearest hub and flagged when it is not well represented.
+
+**Core definition.** A unique motif is *core* if
+- any of its records has evidence v2 tier ≤ 2 (in vitro or curated), or
+- it is supported by ≥ 2 independent experiments (`n_exp`, independence-resolved).
+
+This gives 24,194 core motifs (23,888 monomer + 306 composite), of which 23,874 are connected
+within the full graph. Other definitions counted: high only 9,227; ≥ 2 records 17,680;
+≥ 2 databases 3,658.
+
+**Method.** Unchanged from §17 apart from the node set.
+- `19_core_graph.py` writes `unique_core/` in the same layout as `unique/`: core nodes only,
+  isolation recomputed within the core, plus the s ≥ 0.65 and s ≥ τ edges.
+- `16_unique_louvain.R` and `18_subcluster.R` run on `unique_core/`.
+- `17_unique_tiers.py`, run with `PMA_TIER_SET=core`, reads `unique_core/`, writes
+  `align_tiers_core/`, and keeps the targets 500 / 1,000 / 2,000.
+- Hubs use the same coverage-maximising rule over core members.
+
+**Assigning non-core motifs (per tier).**
+- Each non-core unique motif goes to the cluster of the hub with the highest exact s, among
+  s ≥ 0.65 edges.
+- `membership` is `core`, `assigned` (with `s_to_hub`), `unassigned` (no hub within 0.65), or
+  `isolated`.
+- `covered` = 1 when s_to_hub ≥ τ.
+
+**QC.**
+- As §17, computed on core members.
+- Coverage of all unique motifs (core plus assigned) at τ, also weighted by source records.
+- Fraction of non-core motifs that are unassigned.
+- Same flags.
+
+**Memory.** The core graph is a subset of the 41.5M-edge unique graph. Every job is expected to stay
+well under 10 GB.

@@ -8,6 +8,7 @@
 #   stability    G5/G6 runs for candidates (16 parallel) -> selection
 #   strict       strict-tau (0.95) sensitivity on the selected configs (§13)
 #   annotate     clusters, one PWM per cluster
+#   tiers        §14: tier choice, hubs, QC, stability, SNN degree, annotation per tier
 #   all          import .. annotate (post_tomtom must have finished)
 # usage: bash run_v03.sh <stage>   (from the repo clone; logs in result/step3b_v03/logs)
 set -euo pipefail
@@ -101,6 +102,20 @@ stage_strict() {  # §13 strict-tau sensitivity on the selected config of each p
     "$R3/gates/selection.json" | while read -r p r d c; do
     NUMBA_NUM_THREADS=32 "$PY" -I 05_gates.py "$p" "$r" "$d" "$c" 0.95 > "$LOG/strict_${p}.log" 2>&1
   done
+}
+
+stage_tiers() {  # §14 three-tier reference (after 08_tiers.R scan)
+  "$PY" -I 09_tiers.py choose
+  NUMBA_NUM_THREADS=32 "$PY" -I 09_tiers.py build
+  "$PY" -c "import json,sys; [print(t['res']) for t in json.load(open(sys.argv[1]))['tiers'].values()]" \
+    "$R3/tiers/tier_choice.json" | while read -r res; do
+    for p in composite monomer; do
+      echo "OMP_NUM_THREADS=4 $RS $HERE/04_seurat_grid.R $R3/pca $R3/grid stability $p A 30 20 $res > $LOG/tier_stability_${p}_r${res}.log 2>&1"
+    done
+  done | par 6
+  "$PY" -I 09_tiers.py stability
+  OMP_NUM_THREADS=8 "$RS" 08_tiers.R "$R3/pca" "$R3/tiers" degree > "$LOG/tiers_degree.log" 2>&1
+  for t in LOW MEDIUM HIGH; do "$PY" -I 07_annotate_clusters.py "$R3/reference_tiers/$t" "$t"; done
 }
 
 stage_annotate() {

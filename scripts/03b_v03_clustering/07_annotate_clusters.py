@@ -41,24 +41,29 @@ def top(counter, n=10):
     return ";".join(f"{k}:{v:g}" for k, v in counter.most_common(n) if k)
 
 
-def main(out):
+def main(out, tier=None):
     out = Path(out)
     out.mkdir(parents=True, exist_ok=True)
-    sel = json.loads((R / "gates" / "selection.json").read_text())
     md = pd.read_csv(PROC / "PMA_motif_metadata.tsv", sep="\t", keep_default_na=False, low_memory=False)
     ev = pd.read_csv(EVID, sep="\t", keep_default_na=False, low_memory=False)
     nodes = pd.read_csv(R / "nodes" / "motif_nodes.tsv", sep="\t", keep_default_na=False)
     mats = {n: m for n, _, m in pm.read_meme(R / "nodes" / "nodes.meme")}
-
-    assign = []
-    for part, s in sel.items():
-        assert s["status"] == "selected", (part, s)
-        f = pd.read_csv(R / "gates" / f"final_{part}_{s['rep']}_d{s['dims']}.tsv.gz", sep="\t", dtype=str)
-        c = s["config"]
-        assign.append(pd.DataFrame({"node_id": f.node_id, "partition": part, "louvain": f[f"{c}|louvain"],
-                                    "cluster": f[f"{c}|cluster"], "rep_node": f[f"{c}|rep"],
-                                    "covered_presplit": f[f"{c}|covered_presplit"].astype(int)}))
-    a = pd.concat(assign, ignore_index=True)
+    if tier:  # §14 three-tier reference
+        sel = {"tier": tier, **json.loads((R / "tiers" / "tier_choice.json").read_text())["tiers"][tier]}
+        f = pd.read_csv(R / "tiers" / f"final_tier_{tier}.tsv.gz", sep="\t", dtype={"cluster": str})
+        a = pd.DataFrame({"node_id": f.node_id, "partition": f.partition, "louvain": f.cluster, "cluster": f.cluster,
+                          "rep_node": f.rep_node, "covered_presplit": f.covered.astype(int)})
+    else:
+        sel = json.loads((R / "gates" / "selection.json").read_text())
+        assign = []
+        for part, s in sel.items():
+            assert s["status"] == "selected", (part, s)
+            f = pd.read_csv(R / "gates" / f"final_{part}_{s['rep']}_d{s['dims']}.tsv.gz", sep="\t", dtype=str)
+            c = s["config"]
+            assign.append(pd.DataFrame({"node_id": f.node_id, "partition": part, "louvain": f[f"{c}|louvain"],
+                                        "cluster": f[f"{c}|cluster"], "rep_node": f[f"{c}|rep"],
+                                        "covered_presplit": f[f"{c}|covered_presplit"].astype(int)}))
+        a = pd.concat(assign, ignore_index=True)
     size = a.groupby(["partition", "cluster"]).size().rename("n").reset_index()
     size = size.sort_values(["partition", "n", "cluster"], ascending=[True, False, True])
     size["cluster_id"] = [f"PMC_{p[0].upper()}{i:05d}" for p, i in
@@ -86,6 +91,7 @@ def main(out):
 
     rep_of = a.drop_duplicates("cluster_id").set_index("cluster_id")
     n_final_per_louvain = a.groupby("louvain_id").cluster_id.nunique()
+    cov_of = a.groupby("cluster_id").covered_presplit.mean() if tier else pd.Series(1.0, index=a.cluster_id.unique())
     rows = []
     for cid, g in e.groupby("cluster_id"):
         r = rep_of.loc[cid]
@@ -135,7 +141,7 @@ def main(out):
             candidate_tf_ids=top(cand) or "NA", assayed_protein_targets=top(assayed),
             biosample_distribution=top(bios), organ_distribution=top(organ),
             length=len(rm), ic_total=round(ic, 3), gc=round(gc, 3), composite=r.partition == "composite",
-            representative_coverage=1.0, parent_louvain_cluster=r.louvain_id,
+            representative_coverage=round(float(cov_of[cid]), 4), parent_louvain_cluster=r.louvain_id,
             split_reason="" if n_final_per_louvain[r.louvain_id] == 1 else "presplit_coverage_lt_0.90",
             annotation_status=status, qc_flags=";".join(flags),
             recurrent_uncharacterized=bool(not cand and n_exp >= 3 and studies >= 2 and len(bios) >= 2)))
@@ -153,4 +159,5 @@ def main(out):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1])
+    # usage: 07_annotate_clusters.py <out_dir> [LOW|MEDIUM|HIGH]
+    main(sys.argv[1], sys.argv[2] if len(sys.argv) > 2 else None)

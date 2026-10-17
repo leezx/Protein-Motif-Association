@@ -543,3 +543,56 @@ the §6.2 split.
   2,000 representative PWMs) of one motif universe". Not "the biologically
   optimal number of clusters". A tier is a "validated non-redundant
   scanning reference" only if it passes the fidelity and redundancy QC.
+
+## 15. Amendment 2026-10-17 ~00:15 EDT: post-QC method rescue (ChatGPT REQUEST CHANGES → approved design)
+
+**Status.** This is a post hoc methodology revision, made after the full
+§14 QC was seen. §14 stays as recorded: a k-mer affinity graph whose three
+tiers all failed the pre-specified QC (LOW / MEDIUM / HIGH).
+- Hub coverage at τ: 0.48 / 0.56 / 0.65.
+- Hub redundancy: 0.53 / 0.59 / 0.70.
+- Curated-source coverage in MEDIUM: HOCOMOCO 0.13, Codebook 0.18.
+
+None of the §14 tiers is a validated scanning reference.
+
+**Unchanged:** the input data (208,551 nodes), motif annotations, τ = 0.825
+(and 0.95 strict), the three PI tier budgets (closest K_total to
+500 / 1,000 / 2,000), evidence tiers, the experiment definition, the
+monomer / composite partitions, and all QC thresholds.
+
+**Changes:**
+
+1. **Candidate graph.** Each node's top-100 nearest neighbours in PCA space
+   (PCs 1:30, Euclidean, exact), taken as the union over both directions.
+   - Recall check, which must pass first: candidates must contain ≥ 95 %
+     of v0.2.1 high-confidence both-direction match pairs (Step 3
+     `edges.tsv.gz`, same partition), and ≥ 90 % within each source family
+     and each length stratum (≤ 8, 9–12, 13–16, 17–20, > 20 bp).
+   - Fallback: if the check fails, it is repeated once with top-200. If it
+     fails again, the outcome is `candidate_graph_incomplete`.
+2. **Edges.** Each candidate pair gets s (the alignment score of §6.1).
+   Edges with s ≥ 0.65 are kept with weight s.
+   - 0.65 is the graph threshold. Coverage still uses τ = 0.825.
+   - The connected-component count is reported per partition. A tier whose
+     budget is smaller than the number of components is
+     `target_infeasible`; components are never merged by hand.
+3. **Clustering.** Louvain (algorithm 1, seed 20261016) on the
+   s-weighted graph, scanning resolutions. Each tier takes the resolution
+   with K_total closest to its budget, as in §14.
+4. **Hub (coverage-maximising).**
+   - h_C = argmax_i Σ_j w_j 1(s_ij ≥ 0.825), with the experiment weights
+     w of §14.
+   - Ties within 1 percentage point of weighted coverage go to higher mean
+     s, then higher evidence tier, then more independent experiments, then
+     node ID.
+   - Candidate hubs are all members when a cluster has ≤ 3,000 nodes.
+     Larger clusters use the 300 members with the highest §14 medoid score.
+   - Coverage optimised on the same data is an engineering fidelity metric,
+     not an independent measure of predictive performance.
+5. **QC.** As in §14, plus curated-source fidelity (coverage per source)
+   and an item-by-item comparison with §14. If the QC still fails, the
+   tiers are reported as exploratory and no threshold is relaxed.
+6. **R3.** The curated-anchored reference is a benchmark only, answering
+   one question: does unified clustering recover additional reproducible de
+   novo patterns without losing established TF specificity? It is not
+   built as a full alternative pipeline now.

@@ -8,8 +8,8 @@ gates/final_<part>_<rep>_d<dims>.tsv.gz (final cluster + representative per node
 Per config, frozen rules:
 1. Representative per Louvain community: members whose mean affinity-profile
    correlation to the community (x_i . mean(x)) is within 0.05 of the best;
-   among them high-evidence nodes first (a member with measured direct binding,
-   JASPAR CORE, or HOCOMOCO quality A/B), then more independent experiments,
+   among them high-evidence nodes first (a member of evidence v2 tier 1 in vitro
+   or tier 2 curated core), then more independent experiments,
    then higher total IC, then node ID.
 2. Coverage = share of members with s(rep, member) >= tau (pre-split).
    G1: >= 80 % of communities with coverage >= 90 %.
@@ -49,18 +49,17 @@ PROC = Path(os.environ["PMA_MOTIF_PROCESSED"]) / "v0.3_raw_layer"
 RESULT = Path(os.environ["PMA_MOTIF_RESULT"])
 R = RESULT / "step3b_v03"
 RAW = Path(os.environ["PMA_MOTIF_RAW"])
+EVID = Path(os.environ["PMA_MOTIF_PROCESSED"]) / "annotations" / "evidence_v2" / "PMA_motif_evidence.tsv"
 BLOCK = 8192
 
 
 def node_meta(ids):
     nodes = pd.read_csv(R / "nodes" / "motif_nodes.tsv", sep="\t")
     md = pd.read_csv(PROC / "PMA_motif_metadata.tsv", sep="\t", low_memory=False,
-                     usecols=["pma_id", "source_db", "source_quality", "direct_binding_evidence", "ic_total",
-                              "independent_experiment_id", "codebook_cluster"])
-    x = nodes.merge(md, on="pma_id")
-    q = x.source_quality.astype(str)
-    x["high"] = (x.direct_binding_evidence.astype(str).eq("supported")
-                 | (x.source_db.eq("JASPAR") & q.eq("CORE")) | (x.source_db.eq("HOCOMOCO") & q.isin(["A", "B"])))
+                     usecols=["pma_id", "source_db", "ic_total", "independent_experiment_id", "codebook_cluster"])
+    ev = pd.read_csv(EVID, sep="\t", usecols=["pma_id", "evidence_tier"])
+    x = nodes.merge(md, on="pma_id").merge(ev, on="pma_id", how="left")
+    x["high"] = x.evidence_tier.le(2)  # evidence v2 tier 1 (in vitro) or 2 (curated core)
     g = x.groupby("node_id")
     t = pd.DataFrame({
         "high": g.high.any(),

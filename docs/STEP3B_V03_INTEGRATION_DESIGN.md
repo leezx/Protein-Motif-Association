@@ -411,3 +411,45 @@ Each finding was checked independently before it was applied.
 | P9 / P10 / B3 | single split; G2 moved before the split | **confirmed:** a complete-linkage cut at 1 − τ makes post-split coverage 100 % by construction, so the old G2 was tautological |
 | P12 | ProCapNet annotation-only | different prediction target (transcription initiation) |
 | B4 | de novo composites go to the composite partition; MotifCompendium / HDMA-508 concordance is descriptive only | they share provenance with the inputs |
+
+## 12. Implementation notes (2026-10-16, before any v0.3 result)
+
+These are choices made while implementing the frozen rules where the text
+left a detail open. None changes a threshold, and all were written before
+any v0.3 clustering or gate value existed.
+
+1. **MotifCompendium source.** `direct_type`, `num_subunit` (composite),
+   `flag_remove` and `flag_type` are per-pattern columns of
+   `ENCODE-MotifCompendium.index.tsv` (286,836 patterns, unique names), not
+   of the Zenodo supplementary tables.
+   - Join key: (model annotation, head, pattern index, posneg).
+   - `direct_type` C does not occur.
+2. **Motif name layouts.** ENCODE per-model names come in three layouts: with
+   a `pos_`/`neg_patterns.` prefix, without it, or as bare `pattern_<i>`.
+   Without a prefix, posneg comes from the index only if exactly one of
+   pos/neg exists; otherwise the pattern is `posneg_unknown` and
+   annotation-only.
+3. **ProCapNet** is recognised by its file layout (`*.ppm.fwd.meme`, one
+   matrix per file).
+4. **Negative patterns.** The P1 rule (negative patterns are annotation-only)
+   is applied to HDMA too, for consistency.
+5. **Cistrome ENCODE samples.** A Cistrome sample from an ENCODE consortium
+   paper (PMID 22955616 or 32728249) whose GSM has no ENCODE crosswalk is
+   `independence_unresolved`.
+6. **Near-dedup scope.** Near-dedup runs on every experiment key that
+   resolves: ENCODE model, Cistrome DCid, HDMA cell cluster, and v0.2.1
+   accession experiments. Nodes shared by more than one experiment are
+   never absorbed.
+7. **τ calibration caps.** Per-TF and per-experiment caps use the first
+   HGNC symbol and the first experiment ID of the node's sorted members.
+   Hard negatives are the 20 nearest same-partition nodes by s with no
+   TOMTOM row in either direction.
+8. **High-evidence representative** means evidence v2 tier 1 (in vitro) or
+   tier 2 (curated core). Ties are broken by more independent experiments,
+   then higher total IC, then node ID.
+9. **G6 strata.** Strata are source family × evidence type × GC quintile.
+   "Experiment" is read as experiment type, because per-experiment strata
+   would be singletons that are always kept.
+10. **GC rule (Step 3 §9.1).** Each condition is tested on the median gain
+    over 200 bootstrap resamples, stratified by source family × GC quintile.
+    External AMI is the Codebook T10 AMI.

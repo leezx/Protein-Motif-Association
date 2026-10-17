@@ -1,5 +1,7 @@
 """Step 3b §14: three-tier reference (LOW ~500, MEDIUM ~1000, HIGH ~2000).
 
+env PMA_TIER_GRAPH=kmer (§14, default) | align (§15: alignment-weighted graph from
+11_align_louvain.R, coverage-maximising hub; outputs in align_tiers/).
 usage: 09_tiers.py choose     -> tiers/tier_choice.json, grid/strata_<part>.tsv
        09_tiers.py build      -> tiers/final_tier_<tier>.tsv.gz, tiers/tier_qc.tsv, tiers/tier_mapping.tsv
        09_tiers.py stability  -> adds seed / subsample ARI to tiers/tier_qc.tsv
@@ -39,9 +41,12 @@ gt = importlib.import_module("05_gates")
 sel = importlib.import_module("06_select")
 
 TARGETS = {"LOW": 500, "MEDIUM": 1000, "HIGH": 2000}
+GRAPH = os.environ.get("PMA_TIER_GRAPH", "kmer")  # kmer (§14) or align (§15)
+HUB_CAND_MAX, HUB_CAND_TOP = 3000, 300  # §15 coverage hub: all members if <= 3,000, else top 300 by medoid score
 TIE, STRICT, S_RED = 0.01, 0.95, 0.85
 R = gt.R
-T = R / "tiers"
+T = R / ("tiers" if GRAPH == "kmer" else "align_tiers")
+A = R / "align"
 PARTS = ("composite", "monomer")
 BLOCK = 8192
 
@@ -51,10 +56,43 @@ def res_of(c):
 
 
 def scan(part):
-    return pd.read_csv(T / f"tiers_scan_{part}.tsv.gz", sep="\t", dtype=str).set_index("node_id")
+    f = T / f"tiers_scan_{part}.tsv.gz" if GRAPH == "kmer" else A / f"align_scan_{part}.tsv.gz"
+    return pd.read_csv(f, sep="\t", dtype=str).set_index("node_id")
+
+
+def scan_col(res):
+    return f"A_d30_k20_r{res:g}" if GRAPH == "kmer" else f"align_r{res:g}"
+
+
+def hubs_coverage(lab, w, medoid, meta, Z, Zrc, st, ln, tau):
+    """§15: h = argmax_i sum_j w_j 1(s_ij >= tau) / sum_j w_j over cluster members;
+    ties within 0.01: higher mean s, evidence tier <= 2, more experiments, node ID."""
+    nc = lab.max() + 1
+    order = np.argsort(lab, kind="stable")
+    bounds = np.r_[0, np.cumsum(np.bincount(lab, minlength=nc))]
+    rep = np.empty(nc, dtype=np.int64)
+    for c in range(nc):
+        mem = order[bounds[c]:bounds[c + 1]]
+        if len(mem) == 1:
+            rep[c] = mem[0]
+            continue
+        cand = mem if len(mem) <= HUB_CAND_MAX else mem[np.argsort(-medoid[mem], kind="stable")[:HUB_CAND_TOP]]
+        qa = np.repeat(cand, len(mem)).astype(np.int64)
+        qb = np.tile(mem, len(cand)).astype(np.int64)
+        sv = pa.s_pairs(Z, Zrc, st, ln, qa, qb).reshape(len(cand), len(mem))
+        ww = w[mem]
+        cov = ((sv >= tau) * ww).sum(1) / ww.sum()
+        ms = sv.mean(1)
+        top = cov >= cov.max() - 0.01
+        cc = cand[top]
+        key = pd.DataFrame({"m": -ms[top], "h": ~meta.high.to_numpy()[cc], "e": -meta.n_exp.to_numpy()[cc],
+                            "n": meta.index.to_numpy()[cc]})
+        rep[c] = cc[np.lexsort((key.n, key.e, key.h, key.m))[0]]
+    return rep
 
 
 def choose():
+    T.mkdir(parents=True, exist_ok=True)
     k = {p: scan(p).nunique() for p in PARTS}
     tab = pd.DataFrame({"res": [res_of(c) for c in k["monomer"].index], "K_monomer": k["monomer"].to_numpy(),
                         "K_composite": k["composite"].reindex(k["monomer"].index).to_numpy()})
@@ -136,13 +174,15 @@ def build():
         nch = nch.assign(a=nch.m1.map(node_of).map(idx), b=nch.m2.map(node_of).map(idx)).dropna(subset=["a", "b"])
         na, nb = nch.a.astype(int).to_numpy(), nch.b.astype(int).to_numpy()
         for name, t in choice.items():
-            col = f"A_d30_k20_r{t['res']:g}"
+            col = scan_col(t["res"])
             lab = pd.factorize(sc[col])[0]
             key = pd.Series(exp).fillna("").astype(str)
             grp = pd.Series(lab).astype(str) + "|" + key
             cnt = grp.map(grp.value_counts())
             w = np.where(key == "", 1.0, 1.0 / cnt.to_numpy())
             rep, score = hubs(F, lab, w, length, meta)
+            if GRAPH == "align":
+                rep = hubs_coverage(lab, w, score, meta, Z, Zrc, st, ln, tau)
             hub = rep[lab]
             s = pa.s_pairs(Z, Zrc, st, ln, hub.astype(np.int64), np.arange(len(ids), dtype=np.int64))
             ccov = np.bincount(lab, weights=s >= tau) / np.bincount(lab)
@@ -215,7 +255,8 @@ def stability():
     q = pd.read_csv(T / "tier_qc.tsv", sep="\t")
     for name, t in choice.items():
         for part in PARTS:
-            f = R / "grid" / f"stability_{part}_A_d30_k20_r{t['res']:g}.tsv.gz"
+            f = (R / "grid" / f"stability_{part}_A_d30_k20_r{t['res']:g}.tsv.gz" if GRAPH == "kmer"
+                 else A / f"align_stability_{part}_r{t['res']:g}.tsv.gz")
             if not f.exists():
                 continue
             s = pd.read_csv(f, sep="\t", dtype=str)

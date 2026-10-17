@@ -34,6 +34,7 @@ import pma_motif as pm  # noqa: E402
 R = Path(os.environ["PMA_MOTIF_RESULT"]) / "step3b_v03"
 PROC = Path(os.environ["PMA_MOTIF_PROCESSED"]) / "v0.3_raw_layer"
 EVID = Path(os.environ["PMA_MOTIF_PROCESSED"]) / "annotations" / "evidence_v2" / "PMA_motif_evidence.tsv"
+TIERS = R / ("align_tiers" if os.environ.get("PMA_TIER_GRAPH", "kmer") == "align" else "tiers")
 NO_PROTEIN = {"accessibility_model_derived", "transcription_model_derived"}
 
 
@@ -49,8 +50,8 @@ def main(out, tier=None):
     nodes = pd.read_csv(R / "nodes" / "motif_nodes.tsv", sep="\t", keep_default_na=False)
     mats = {n: m for n, _, m in pm.read_meme(R / "nodes" / "nodes.meme")}
     if tier:  # §14 three-tier reference
-        sel = {"tier": tier, **json.loads((R / "tiers" / "tier_choice.json").read_text())["tiers"][tier]}
-        f = pd.read_csv(R / "tiers" / f"final_tier_{tier}.tsv.gz", sep="\t", dtype={"cluster": str})
+        sel = {"tier": tier, **json.loads((TIERS / "tier_choice.json").read_text())["tiers"][tier]}
+        f = pd.read_csv(TIERS / f"final_tier_{tier}.tsv.gz", sep="\t", dtype={"cluster": str})
         a = pd.DataFrame({"node_id": f.node_id, "partition": f.partition, "louvain": f.cluster, "cluster": f.cluster,
                           "rep_node": f.rep_node, "covered_presplit": f.covered.astype(int)})
     else:

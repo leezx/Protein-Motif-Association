@@ -44,21 +44,32 @@ def tau():
 
 
 def scan(part):
-    return pd.read_csv(U / f"scan_{part}.tsv.gz", sep="\t", dtype=str).set_index("unique_id")
+    """Whole-graph Louvain columns r<res> + nested subcluster columns sub_r<res> (18_subcluster.R)."""
+    a = pd.read_csv(U / f"scan_{part}.tsv.gz", sep="\t", dtype=str).set_index("unique_id")
+    f = U / f"subscan_{part}.tsv.gz"
+    if f.exists():
+        b = pd.read_csv(f, sep="\t", dtype=str).set_index("unique_id").drop(columns="base")
+        a = a.join(b, how="left")
+    return a
+
+
+def col_order(c):
+    return (c.startswith("sub_"), float(c.split("r")[-1]))
 
 
 def choose():
     T.mkdir(parents=True, exist_ok=True)
     k = {p: scan(p).nunique() for p in PARTS}
-    res = sorted(set(k["monomer"].index) & set(k["composite"].index), key=lambda c: float(c[1:]))
-    tab = pd.DataFrame({"res": [float(c[1:]) for c in res], "K_monomer": [int(k["monomer"][c]) for c in res],
-                        "K_composite": [int(k["composite"][c]) for c in res]})
+    cols = sorted(set(k["monomer"].index) & set(k["composite"].index), key=col_order)
+    tab = pd.DataFrame({"col": cols, "K_monomer": [int(k["monomer"][c]) for c in cols],
+                        "K_composite": [int(k["composite"][c]) for c in cols]})
     tab["K_total"] = tab.K_monomer + tab.K_composite
     out = {"scan": tab.to_dict("records"), "tiers": {}}
     for name, tgt in TARGETS.items():
         d = (tab.K_total - tgt).abs()
-        b = tab.loc[d[d == d.min()].index].sort_values("res").iloc[0]
-        out["tiers"][name] = dict(target=tgt, res=float(b.res), K_total=int(b.K_total), K_monomer=int(b.K_monomer),
+        b = tab.loc[d[d == d.min()].index].iloc[0]  # tab is in scan order: whole-graph first, then nested
+        out["tiers"][name] = dict(target=tgt, col=b.col, res=float(b.col.split("r")[-1]), nested=b.col.startswith("sub_"),
+                                  K_total=int(b.K_total), K_monomer=int(b.K_monomer),
                                   K_composite=int(b.K_composite), deviation=round(float(b.K_total / tgt - 1), 4))
     (U / "tier_choice.json").write_text(json.dumps(out, indent=2) + "\n")
     (T / "tier_choice.json").write_text(json.dumps(out, indent=2) + "\n")  # read by 07_annotate_clusters.py
@@ -110,7 +121,7 @@ def build():
 
         for name, t in choice.items():
             lab = np.full(n, -1, dtype=np.int64)
-            lab[conn_rows] = pd.factorize(sc[f"r{t['res']:g}"])[0]
+            lab[conn_rows] = pd.factorize(sc[t["col"]])[0]
             nc = lab.max() + 1
             same = (lab[tq] == lab[tt]) & (lab[tq] >= 0)
             cov = np.bincount(tq[same], minlength=n) + np.bincount(tt[same], minlength=n) + 1

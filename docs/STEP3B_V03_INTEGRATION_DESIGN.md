@@ -596,3 +596,48 @@ monomer / composite partitions, and all QC thresholds.
    one question: does unified clustering recover additional reproducible de
    novo patterns without losing established TF specificity? It is not
    built as a full alternative pipeline now.
+
+## 15b. Amendment 2026-10-17 ~00:45 EDT: exact alignment graph (ChatGPT APPROVE WITH AMENDMENTS)
+
+**Timing.** This follows the failed PCA-candidate recall check of §15 and
+comes before any clustering on an alignment graph. The §14 QC and the §15
+prerequisite diagnostics stay recorded unchanged.
+
+**Why the PCA candidates failed** (K = 100, monomer):
+- Recall was 0.130 against v0.2.1 both-direction matches. The criterion is
+  structurally unattainable: the median node has 151 such matches.
+- Fairer measures also fail: each node's top-1 match was recalled 0.786,
+  top-10 0.562, and pairs with s ≥ 0.9 only 0.453.
+- The graph had 2,964 components, 2,266 of them singletons.
+- Composite passed at K = 200 (recall 0.965).
+
+**Changes to §15:**
+
+1. **Exact similarity.** Exact all-vs-all s within each partition, computed
+   once per unordered pair (upper triangle). No PCA candidate retrieval.
+   - Completeness assertion: pairs computed = n(n−1)/2.
+   - The recall gate is replaced by legacy concordance, reported only:
+     the share of each v0.2.1 node's top-1 / top-10 TOMTOM-supported
+     matches present as exact edges and with s ≥ τ, stratified by source,
+     length and IC.
+2. **Graph.** All pairs with s ≥ 0.65, weight s, with no top-K truncation.
+   If memory is insufficient, a resource limit is reported; there is no
+   silent fallback to top-K.
+3. **Singletons count toward K_total.** K_min = number of connected
+   components over both partitions.
+   - A tier whose budget is below K_min is `target_infeasible`.
+   - Disconnected components are never merged.
+   - Isolated nodes are labelled `isolated_at_s065`, an operational label
+     and not "novel motifs", because the length-overlap penalty in s can
+     isolate short motifs that share a core.
+   - The PI may still request budgeted scanning subsets, but they must
+     list the uncovered motifs and be kept separate from a
+     coverage-complete reference.
+4. **Hub.** Computed over **all** members of each cluster from the exact
+   s ≥ 0.825 edges. The top-300 PCA-medoid restriction is removed.
+5. **Unchanged:** Louvain, τ, the PI budgets and all QC.
+
+**Order of work.** Graph statistics are reported first: edges, components,
+isolated nodes, degree distribution including CTCF-like high-degree
+families, and legacy concordance. The three-tier resolution search runs
+only after that.

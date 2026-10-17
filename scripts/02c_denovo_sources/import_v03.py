@@ -123,6 +123,17 @@ PAT = re.compile(r"^(?:(pos|neg)_patterns\.)?(?:.*_)?pattern_(\d+)$")
 PROCAP = re.compile(r"\.(counts|profile)\.(pos|neg)\.motif_(\d+)\.ppm\.fwd\.meme$")
 
 
+def read_single_ppm(path):
+    """ProCapNet *.ppm.fwd.meme: one matrix, no MOTIF line."""
+    rows, on = [], False
+    for line in open(path):
+        if line.startswith("letter-probability matrix"):
+            on = True
+        elif on and line.strip():
+            rows.append([float(x) for x in line.split()])
+    return np.array(rows, dtype=float)
+
+
 def import_encode(b, stats):
     """Per-model PFMs joined to the MotifCompendium per-pattern index on
     (model annotation, head, pattern index, posneg). Three motif-name
@@ -150,8 +161,7 @@ def import_encode(b, stats):
         for f in files:
             if procap and f.name.endswith(".ppm.fwd.meme"):
                 mm = PROCAP.search(f.name)
-                for mid, _, mat in pm.read_meme(f):
-                    parsed.append((r, f, mid, mat, mm.group(1), mm.group(2), int(mm.group(3)), True))
+                parsed.append((r, f, f.name, read_single_ppm(f), mm.group(1), mm.group(2), int(mm.group(3)), True))
             elif ".PFM.meme" in f.name:
                 head = "counts" if f.name.startswith("counts__") else "profile"
                 assert f.name.startswith(head + "__"), f

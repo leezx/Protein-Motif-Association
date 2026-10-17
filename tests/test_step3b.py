@@ -68,3 +68,18 @@ def test_near_dup_requires_overlap_of_longer():
     r = pa.near_dup_r(Z, Zrc, st, ln, np.array([0, 0]), np.array([1, 2]), 0.9)
     assert r[0] == pytest.approx(1.0)
     assert r[1] == -1.0  # 6 of 10 < 90 %: no admissible alignment
+
+
+def test_balanced_basis_caps_and_redistribution(monkeypatch):
+    sys.path.insert(0, str(ROOT / "scripts" / "03b_v03_clustering"))
+    import importlib
+    fp = importlib.import_module("03_features_pca")
+    monkeypatch.setattr(fp, "CAP", 100)
+    strata = np.array(["a"] * 10 + ["b"] * 300 + ["c"] * 100)
+    got = fp.balanced_basis(strata, np.random.default_rng(1))
+    cnt = {k: int((strata[got] == k).sum()) for k in "abc"}
+    assert sum(cnt.values()) == 100 and len(set(got)) == 100
+    assert cnt["a"] == 10  # under-full: all of it
+    # 33 each first (76 taken); unused 24 split ∝ remaining 267 : 67 ->
+    # floor 19 / 4, the last unit to the larger remainder (c: .81 > b: .18)
+    assert (cnt["b"], cnt["c"]) == (52, 38)

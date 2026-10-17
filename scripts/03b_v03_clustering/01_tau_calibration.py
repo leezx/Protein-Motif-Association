@@ -6,8 +6,9 @@ Calibration set (frozen rule):
 - for each query: every TOMTOM-kept partner (q < 0.05 row in either
   direction, same partition) + the 20 nearest same-partition nodes by s that
   have no TOMTOM row in either direction (hard negatives);
-- label = pair passes statistical_match_v0.1 in both directions
-  (edges.tsv.gz from Step 3 03_build_edges.py).
+- label (amendment §13) = pair passes statistical_match_v0.1 in EITHER
+  direction (eligible_directed.tsv.gz), the Step 3 §8.3 coverage relation;
+  the original both-direction label (edges.tsv.gz) is kept as legacy curve.
 
 Rule: tau = smallest candidate in {0.650, 0.675, ..., 0.950} such that
 >= 95 % of calibration pairs with s >= tau are labelled positive and every
@@ -99,7 +100,10 @@ def main():
 
     e = pd.read_csv(R / "edges.tsv.gz", sep="\t", usecols=["a", "b"], dtype=str)
     ea, eb = e.a.map(idx).to_numpy(), e.b.map(idx).to_numpy()
-    pos = set(zip(np.minimum(ea, eb).tolist(), np.maximum(ea, eb).tolist()))
+    both = set(zip(np.minimum(ea, eb).tolist(), np.maximum(ea, eb).tolist()))
+    d = pd.read_csv(R / "eligible_directed.tsv.gz", sep="\t", usecols=["query", "target"], dtype=str)
+    da, db = d["query"].map(idx).to_numpy(), d["target"].map(idx).to_numpy()
+    pos = set(zip(np.minimum(da, db).tolist(), np.maximum(da, db).tolist()))
 
     rng = np.random.default_rng(SEED)
     order = rng.permutation(len(ids))
@@ -122,6 +126,7 @@ def main():
         rows += [(i, int(cand[k]), float(sc_[k]), "hard_negative") for k in top]
     p = pd.DataFrame(rows, columns=["qi", "ti", "s", "kind"])
     p["positive"] = [(min(x, y), max(x, y)) in pos for x, y in zip(p.qi, p.ti)]
+    p["positive_both"] = [(min(x, y), max(x, y)) in both for x, y in zip(p.qi, p.ti)]
     p["query"] = np.array(ids)[p.qi]
     p["target"] = np.array(ids)[p.ti]
     for c in ("source_family", "len_tertile", "gc_quintile", "tf", "experiment"):
@@ -144,14 +149,17 @@ def main():
                 ok_strata = False
         agree = k / n if n else np.nan
         passed = bool(n and agree >= 0.95 and ok_strata)
-        curve.append(dict(tau=tv, n=n, agree=agree, ci_lo=lo, ci_hi=hi, strata_ok=ok_strata, passes=passed))
+        curve.append(dict(tau=tv, n=n, agree=agree, ci_lo=lo, ci_hi=hi, strata_ok=ok_strata, passes=passed,
+                          agree_both_legacy=float(sel.positive_both.mean()) if n else np.nan))
         if passed and tau is None:
             tau = float(tv)
     pd.DataFrame(curve).to_csv(OUT / "curve.tsv", sep="\t", index=False, float_format="%.6g")
     pd.DataFrame(sc).to_csv(OUT / "strata_curve.tsv", sep="\t", index=False, float_format="%.6g")
     res = dict(tau=tau, status="ok" if tau is not None else "tau_calibration_failed", seed=SEED,
                n_queries=len(queries), n_pairs=len(p), n_tomtom_kept=int((p.kind == "tomtom_kept").sum()),
-               n_hard_negative=int((p.kind == "hard_negative").sum()), n_positive=int(p.positive.sum()))
+               n_hard_negative=int((p.kind == "hard_negative").sum()), n_positive=int(p.positive.sum()),
+               label="statistical_match_v0.1 either direction (amendment §13)",
+               tau_strict_sensitivity=0.95)
     (OUT / "tau.json").write_text(json.dumps(res, indent=2) + "\n")
     print(json.dumps(res, indent=2))
     print(pd.DataFrame(curve).to_string(index=False))

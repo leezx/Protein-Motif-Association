@@ -453,3 +453,34 @@ any v0.3 clustering or gate value existed.
 10. **GC rule (Step 3 §9.1).** Each condition is tested on the median gain
     over 200 bootstrap resamples, stratified by source family × GC quintile.
     External AMI is the Codebook T10 AMI.
+
+## 13. Amendment 2026-10-16 ~22:00 EDT: τ calibration label (ChatGPT APPROVE (b))
+
+The calibration label was corrected from **both-direction** to
+**either-direction** `statistical_match_v0.1`. This aligns it with the
+representative-coverage definition already specified in Step 3 §8.3.
+
+**Timing.** The correction was made after inspecting the legacy
+calibration curve (both-direction gave τ = 0.95, the top of the grid) but
+before any v0.3 clustering, gate evaluation or model selection.
+
+**Reasons:**
+- 73 % of the high-similarity pairs that fail the both-direction label pass
+  in exactly one direction, because per-query BH makes q asymmetric.
+- Hard negatives almost never reach s ≥ 0.85 (99th percentile 0.805).
+
+**Unchanged:** every other calibration rule, the candidate grid, the
+≥ 95 % overall / ≥ 90 % per-major-stratum criterion, the clustering grid,
+and G1–G7.
+
+**Boundary check.** The unrounded either-direction agreement at τ = 0.80
+is 0.9499 < 0.95, so τ = 0.825 is the smallest passing candidate.
+
+**Reporting:**
+- Both curves are published: `curve.tsv` has `agree` (either) and
+  `agree_both_legacy`.
+- The first run's outputs are kept in `tau_calibration_rev1_bothdir/`.
+- **Strict sensitivity.** On the selected Louvain configuration only, we
+  report representative coverage, the post-split cluster count and the
+  fragmentation ratio at τ = 0.95. The grid is not re-optimised at
+  τ = 0.95, and the primary τ is not adjusted whatever that analysis shows.

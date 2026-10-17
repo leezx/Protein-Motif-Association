@@ -47,8 +47,16 @@ def scan(part):
     """Whole-graph Louvain columns r<res> + nested subcluster columns sub_r<res> (18_subcluster.R)."""
     a = pd.read_csv(U / f"scan_{part}.tsv.gz", sep="\t", dtype=str).set_index("unique_id")
     f = U / f"subscan_{part}.tsv.gz"
+    parts = sorted(U.glob(f"subscan_{part}_w*.tsv.gz"))
     if f.exists():
-        b = pd.read_csv(f, sep="\t", dtype=str).set_index("unique_id").drop(columns="base")
+        b = pd.read_csv(f, sep="\t", dtype=str)
+    elif parts:
+        b = pd.concat([pd.read_csv(x, sep="\t", dtype=str) for x in parts], ignore_index=True)
+    else:
+        b = None
+    if b is not None:
+        b = b.set_index("unique_id").drop(columns="base")
+        assert b.index.is_unique and len(b) == len(a), (part, len(b), len(a))
         a = a.join(b, how="left")
     return a
 

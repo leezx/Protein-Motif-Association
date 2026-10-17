@@ -4,11 +4,15 @@
 # (Louvain algorithm 1, seed 20261016) at a common sub-resolution; labels "<base>.<sub>".
 # Reason: on the dense 41.5M-edge graph, whole-graph Louvain gains clusters very
 # slowly with resolution (425 -> 472 for res 0.2 -> 2) and res 4 took > 60 min.
-# usage: Rscript 18_subcluster.R <unique_dir> <part> <base_col> <subres,subres,...>
+# usage: Rscript 18_subcluster.R <unique_dir> <part> <base_col> <subres,subres,...> [<worker> <n_workers>]
 #          -> unique/subscan_<part>.tsv.gz (unique_id, base, sub_r<r>...)
+#          with workers: unique/subscan_<part>_w<worker>.tsv.gz holding only that worker's base
+#          clusters (assigned round-robin by size rank, largest first); 17_unique_tiers.py merges them
 suppressPackageStartupMessages({ library(Seurat); library(Matrix) })
 args <- commandArgs(trailingOnly = TRUE)
 ud <- args[1]; part <- args[2]; base_col <- args[3]; subres <- as.numeric(strsplit(args[4], ",")[[1]])
+wk <- if (length(args) >= 6) as.integer(args[5]) else 0L
+nw <- if (length(args) >= 6) as.integer(args[6]) else 1L
 SEED <- 20261016
 nodes <- read.delim(file.path(ud, paste0("graph_nodes_", part, ".tsv")))
 ids <- nodes$unique_id[!as.logical(nodes$isolated)]
@@ -22,6 +26,8 @@ stopifnot(!anyNA(base))
 out <- data.frame(unique_id = ids, base = base)
 for (r in subres) out[[sprintf("sub_r%s", r)]] <- NA_character_
 groups <- split(seq_len(n), base)
+groups <- groups[order(-lengths(groups), names(groups))]
+groups <- groups[(seq_along(groups) - 1) %% nw == wk]
 t0 <- Sys.time()
 for (b in names(groups)) {
   ix <- groups[[b]]
@@ -33,6 +39,9 @@ for (b in names(groups)) {
                      group.singletons = FALSE, verbose = FALSE)  # isolated nodes inside a subgraph stay alone
   for (j in seq_along(subres)) out[[sprintf("sub_r%s", subres[j])]][ix] <- paste0(b, ".", as.character(cl[[j]]))
 }
-cat(part, base_col, "subres:", subres, "\nK:", sapply(subres, function(r) length(unique(out[[sprintf("sub_r%s", r)]]))),
-    format(Sys.time() - t0), "\n")
-data.table::fwrite(out, file.path(ud, sprintf("subscan_%s.tsv.gz", part)), sep = "\t")
+mine <- unlist(groups, use.names = FALSE)
+out <- out[sort(mine), ]
+cat(part, base_col, "worker", wk, "of", nw, "subres:", subres, "\nK:",
+    sapply(subres, function(r) length(unique(out[[sprintf("sub_r%s", r)]]))), format(Sys.time() - t0), "\n")
+f <- if (nw == 1) sprintf("subscan_%s.tsv.gz", part) else sprintf("subscan_%s_w%d.tsv.gz", part, wk)
+data.table::fwrite(out, file.path(ud, f), sep = "\t")

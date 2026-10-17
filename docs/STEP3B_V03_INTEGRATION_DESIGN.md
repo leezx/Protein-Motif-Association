@@ -641,3 +641,53 @@ prerequisite diagnostics stay recorded unchanged.
 isolated nodes, degree distribution including CTCF-like high-degree
 families, and legacy concordance. The three-tier resolution search runs
 only after that.
+
+## 16. Amendment 2026-10-17 ~01:55 EDT: PI-directed redundancy removal before clustering
+
+**Direction.** PI, verbatim (translated): "First merge the redundant motifs.
+If the same motif appears in several databases, merge it into one unique
+record, keep all database records and annotations, and give it an internal
+ID. Do not cluster all motifs as nodes."
+
+Exact-identity merging (§4.2) had already reduced 211,457 profiles to
+208,577 nodes. The PI chose near-identity at **t = 0.99**. The scan of
+t ∈ {0.85, …, 0.99} is in `dedup/scan.tsv`; for example, 0.95 would give
+58,355 unique motifs.
+
+**Method.**
+- Greedy, CD-HIT-style dedup on the exact all-vs-all alignment
+  similarity s, within each partition.
+- Priority order: evidence v2 tier ≤ 2, then more independent experiments,
+  then higher total IC, then node ID.
+- An unassigned node becomes a representative and absorbs every unassigned
+  node with s ≥ 0.99 to it. There is no chaining, and every member is
+  within 0.99 of its representative.
+
+**Result.** 211,431 clusterable source records became **101,228 unique
+motifs** (IDs `PMU_<C|M>nnnnnn`; 2,095 composite, 99,133 monomer).
+- 19,495 unique motifs merge two or more records; 3,658 span two or more
+  databases (up to 7).
+- Outputs: `dedup/PMA_unique_motifs_t0.99.tsv` (sources and TF assignments
+  per unique motif) and `dedup/PMA_motif_to_unique_t0.99.tsv.gz` (every
+  record → unique ID, with s to the representative).
+
+**Compute.** Peak memory 7.8 GB. The exact all-vs-all edges come from
+`align/exact_*.npz` (313M monomer pairs at s ≥ 0.65).
+
+**Superseded.** The full 208k-node exact-graph clustering of §15b is
+stopped: too dense, and Argos jobs are capped at about 50 GB by PI
+direction.
+
+**Representative graph.**
+
+| | s ≥ 0.65 | s ≥ 0.75 | s ≥ 0.825 |
+|---|---|---|---|
+| Monomer edges | 41.5M | — | 5.2M |
+| Components (monomer + composite) | 1,668 + 299 = 1,967 | 4,732 + 591 | 10,404 + 807 |
+| Isolated nodes (monomer + composite) | 1,274 + 203 | — | — |
+| Largest monomer component | 96,443 | — | — |
+
+The next step (clustering the unique motifs into the three PI tiers)
+awaits the PI's decision on isolated motifs. With isolated motifs counted
+toward K_total, LOW (≈ 500) and MEDIUM (≈ 1,000) are infeasible at the
+s ≥ 0.65 graph threshold.

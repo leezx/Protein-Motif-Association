@@ -484,3 +484,62 @@ is 0.9499 < 0.95, so τ = 0.825 is the smallest passing candidate.
   report representative coverage, the post-split cluster count and the
   fragmentation ratio at τ = 0.95. The grid is not re-optimised at
   τ = 0.95, and the primary τ is not adjusted whatever that analysis shows.
+
+## 14. Amendment 2026-10-16 ~23:20 EDT: PI-directed three-tier reference (ChatGPT APPROVE WITH CONDITIONS)
+
+**Direction.** PI direction, verbatim (translated): "Be conservative. The
+final clustering has three tiers: low about 500 representative motifs,
+medium 1000, high 2000. In each cluster pick the hub as the central
+representative motif." Clarified by the PI: "roughly three tiers; the
+counts only need to be about right, not exact; decide from the actual
+clustering results."
+
+**Timing.** Introduced after the v0.3 Louvain cluster-count grid was
+inspected, but before any gate, selection or quality value existed. The
+gate stage was stopped unfinished.
+
+**Replaces** the §6.3 selection ("fewest K_final passing all gates") and
+the §6.2 split.
+
+- **Graph.** One fixed graph for all tiers: representation A (PC1 kept),
+  dims 1:30, k.param 20, Louvain algorithm 1, seed 20261016. Monomer and
+  composite partitions are clustered separately at the same resolution.
+  Representation B is sensitivity only.
+- **Resolution per tier.** The tested resolutions are the frozen grid
+  (0.8–12) plus 16, 24, 32, 48, 64.
+  - K_total(γ) = K_monomer(γ) + K_composite(γ).
+  - Each tier takes the tested γ whose K_total is closest to 500, 1,000 or
+    2,000; ties go to the smaller γ.
+  - No fine search and no tolerance: the counts are approximate by PI
+    direction. The actual K is reported.
+  - Clusters are never merged or split by hand.
+- **Representative (hub).** One per cluster: the experiment-balanced
+  affinity medoid.
+  - Definition: argmax over i of Σ_{j≠i} w_j corr(a_i, a_j) / Σ_{j≠i} w_j,
+    where a is the normalised 8-mer affinity profile.
+  - Weights: w_j = 1 / (number of the cluster's nodes that share node j's
+    resolved independent experiment). Nodes without a resolved experiment
+    get w = 1.
+  - Ties within 0.01 of the best score are broken in this order: evidence
+    v2 tier ≤ 2; more independent experiments; length closest to the
+    cluster's median length; node ID.
+  - Weighted intra-cluster SNN degree is reported as an annotation only.
+- **Quality, per tier.** Reported, never used to tune γ:
+  - integrity (hard: one cluster per node, one representative per
+    cluster);
+  - coverage of members by their hub at τ = 0.825, with ≥ 90 % required
+    for "validated scanning tier" (otherwise `low_fidelity`);
+  - N-challenge co-clustering ≤ 5 % (otherwise `possible_overmerging`);
+  - cross-cluster hub redundancy ≤ 15 % at s ≥ 0.85 (otherwise
+    `residual_redundancy`);
+  - seed / subsample stability, median ARI ≥ 0.85 / ≥ 0.75 (otherwise
+    `unstable_partition`);
+  - AMI against Codebook T10 and HOCOMOCO;
+  - coverage at the strict τ = 0.95.
+- **Cross-tier relationship.** Tiers are independent Louvain partitions,
+  not forced to nest. We report the high → medium → low maximum-overlap
+  mapping, parent purity, and split/merge counts.
+- **Wording.** "Three PI-specified compression tiers (about 500 / 1,000 /
+  2,000 representative PWMs) of one motif universe". Not "the biologically
+  optimal number of clusters". A tier is a "validated non-redundant
+  scanning reference" only if it passes the fidelity and redundancy QC.

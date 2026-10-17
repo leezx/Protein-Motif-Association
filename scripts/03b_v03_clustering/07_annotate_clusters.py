@@ -82,12 +82,20 @@ def main(out, tier=None):
         nodes[["pma_id", "node_id", "exact_node", "near_dup_of", "unclusterable"]], on="pma_id", how="left").merge(
         a[["node_id", "louvain_id", "cluster_id"] + (["membership", "s_to_hub"] if tier else [])], on="node_id",
         how="left")
+    hub_clusters = set(a.cluster_id[a.partition.isin(["monomer", "composite"])])
     x["status"] = np.select([x.cluster_pool.astype(str) != "True", x.unclusterable.astype(str) == "True",
                              x.cluster_id.notna()], ["excluded", "unclusterable_short", "clustered"], "unassigned")
-    x.to_csv(out / "PMA_motif_to_cluster.tsv", sep="\t", index=False)
     assert not (x.status == "unassigned").any(), "pool profile without a cluster"
-
-    hub_clusters = set(a.cluster_id[a.partition.isin(["monomer", "composite"])])
+    if tier:  # F54: only hub clusters belong to the scanning reference; others keep their membership as status
+        x["in_scanning_reference"] = x.cluster_id.isin(hub_clusters)
+        unrep = (x.status == "clustered") & ~x.in_scanning_reference
+        x.loc[unrep, "status"] = "unrepresented_" + x.loc[unrep, "membership"].astype(str)
+        x["internal_cluster_id"] = x.cluster_id
+        x["reference_cluster_id"] = x.cluster_id.where(x.in_scanning_reference)
+        x = x.drop(columns="cluster_id")
+    x.to_csv(out / "PMA_motif_to_cluster.tsv", sep="\t", index=False)
+    if tier:
+        x = x.rename(columns={"internal_cluster_id": "cluster_id"})
     if tier and GRAPH == "greedy":
         un = f[~f.partition.isin(["monomer", "composite"])].drop_duplicates("unique_id")
         un[["unique_id", "node_id", "membership", "partition", "s_to_hub", "rep_node"]].to_csv(

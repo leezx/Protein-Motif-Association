@@ -127,12 +127,29 @@ def stability():
 
 def freeze():
     commit = subprocess.run(["git", "-C", str(HERE), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
-    files = {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(T.iterdir())
-             if p.is_file() and p.name != "MANIFEST.json"}
+    files = {str(p.relative_to(T)): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(T.rglob("*"))
+             if p.is_file() and p.name != "MANIFEST.json"}  # F53: recursive, relative paths
+    need = ["greedy_order.tsv", "tier_qc.tsv", "tier_mapping.tsv", "stability.tsv", "hub_marginal.tsv",
+            "PMA_composite_supplement.meme"] + [f"final_tier_{t}.tsv.gz" for t in ut.TARGETS] + \
+        [f"reference_{t}/{f}" for t in ut.TARGETS for f in ("PMA_representatives.meme", "PMA_cluster_summary.tsv",
+                                                             "PMA_motif_to_cluster.tsv", "PMA_unrepresented_motifs.tsv",
+                                                             "reference_summary.json")]
+    missing = [f for f in need if f not in files]
+    assert not missing, missing
+    integrity = {}
+    for t, k in ut.TARGETS.items():  # integrity: MEME = summary = target; every reference_cluster_id is summarised
+        d = T / f"reference_{t}"
+        cs = pd.read_csv(d / "PMA_cluster_summary.tsv", sep="\t", usecols=["cluster_id"])
+        n_meme = sum(1 for line in open(d / "PMA_representatives.meme") if line.startswith("MOTIF"))
+        mc = pd.read_csv(d / "PMA_motif_to_cluster.tsv", sep="\t", usecols=["reference_cluster_id"]).reference_cluster_id
+        orphan = int((~mc.dropna().isin(set(cs.cluster_id))).sum())
+        assert n_meme == len(cs) == k and orphan == 0, (t, n_meme, len(cs), orphan)
+        integrity[t] = dict(meme_motifs=n_meme, summary_rows=len(cs), orphan_reference_ids=orphan,
+                            records_in_reference=int(mc.notna().sum()))
     man = dict(tier_set="greedy", design="STEP3B_V03_INTEGRATION_DESIGN.md §19", code_commit=commit, tau=ut.tau(),
                strict=ut.STRICT, s_edge=0.65, s_redundancy=ut.S_RED, targets=ut.TARGETS,
                core_definition=json.loads((ut.U / "core_definition.json").read_text())["definition"],
-               dedup="t = 0.99 greedy (§16)", sha256=files)
+               dedup="t = 0.99 greedy (§16)", integrity=integrity, sha256=files)
     (T / "MANIFEST.json").write_text(json.dumps(man, indent=2) + "\n")
     print(json.dumps({k: v for k, v in man.items() if k != "sha256"}, indent=2), len(files), "files")
 

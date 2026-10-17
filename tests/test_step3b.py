@@ -60,3 +60,11 @@ def test_trim_only_contiguous_low_ic_ends():
     assert len(t) == 4  # internal uniform column kept
     t2, lo2, hi2 = iv.trim(np.vstack([u, u]))
     assert len(t2) == 0 and lo2 == 2
+
+
+def test_near_dup_requires_overlap_of_longer():
+    a, b = motif("ACGTTGCAAG"), motif("CGTTGCAAG")  # 9 of 10 columns = 90 %
+    Z, Zrc, st, ln = pa.pack([a, b, motif("TTGCAA")])
+    r = pa.near_dup_r(Z, Zrc, st, ln, np.array([0, 0]), np.array([1, 2]), 0.9)
+    assert r[0] == pytest.approx(1.0)
+    assert r[1] == -1.0  # 6 of 10 < 90 %: no admissible alignment

@@ -78,3 +78,39 @@ def s_one_vs_all(Z, Zrc, start, lens, a, targets):
         r = _best(Za, lens[a], Zrc[start[b]:start[b] + lens[b]], lens[b])
         out[k] = f if f > r else r
     return out
+
+
+@njit(cache=True)
+def _best_r_min_overlap(Za, la, Zb, lb, min_ov):
+    best = -1.0
+    for off in range(-(lb - min_ov), la - min_ov + 1):
+        i0 = max(0, off)
+        i1 = min(la, off + lb)
+        ov = i1 - i0
+        if ov < min_ov:
+            continue
+        acc = 0.0
+        for i in range(i0, i1):
+            j = i - off
+            acc += (Za[i, 0] * Zb[j, 0] + Za[i, 1] * Zb[j, 1] + Za[i, 2] * Zb[j, 2] + Za[i, 3] * Zb[j, 3]) / 4.0
+        r = acc / ov
+        if r > best:
+            best = r
+    return best
+
+
+@njit(parallel=True, cache=True)
+def near_dup_r(Z, Zrc, start, lens, qa, qb, frac_longer):
+    """§4.2 near-duplicate criterion: best mean column Pearson over both
+    orientations and all offsets whose overlap covers >= frac_longer of the
+    longer profile (-1 if no such alignment)."""
+    out = np.empty(len(qa))
+    for k in prange(len(qa)):
+        a, b = qa[k], qb[k]
+        la, lb = lens[a], lens[b]
+        min_ov = int(np.ceil(frac_longer * max(la, lb) - 1e-9))
+        Za = Z[start[a]:start[a] + la]
+        f = _best_r_min_overlap(Za, la, Z[start[b]:start[b] + lb], lb, min_ov)
+        r = _best_r_min_overlap(Za, la, Zrc[start[b]:start[b] + lb], lb, min_ov)
+        out[k] = f if f > r else r
+    return out

@@ -137,7 +137,7 @@ def import_encode(b, stats):
     mc["k"] = list(zip(key[1], key[2], key[3].astype(int), key[0]))
     dup = mc.k.duplicated(keep=False)
     stats["mc_index_duplicate_keys"] = int(dup.sum())
-    mc = mc[~dup].set_index("k")
+    mc = dict(zip(mc.k[~dup], mc[~dup].drop(columns="k").to_dict("records")))
     geo = pd.read_csv(ENC / "experiment_dbxrefs.tsv", sep="\t", dtype=str).fillna("")
     parsed = []
     for r in models.itertuples():
@@ -167,13 +167,13 @@ def import_encode(b, stats):
             if posneg:
                 cands = [posneg]
             else:
-                cands = [x for x in ("pos", "neg") if (r.annotation, head, pat, x) in mc.index]
+                cands = [x for x in ("pos", "neg") if (r.annotation, head, pat, x) in mc]
                 stats["encode_name_without_posneg"] += 1
             if seen[(r.annotation, head, pat, posneg)] > 1 or len(cands) > 1:
                 join = "ambiguous"
-            elif cands and (r.annotation, head, pat, cands[0]) in mc.index:
+            elif cands and (r.annotation, head, pat, cands[0]) in mc:
                 posneg, join = cands[0], "matched"
-                row = mc.loc[(r.annotation, head, pat, posneg)]
+                row = mc[(r.annotation, head, pat, posneg)]
             else:
                 join = "unmatched"
         posneg = posneg or "unknown"

@@ -800,7 +800,7 @@ The Louvain partition, not the hub budget, is what limits fidelity.
   coverage.
 
 **Tiers.**
-- LOW / MEDIUM / HIGH are the first 500 / 1,000 / 2,000 hubs, so the tiers are strictly nested by
+- LOW / MEDIUM / HIGH are the first 500 / 1,000 / 2,000 hubs, so the hub sets (not the member assignments) are nested by
   construction.
 - The split between partitions follows the greedy gain; it is not fixed in advance.
 

@@ -1,10 +1,10 @@
 # Figure 1 result — PMA motif repertoire 的构建、去冗余与三档代表性 motif 参考
 
 > 文档性质：内部分析结果稿（非投稿版本）
-> 当前版本：v0.1，2026-10-17
+> 当前版本：v0.2，2026-10-17（v0.1 → v0.2：新增 §8 core-set Louvain 结果与 §9 覆盖贪心三档）
 > 对应图位：Figure 1C「Motif repertoire construction」（见 `design/PMA_pseudo_figures_v0.2.md`）
 > 覆盖范围：Step 1 Codebook-first pilot、Step 2 多来源导入与校准 benchmark、Step 2c de novo 来源整合（raw layer v0.3）、Step 3b 相似度校准、去冗余、unique-motif 图与三档代表性 motif（进行中）
-> 结果边界：本文只汇总已完成的分析。§7 的 core-set 三档仍在运行，数字会在后续版本更新。所有“match / 无 match”标签都依赖所述判定规则，不是生物学上“存在 / 不存在”的结论。
+> 结果边界：本文只汇总已完成的分析。§9 的覆盖贪心三档是当前版本，尚未经过稳定性分析和外部（GPT）审阅。所有“match / 无 match”标签都依赖所述判定规则，不是生物学上“存在 / 不存在”的结论。
 
 ## Result overview
 
@@ -14,7 +14,7 @@ Pilot 显示 Codebook 几乎覆盖了 JASPAR 人类 TF（759/762），但在 mot
 
 我们定义了对齐相似度 s，并用 TOMTOM 统计匹配校准出代表覆盖阈值 τ = 0.825。按 PI 指示，先对几乎相同的 motif 做去冗余（s ≥ 0.99），211,431 个聚类节点压缩为 101,228 个 unique motif（内部编号 PMU_*），所有来源记录均保留并挂在对应 unique ID 下。
 
-在全部 unique motif 上直接做 ~500 / 1,000 / 2,000 三档聚类，得到 531 / 888 / 1,551 个簇，但 hub 只代表 7–32 % 的成员，所有档位都未通过预设质量标准。诊断表明这是结构性问题：82 % 的 unique motif 只来自单一记录（主要是 de novo），即使在 s ≥ 0.85 下贪心覆盖也需要约 26,000 个中心。PI 因此选择 core-set 方案：只从有体外/整理证据或 ≥ 2 个独立实验支持的 24,194 个 unique motif 中选 hub，其余 motif 分配到最相似的 hub 并标注代表程度。该方案正在运行。
+在全部 unique motif 上直接做 ~500 / 1,000 / 2,000 三档聚类，得到 531 / 888 / 1,551 个簇，但 hub 只代表 7–32 % 的成员，所有档位都未通过预设质量标准。诊断表明这是结构性问题：82 % 的 unique motif 只来自单一记录（主要是 de novo），即使在 s ≥ 0.85 下贪心覆盖也需要约 26,000 个中心。PI 因此选择 core-set 方案：只从有体外/整理证据或 ≥ 2 个独立实验支持的 24,194 个 unique motif 中选 hub，其余 motif 分配到最相似的 hub 并标注代表程度。在 core 上 Louvain 仍只覆盖 29–43 %，而直接以覆盖为目标的贪心选择在 500 / 1,000 / 2,000 个 hub 时分别覆盖 66 % / 79 % / 90 % 的 core motif，N-challenge 同簇率降到 2 % 以下；剩余问题是 19–25 % 的 hub 两两高度相似。
 
 ## 1. Codebook 覆盖 TF，但不能单独代表 motif 模式
 
@@ -207,7 +207,7 @@ s ≥ 0.99 的去冗余把数据量减半，同时完整保留了每条来源记
 - `result/step3b_v03/unique/tier_choice.json`（各分辨率的簇数）
 - [设计 §17](../../docs/STEP3B_V03_INTEGRATION_DESIGN.md)
 
-## 8. Core-set 三档（进行中）
+## 8. Core-set + Louvain：代表性提高，但仍受聚类划分限制
 
 ### 为什么做
 
@@ -215,16 +215,62 @@ PI 选择 core-set 方案：hub 只从证据可靠的 motif 中选，使三档�
 
 ### 做了什么
 
-Core 定义：任一记录有体外或整理证据（证据 v2 tier ≤ 2），或由 ≥ 2 个独立实验支持。在 core motif 的子图上重复 §7 的流程（同一阈值、Louvain、嵌套子聚类、hub 规则），目标仍为 500 / 1,000 / 2,000。非 core motif 被分配给 s 最高的 hub（s ≥ 0.65），按 s 是否 ≥ τ 标注 covered；没有任何 hub 在 0.65 以内的标记为 unassigned。
+Core 定义：任一记录有体外或整理证据（证据 v2 tier ≤ 2），或由 ≥ 2 个独立实验支持。在 core motif 的子图上重复 §7 的流程（同一阈值、Louvain、嵌套子聚类、hub 规则）。非 core motif 被分配给 s 最高的 hub（s ≥ 0.65），按 s 是否 ≥ τ 标注 covered；没有任何 hub 在 0.65 以内的标记为 unassigned。
 
-### 当前结果
+### 得到什么结果
 
-- Core 集合 24,194 个 unique motif（单体 23,888，复合 306）；其他定义作为参考：只用高证据 9,227，≥ 2 条记录 17,680，≥ 2 个数据库 3,658。
+- Core 集合 24,194 个 unique motif（单体 23,888，复合 306）；作为参考，只用高证据为 9,227，≥ 2 条记录为 17,680，≥ 2 个数据库为 3,658。
 - Core 子图：单体 23,318 个连通节点、259 万条 s ≥ 0.65 边（全图的 6 %）；570 个单体、43 个复合 core motif 在 core 内部孤立。
-- 全图 Louvain 簇数：单体 285（分辨率 0.2）到 361（分辨率 4），复合 42–54；MEDIUM / HIGH 将同样需要嵌套子聚类。
-- Hub 覆盖、N-challenge 和非 core motif 的分配率待更新。
+- 全图 Louvain 再次饱和（单体 285 → 394，复合 42 → 54）；嵌套子聚类最多得到 936 个簇（sub_r2 再次不收敛，被剔除），因此 HIGH 无法达到约 2,000。
+- LOW（489 簇）/ MEDIUM（936 簇）的 hub 覆盖 core motif 的比例为 0.29 / 0.43，N-challenge 同簇率 0.16 / 0.10，AMI（Codebook / HOCOMOCO）0.63–0.65。
 
-对应证据：`result/step3b_v03/unique_core/core_definition.json`、`scan_*.tsv.gz`；[设计 §18](../../docs/STEP3B_V03_INTEGRATION_DESIGN.md)
+**上界对照。** 在同一批 core motif 上不聚类、直接用贪心最大覆盖选中心，500 / 1,000 / 2,000 个单体中心可分别覆盖 65.5 % / 77.8 % / 88.0 % 的单体 core motif。90 % 覆盖需要 2,487 个单体中心和 102 个复合中心。
+
+### 结论
+
+限制代表性的是 Louvain 的划分方式，而不是 hub 数量：基于 s ≥ 0.65 图的社区结构，与“hub 在 s ≥ 0.825 下能覆盖谁”并不一致。
+
+对应证据：`result/step3b_v03/align_tiers_core/tier_qc.tsv`、`unique_core/core_definition.json`；[设计 §18、§18.1](../../docs/STEP3B_V03_INTEGRATION_DESIGN.md)
+
+## 9. 覆盖贪心三档：当前的代表性 motif 集合
+
+### 为什么做
+
+既然目标本身就是“每个簇有一个能代表成员的中心 motif”，那么直接以覆盖为目标选 hub，再把成员分配给最相似的 hub，比先聚类、再在簇内找 hub 更符合目标。PI 选择了这一方案。
+
+### 做了什么
+
+- 在连通的 core motif 上，按贪心最大覆盖（s ≥ τ）逐个选 hub；两个分区共用一个全局顺序，因此 hub 在单体和复合之间的分配由覆盖增益决定。
+- 同分时依次优先：体外 / 整理证据，更多独立实验，unique ID。
+- LOW / MEDIUM / HIGH 分别取前 500 / 1,000 / 2,000 个 hub，因此 hub 严格嵌套（LOW 的 hub 全部属于 MEDIUM，MEDIUM 的全部属于 HIGH）。
+- 每个 core motif 归入 s 最高的 hub（s ≥ 0.65）；非 core motif 的分配方式同 §8。
+
+### 得到什么结果
+
+| 档位 | hub 数（单体 + 复合） | core motif 覆盖（τ） | 严格覆盖（0.95） | core 来源记录覆盖（单体） | 全部非孤立 unique motif 覆盖 | 未分配比例 | N-challenge | hub 冗余（s ≥ 0.85） | AMI Codebook / H14 |
+|---|---|---|---|---|---|---|---|---|---|
+| LOW | 500（496 + 4） | 0.664 | 0.139 | 0.865 | 0.432 | 0.223 | 0.020 | 0.192 | 0.56 / 0.57 |
+| MEDIUM | 1,000（983 + 17） | 0.791 | 0.196 | 0.930 | 0.515 | 0.158 | 0.018 | 0.209 | 0.53 / 0.53 |
+| HIGH | 2,000（1,948 + 52） | 0.897 | 0.280 | 0.972 | 0.602 | 0.101 | 0.008 | 0.249 | 0.49 / 0.47 |
+
+- 与 §7 / §8 相比，覆盖率大幅提高，N-challenge 同簇率首次低于 5 %（`possible_overmerging` 标记消失）。
+- HIGH 档对 core motif 的覆盖为 89.7 %，略低于 90 % 的预设线；按来源记录计，单体 core 记录覆盖 97 %。
+- 新的问题是 hub 冗余：19–25 % 的 hub 与另一 hub 的 s ≥ 0.85。原因是贪心最大覆盖允许新 hub 与已有 hub 很相似，只要它能覆盖足够多尚未覆盖的成员。
+- 复合 motif 只获得 4 / 17 / 52 个 hub，LOW 档复合覆盖仅 0.22。
+- Hub 嵌套，但成员不完全嵌套：增加 hub 后部分成员改归更近的新 hub，跨档 purity 均值为 0.72–0.74。
+- AMI 随 hub 数增加而下降（0.56 → 0.49），因为簇越来越细，比 Codebook / HOCOMOCO 的家族级聚类更细。
+
+### 结论
+
+覆盖贪心是目前唯一同时满足“三档数量”和“低过度合并”的方案，HIGH 档接近 90 % 的保真度要求。剩余的 QC 问题是 hub 冗余（`residual_redundancy`）。这一点可以通过限制“新 hub 不能已被覆盖”（类似 CD-HIT）来消除，但会降低覆盖率，需要权衡。
+
+对应证据：
+
+- `result/step3b_v03/align_tiers_greedy/tier_qc.tsv`（全部 QC）
+- `align_tiers_greedy/greedy_order.tsv`（hub 顺序、增益、累计覆盖）
+- `align_tiers_greedy/final_tier_{LOW,MEDIUM,HIGH}.tsv.gz`（每条节点 → 簇、hub、s_to_hub、membership）
+- `align_tiers_greedy/tier_mapping.tsv`
+- [设计 §19](../../docs/STEP3B_V03_INTEGRATION_DESIGN.md)
 
 ## Discussion
 
@@ -236,12 +282,12 @@ Core 定义：任一记录有体外或整理证据（证据 v2 tier ≤ 2），�
 
 - τ 来自 TOMTOM 统计匹配的校准，而不是人工标注的真值；短 motif（≤ 8 bp）在 s 和 TOMTOM 中都处于劣势。
 - 覆盖率是在同一数据上优化 hub 后得到的工程保真度指标，不是独立的预测性能。
-- Louvain 在大而稠密的子图上存在不收敛的分辨率（sub_r2），稳定性（种子 / 子采样）尚未评估。
+- Louvain 在大而稠密的子图上存在不收敛的分辨率（sub_r2）；覆盖贪心的 hub 顺序对数据扰动的稳定性尚未评估。
 - 可及性模型 motif 没有对应蛋白，HDMA 和 ProCapNet 的实验独立性无法解析，这会影响 core 定义中“独立实验”的计数。
 - “isolated”“unassigned”都是操作性标签，不等于“新 motif”。
 
 ## 下一步
 
-1. 完成 core-set 三档（嵌套子聚类、hub、QC、非 core 分配），更新 §8。
-2. 种子 / 子采样稳定性；每档的簇注释（TF 家族、来源构成）和代表 PWM 导出。
+1. Hub 冗余：比较“hub 必须尚未被覆盖”的变体（冗余应降为 0）与当前方案的覆盖率差异。
+2. 每档的簇注释（TF 家族、来源构成）和代表 PWM 导出；hub 顺序对小扰动（子采样）的稳定性。
 3. 绘制 Figure 1C 面板：来源 → QC → 去冗余 → core → 三档的数量流（Sankey/漏斗），以及各档覆盖率与簇数关系。

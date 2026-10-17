@@ -100,10 +100,17 @@ def apply(thr):
         order, meta, nodes = priority(ids)
         rep = greedy(len(ids), q, t, s, thr, order)
         # s of each member to its representative (exact; reps have s=1 to self)
-        sv = pd.Series(s, index=pd.MultiIndex.from_arrays([np.minimum(q, t), np.maximum(q, t)]))
-        idx = np.arange(len(ids))
-        a, b = np.minimum(idx, rep), np.maximum(idx, rep)
-        s_rep = np.where(idx == rep, 1.0, sv.reindex(pd.MultiIndex.from_arrays([a, b])).to_numpy())
+        n = len(ids)
+        hit = s >= thr  # members are within thr of their representative
+        key = np.minimum(q[hit], t[hit]) * n + np.maximum(q[hit], t[hit])
+        o = np.argsort(key)
+        key, sk = key[o], s[hit][o]
+        idx = np.arange(n)
+        want = np.minimum(idx, rep) * n + np.maximum(idx, rep)
+        pos = np.clip(np.searchsorted(key, want), 0, max(len(key) - 1, 0))
+        found = (len(key) > 0) & (key[pos] == want)
+        s_rep = np.where(idx == rep, 1.0, np.where(found, sk[pos], np.nan))
+        assert not np.isnan(s_rep).any(), "member without an s >= t edge to its representative"
         r_ids = np.unique(rep)
         uid = {r: f"PMU_{part[0].upper()}{k + 1:06d}" for k, r in enumerate(sorted(r_ids, key=lambda r: ids[r]))}
         nm = pd.DataFrame({"node_id": ids, "unique_id": [uid[r] for r in rep], "representative_node": ids[rep],

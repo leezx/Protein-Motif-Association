@@ -757,3 +757,58 @@ within the full graph. Other definitions counted: high only 9,227; ≥ 2 records
 
 **Memory.** The core graph is a subset of the 41.5M-edge unique graph. Every job is expected to stay
 well under 10 GB.
+
+### 18.1 Result 2026-10-17: Louvain core-set tiers (QC FAIL, kept on record)
+
+**Set-up.**
+- Whole-graph Louvain on the core graph saturates: monomer 285 → 394 clusters and composite
+  42 → 54 between resolutions 0.2 and 8.
+- Nested subclustering of the r0.2 base, one process per sub-resolution. sub_r2 hung again on
+  the monomer graph and was dropped.
+- The maximum reached is 936 clusters (sub_r16). LOW = sub_r0.8 (489 clusters); MEDIUM = HIGH =
+  sub_r16 (936 clusters). See `align_tiers_core/tier_qc.tsv`.
+
+**Results.**
+
+| Tier | K | Hub coverage of core motifs at τ | At 0.95 | N-challenge | AMI Codebook / H14 | All non-isolated covered | Unassigned |
+|---|---|---|---|---|---|---|---|
+| LOW | 489 | 0.288 | 0.064 | 0.162 | 0.63 / 0.65 | 0.163 | 0.41 |
+| MEDIUM | 936 | 0.427 | 0.110 | 0.098 | 0.64 / 0.65 | 0.313 | 0.17 |
+
+**Bound check.** A greedy maximum-coverage selection on the same core motifs, at s ≥ τ and with no
+clustering, covers:
+
+| Monomer hubs | 500 | 1,000 | 2,000 |
+|---|---|---|---|
+| Monomer core motifs covered | 0.655 | 0.778 | 0.880 |
+
+- Monomer: 90 % coverage needs 2,487 hubs.
+- Composite: 90 % coverage needs 102 hubs.
+
+The Louvain partition, not the hub budget, is what limits fidelity.
+
+## 19. Amendment 2026-10-17: PI-chosen coverage-greedy tiers
+
+**PI decision.** Option "coverage-greedy tiers".
+
+**Hub selection.**
+- No Louvain. The universe is the connected core motifs of §18.
+- Hubs are picked by greedy maximum coverage at s ≥ τ, in one global order over both partitions.
+  Each pick takes the motif that covers the most still-uncovered motifs.
+- Ties go to evidence tier ≤ 2, then more independent experiments, then unique ID.
+- The order is written to `align_tiers_greedy/greedy_order.tsv`, with gain and cumulative
+  coverage.
+
+**Tiers.**
+- LOW / MEDIUM / HIGH are the first 500 / 1,000 / 2,000 hubs, so the tiers are strictly nested by
+  construction.
+- The split between partitions follows the greedy gain; it is not fixed in advance.
+
+**Clusters.** A cluster is a hub plus the motifs assigned to it.
+- A connected core motif is assigned to the hub with the highest exact s, among s ≥ 0.65 edges.
+  Ties go to the earlier hub.
+- A connected core motif with no hub within 0.65 is `core_unassigned`.
+- Non-core motifs are assigned as in §18. Isolated motifs stay a separate set.
+
+**QC.** Same as §18. Greedy coverage is optimised on the same data, so it is an engineering
+fidelity metric, not an independent performance estimate. AMI and N-challenge are still reported.

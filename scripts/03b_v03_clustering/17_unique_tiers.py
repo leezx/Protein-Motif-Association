@@ -23,6 +23,12 @@ align_tiers_core/. Every non-core unique motif joins the cluster of the hub with
 highest exact s (s >= 0.65 edges of the full unique graph): membership `assigned`,
 or `unassigned` (own entry) when no hub is within 0.65. QC adds coverage of all
 non-isolated unique motifs / records at tau and the unassigned fraction.
+PMA_TIER_SET=greedy (§19, PI 2026-10-17): no Louvain. Hubs are picked from connected core
+motifs by greedy maximum coverage at s >= tau, in one order over both partitions (gain, then
+evidence tier <= 2, more independent experiments, unique ID); tier T = the first 500 / 1,000 /
+2,000 hubs, so tiers are strictly nested. Each connected core motif joins the hub with the
+highest s (s >= 0.65 core edges; ties -> earlier hub); with no hub within 0.65 it is
+`core_unassigned`. Non-core motifs as in core mode. Outputs in align_tiers_greedy/.
 """
 import importlib
 import json
@@ -39,9 +45,9 @@ gt = importlib.import_module("05_gates")
 
 R = gt.R
 SET = os.environ.get("PMA_TIER_SET", "unique")
-assert SET in ("unique", "core"), SET
+assert SET in ("unique", "core", "greedy"), SET
 U = R / ("unique" if SET == "unique" else "unique_core")
-T = R / ("align_tiers" if SET == "unique" else "align_tiers_core")
+T = R / {"unique": "align_tiers", "core": "align_tiers_core", "greedy": "align_tiers_greedy"}[SET]
 TARGETS = {"LOW": 500, "MEDIUM": 1000, "HIGH": 2000}
 PARTS = ("composite", "monomer")
 STRICT, S_RED = 0.95, 0.85
@@ -151,11 +157,64 @@ def gn_part(P):
     return {"M": "monomer", "C": "composite"}[P]
 
 
+def greedy_order(meta, tv, kmax):
+    """Greedy max coverage at s >= tau over connected core motifs of both partitions (one global order)."""
+    nodes, nbrs, part_of, prio = [], [], [], []
+    off = 0
+    for part in PARTS:
+        gn = pd.read_csv(U / f"graph_nodes_{part}.tsv", sep="\t")
+        n = len(gn)
+        z = np.load(U / f"tau_edges_{part}.npz")
+        a, b = z["q"].astype(np.int64) + off, z["t"].astype(np.int64) + off
+        nbrs.append((a, b))
+        hm = meta.reindex(gn.unique_id)
+        nodes.append(gn.assign(part=part, row=np.arange(n), gid=np.arange(n) + off,
+                               h=~hm.high.fillna(False).to_numpy(), e=-hm.n_exp.fillna(0).to_numpy()))
+        off += n
+    nd = pd.concat(nodes, ignore_index=True)
+    a = np.concatenate([x[0] for x in nbrs])
+    b = np.concatenate([x[1] for x in nbrs])
+    from scipy import sparse
+    g = sparse.csr_matrix((np.ones(2 * len(a), bool), (np.r_[a, b], np.r_[b, a])), shape=(off, off))
+    g = (g + sparse.identity(off, dtype=bool, format="csr")).tocsr()
+    elig = ~nd.isolated.to_numpy()
+    rank = np.empty(off, np.int64)
+    rank[np.lexsort((nd.unique_id.to_numpy(), nd.e.to_numpy(), nd.h.to_numpy()))] = np.arange(off)
+    cov = ~elig  # isolated motifs are outside the coverage universe
+    gain = np.asarray(g[:, elig].sum(1)).ravel().astype(np.int64)
+    gain[~elig] = -1
+    out = []
+    for k in range(kmax):
+        best = gain.max()
+        if best <= 0:
+            break
+        cand = np.flatnonzero(gain == best)
+        i = int(cand[np.argmin(rank[cand])])
+        new = g.indices[g.indptr[i]:g.indptr[i + 1]]
+        new = new[~cov[new]]
+        cov[new] = True
+        for j in new:
+            gain[g.indices[g.indptr[j]:g.indptr[j + 1]]] -= 1
+        gain[i] = -1
+        out.append(dict(rank=k + 1, unique_id=nd.unique_id[i], partition=nd.part[i], row=int(nd.row[i]),
+                        gain=int(best), cum_coverage=float(cov[elig].mean())))
+    return pd.DataFrame(out)
+
+
 def build():
     tv = tau()
-    full = {p: load_full(p) for p in PARTS} if SET == "core" else {}
-    choice = json.loads((U / "tier_choice.json").read_text())["tiers"]
+    full = {p: load_full(p) for p in PARTS} if SET in ("core", "greedy") else {}
     m, x, meta = unique_meta()
+    if SET == "greedy":
+        T.mkdir(parents=True, exist_ok=True)
+        go = greedy_order(meta, tv, max(TARGETS.values()))
+        go.to_csv(T / "greedy_order.tsv", sep="\t", index=False, float_format="%.5f")
+        choice = {k: dict(col=f"g{v}", res=float(v)) for k, v in TARGETS.items()}
+        (T / "tier_choice.json").write_text(json.dumps({"tiers": {k: dict(target=v, col=f"g{v}", res=float(v),
+                                                                           nested=True, K_total=v)
+                                                                  for k, v in TARGETS.items()}}, indent=2) + "\n")
+    else:
+        choice = json.loads((U / "tier_choice.json").read_text())["tiers"]
     qc, finals = [], {t: [] for t in TARGETS}
     for part in PARTS:
         gn = pd.read_csv(U / f"graph_nodes_{part}.tsv", sep="\t")
@@ -171,7 +230,7 @@ def build():
         conn_rows = np.flatnonzero(~gn.isolated.to_numpy())
         gi, gj, gs = conn_rows[ge.i.to_numpy()], conn_rows[ge.j.to_numpy()], ge.s.to_numpy()
         del ge
-        sc = scan(part).reindex(conn_ids)
+        sc = scan(part).reindex(conn_ids) if SET != "greedy" else None
         hm = meta.reindex(gn.unique_id)
 
         def s_lookup(a, b):
@@ -182,25 +241,37 @@ def build():
 
         for name, t in choice.items():
             lab = np.full(n, -1, dtype=np.int64)
-            lab[conn_rows] = pd.factorize(sc[t["col"]])[0]
-            nc = lab.max() + 1
+            if SET == "greedy":
+                hub_row = go[(go["rank"] <= int(t["res"])) & (go.partition == part)].row.to_numpy()
+                nc = len(hub_row)
+                hubcl = np.full(n, -1, dtype=np.int64)
+                hubcl[hub_row] = np.arange(nc)
+                k1, k2 = hubcl[gi] >= 0, hubcl[gj] >= 0
+                d = pd.DataFrame({"w": np.r_[gj[k1], gi[k2], hub_row], "c": np.r_[hubcl[gi[k1]], hubcl[gj[k2]], np.arange(nc)],
+                                  "s": np.r_[gs[k1], gs[k2], np.ones(nc)]})
+                d = d.sort_values(["w", "s", "c"], ascending=[True, False, True]).drop_duplicates("w")
+                lab[d.w.to_numpy()] = d.c.to_numpy()
+            else:
+                lab[conn_rows] = pd.factorize(sc[t["col"]])[0]
+                nc = lab.max() + 1
             same = (lab[tq] == lab[tt]) & (lab[tq] >= 0)
             cov = np.bincount(tq[same], minlength=n) + np.bincount(tt[same], minlength=n) + 1
             sameg = lab[gi] == lab[gj]
             ssum = np.bincount(gi[sameg], weights=gs[sameg], minlength=n) + \
                 np.bincount(gj[sameg], weights=gs[sameg], minlength=n)
-            size = np.bincount(lab[conn_rows], minlength=nc)
+            size = np.bincount(lab[lab >= 0], minlength=nc)
             mean_s = ssum / np.maximum(size[np.maximum(lab, 0)] - 1, 1)
-            key_df = pd.DataFrame({"lab": lab, "cov": cov, "ms": mean_s, "h": ~hm.high.fillna(False).to_numpy(),
-                                   "e": -hm.n_exp.fillna(0).to_numpy(), "u": gn.unique_id.to_numpy()})
-            key_df = key_df[key_df.lab >= 0]
-            best = key_df.groupby("lab")["cov"].transform("max")
-            cand = key_df[key_df["cov"] >= best - 0.01 * size[key_df.lab]]
-            hub = cand.sort_values(["lab", "ms", "h", "e", "u"], ascending=[True, False, True, True, True]) \
-                .drop_duplicates("lab").set_index("lab")
-            hub_row = np.array([row[u] for u in hub.reindex(range(nc)).u])
+            if SET != "greedy":
+                key_df = pd.DataFrame({"lab": lab, "cov": cov, "ms": mean_s, "h": ~hm.high.fillna(False).to_numpy(),
+                                       "e": -hm.n_exp.fillna(0).to_numpy(), "u": gn.unique_id.to_numpy()})
+                key_df = key_df[key_df.lab >= 0]
+                best = key_df.groupby("lab")["cov"].transform("max")
+                cand = key_df[key_df["cov"] >= best - 0.01 * size[key_df.lab]]
+                hub = cand.sort_values(["lab", "ms", "h", "e", "u"], ascending=[True, False, True, True, True]) \
+                    .drop_duplicates("lab").set_index("lab")
+                hub_row = np.array([row[u] for u in hub.reindex(range(nc)).u])
             members = conn_rows
-            s_hub = s_lookup(hub_row[lab[members]], members)
+            s_hub = np.where(lab[members] >= 0, s_lookup(hub_row[np.maximum(lab[members], 0)], members), 0.0)
             covered_u = np.zeros(n, bool)
             covered_u[members] = s_hub >= tv
             strict_u = np.zeros(n, bool)
@@ -214,16 +285,19 @@ def build():
             iso = gn.isolated.to_numpy()
             hub_node = gn.node_id.to_numpy()[hub_row]
             s_all = s_lookup(hub_row[np.maximum(lab, 0)], np.arange(n))
+            nohub = ~iso & (lab < 0)  # greedy: connected core motif with no hub within 0.65
             tab = pd.DataFrame({
                 "unique_id": gn.unique_id.to_numpy(),
-                "membership": np.where(iso, "isolated", "core" if SET == "core" else "connected"),
-                "partition": np.where(iso, "isolated", part),
-                "cluster": np.where(iso, "I_" + gn.unique_id.to_numpy(), np.char.add(P, lab.astype(str))),
-                "rep_node": np.where(iso, gn.node_id.to_numpy(), hub_node[np.maximum(lab, 0)]),
-                "s_to_hub": np.where(iso, 1.0, s_all)})
-            if SET == "core":
+                "membership": np.where(iso, "isolated", np.where(nohub, "core_unassigned",
+                                                                 "connected" if SET == "unique" else "core")),
+                "partition": np.where(iso, "isolated", np.where(nohub, "unassigned", part)),
+                "cluster": np.where(iso, "I_" + gn.unique_id.to_numpy(),
+                                    np.where(nohub, "N_" + gn.unique_id.to_numpy(), np.char.add(P, lab.astype(str)))),
+                "rep_node": np.where(iso | nohub, gn.node_id.to_numpy(), hub_node[np.maximum(lab, 0)]),
+                "s_to_hub": np.where(iso, 1.0, np.where(nohub, np.nan, s_all))})
+            if SET in ("core", "greedy"):
                 tab = pd.concat([tab, noncore_assign(full[part], hub_row, hub_node, gn, P)], ignore_index=True)
-            hubbed = ~tab.membership.isin(["isolated", "unassigned"])
+            hubbed = ~tab.membership.isin(["isolated", "unassigned", "core_unassigned"])
             tab["covered"] = np.where(hubbed, tab.s_to_hub >= tv, tab.membership == "isolated").astype(int)
             tab["covered_strict"] = np.where(hubbed, tab.s_to_hub >= STRICT, tab.membership == "isolated").astype(int)
             # node-level output: every source node -> its unique motif's cluster
@@ -232,7 +306,7 @@ def build():
             assert f.cluster.notna().all(), (part, name, "node without a unique-motif row")
             finals[name].append(f)
             rec = x[x.partition == part].merge(tab[["unique_id", "membership", "covered"]], on="unique_id")
-            rc = rec[rec.membership.isin(["core", "connected"])]
+            rc = rec[rec.membership.isin(["core", "connected", "core_unassigned"])]
             ra = rec[rec.membership != "isolated"]
             ta = tab[tab.membership != "isolated"]
             qc.append(dict(tier=name, part=part, res=t["res"], K=int(nc), unique_connected=int(len(members)),
@@ -240,13 +314,15 @@ def build():
                            coverage_unique_tau=float(covered_u[members].mean()),
                            coverage_unique_strict=float(strict_u[members].mean()),
                            coverage_records_tau=float(rc["covered"].mean()),
-                           clusters_cov90=float((np.bincount(lab[members], weights=covered_u[members], minlength=nc)
-                                                 / size >= 0.9).mean()),
+                           clusters_cov90=float((np.bincount(lab[members][lab[members] >= 0],
+                                                             weights=covered_u[members][lab[members] >= 0], minlength=nc)
+                                                 / np.maximum(size, 1) >= 0.9).mean()),
                            hub_redundancy=float(red[hub_row].mean()),
                            unique_all_nonisolated=int(len(ta)),
                            coverage_all_unique_tau=float(ta.covered.mean()),
                            coverage_all_records_tau=float(ra["covered"].mean()),
-                           frac_unassigned=float((ta.membership == "unassigned").mean()),
+                           frac_unassigned=float(ta.membership.isin(["unassigned", "core_unassigned"]).mean()),
+                           core_unassigned=int(nohub.sum()),
                            coverage_by_source=json.dumps(rc.groupby("source_db")["covered"].mean().round(3).to_dict())))
             print({k: v for k, v in qc[-1].items() if k != "coverage_by_source"}, flush=True)
     q = pd.DataFrame(qc)

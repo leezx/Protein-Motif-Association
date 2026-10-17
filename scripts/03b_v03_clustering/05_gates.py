@@ -213,6 +213,8 @@ def main(part, rep, dims):
                          AMI_codebook=ami_cb, AMI_codebook_se=se_cb, n_codebook=int(len(cb_ref)),
                          AMI_hocomoco=ami_ho, AMI_hocomoco_se=se_ho, n_hocomoco=int(len(ho_ref)),
                          family_coverage=json.dumps(fam_cov["mean"].round(4).to_dict())))
+        finals[f"{c}|louvain"] = lab
+        finals[f"{c}|covered_presplit"] = covered.astype(np.int8)
         finals[f"{c}|cluster"] = final
         finals[f"{c}|rep"] = ids[final_rep]
         print(c, rows[-1]["K_louvain"], rows[-1]["K_final"], round(g1, 3), round(g2, 3),

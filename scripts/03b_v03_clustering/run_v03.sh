@@ -8,6 +8,7 @@
 #   stability    G5/G6 runs for candidates (16 parallel) -> selection
 #   strict       strict-tau (0.95) sensitivity on the selected configs (§13)
 #   annotate     clusters, one PWM per cluster
+#   align        §15: alignment graph (recall check, K 100/200), Louvain scan, coverage hubs, QC
 #   tiers        §14: tier choice, hubs, QC, stability, SNN degree, annotation per tier
 #   all          import .. annotate (post_tomtom must have finished)
 # usage: bash run_v03.sh <stage>   (from the repo clone; logs in result/step3b_v03/logs)
@@ -116,6 +117,32 @@ stage_tiers() {  # §14 three-tier reference (after 08_tiers.R scan)
   "$PY" -I 09_tiers.py stability
   OMP_NUM_THREADS=8 "$RS" 08_tiers.R "$R3/pca" "$R3/tiers" degree > "$LOG/tiers_degree.log" 2>&1
   for t in LOW MEDIUM HIGH; do "$PY" -I 07_annotate_clusters.py "$R3/reference_tiers/$t" "$t"; done
+}
+
+stage_align() {  # §15 post-QC rescue: alignment-weighted graph + coverage-maximising hubs
+  local K=100 A=$R3/align
+  [[ -s $A/align_summary_k100.json ]] || NUMBA_NUM_THREADS=48 OMP_NUM_THREADS=16 "$PY" -I 10_align_graph.py 100
+  if ! "$PY" -c "import json,sys; sys.exit(0 if json.load(open(sys.argv[1]))['recall_pass_all'] else 1)" "$A/align_summary_k100.json"; then
+    K=200
+    [[ -s $A/align_summary_k200.json ]] || NUMBA_NUM_THREADS=48 OMP_NUM_THREADS=16 "$PY" -I 10_align_graph.py 200
+    "$PY" -c "import json,sys; sys.exit(0 if json.load(open(sys.argv[1]))['recall_pass_all'] else 1)" \
+      "$A/align_summary_k200.json" || { echo "candidate_graph_incomplete"; exit 1; }
+  fi
+  echo "candidate graph K=$K"
+  for p in composite monomer; do
+    echo "OMP_NUM_THREADS=8 $RS $HERE/11_align_louvain.R $A $R3/pca $K scan $p > $LOG/align_scan_${p}.log 2>&1"
+  done | par 2
+  export PMA_TIER_GRAPH=align
+  "$PY" -I 09_tiers.py choose
+  NUMBA_NUM_THREADS=48 "$PY" -I 09_tiers.py build
+  "$PY" -c "import json,sys; [print(t['res']) for t in json.load(open(sys.argv[1]))['tiers'].values()]" \
+    "$R3/align_tiers/tier_choice.json" | while read -r res; do
+    for p in composite monomer; do
+      echo "OMP_NUM_THREADS=4 $RS $HERE/11_align_louvain.R $A $R3/pca $K stability $p $res $R3/grid/strata_${p}.tsv > $LOG/align_stability_${p}_r${res}.log 2>&1"
+    done
+  done | par 6
+  "$PY" -I 09_tiers.py stability
+  for t in LOW MEDIUM HIGH; do "$PY" -I 07_annotate_clusters.py "$R3/reference_align/$t" "$t"; done
 }
 
 stage_annotate() {

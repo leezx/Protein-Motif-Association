@@ -1,10 +1,10 @@
 # Figure 1 result — PMA motif repertoire 的构建、去冗余与三档代表性 motif 参考
 
 > 文档性质：内部分析结果稿（非投稿版本）
-> 当前版本：v0.2，2026-10-17（v0.1 → v0.2：新增 §8 core-set Louvain 结果与 §9 覆盖贪心三档）
+> 当前版本：v0.3，2026-10-17（v0.2 → v0.3：新增 §10 交付物、边际覆盖与稳定性；按外部审阅将 HIGH 89.7 % 判为未通过）
 > 对应图位：Figure 1C「Motif repertoire construction」（见 `design/PMA_pseudo_figures_v0.2.md`）
 > 覆盖范围：Step 1 Codebook-first pilot、Step 2 多来源导入与校准 benchmark、Step 2c de novo 来源整合（raw layer v0.3）、Step 3b 相似度校准、去冗余、unique-motif 图与三档代表性 motif（进行中）
-> 结果边界：本文只汇总已完成的分析。§9 的覆盖贪心三档是当前版本，尚未经过稳定性分析和外部（GPT）审阅。所有“match / 无 match”标签都依赖所述判定规则，不是生物学上“存在 / 不存在”的结论。
+> 结果边界：本文只汇总已完成的分析。§9–§10 的覆盖贪心三档是 v0.3 的最终探索性面板（外部审阅：方法冻结，QC 失败照实保留）。所有“match / 无 match”标签都依赖所述判定规则，不是生物学上“存在 / 不存在”的结论。
 
 ## Result overview
 
@@ -272,6 +272,63 @@ Core 定义：任一记录有体外或整理证据（证据 v2 tier ≤ 2），�
 - `align_tiers_greedy/tier_mapping.tsv`
 - [设计 §19](../../docs/STEP3B_V03_INTEGRATION_DESIGN.md)
 
+## 10. 交付物：注释、扫描用 PWM、边际覆盖与稳定性
+
+### 为什么做
+
+外部审阅（ChatGPT，2026-10-17）认为方法探索已经充分，不应再为 89.7 % 与 90 % 的差距修改算法；Step 3b 的关闭条件改为交付可追溯的数据产品，并如实报告稳定性和失败的 QC。
+
+### 做了什么
+
+- 冻结：三档 hub、贪心顺序、每个 motif 的归属表和参数，以 sha256 写入 `MANIFEST.json`；用重构后的代码重建，贪心顺序文件 md5 不变。
+- 簇注释与 PWM 导出：每个 hub 簇的来源构成、TF / DBD 家族、证据组成、独立实验数、候选 TF、覆盖率和 QC 标记；每档导出一个只含 hub 的 MEME 文件。isolated、unassigned、core_unassigned 的 motif 单独列表，不丢弃。
+- 边际覆盖：对每个 hub 计算“只有它覆盖”的 core motif 数，即去掉该 hub 后损失的覆盖。
+- 复合补充集：只在复合 core motif 中贪心选 hub，直到覆盖 ≥ 90 %。
+- 稳定性：10 次子采样，每次随机保留 80 % 的独立实验（无已解析实验的 motif 视为单独一个实验），在保留的 core motif 上重跑贪心，比较 hub 重合、覆盖保持和对未保留 motif 的覆盖。
+
+### 得到什么结果
+
+**扫描面板与注释。**
+
+| 档位 | MEME 中 PWM 数 | known | alternative | unresolved | accessibility_only | recurrent_uncharacterized | 未被任何 hub 代表的 unique motif |
+|---|---|---|---|---|---|---|---|
+| LOW | 500 | 288 | 116 | 94 | 2 | 45 | 23,997 |
+| MEDIUM | 1,000 | 437 | 312 | 240 | 11 | 149 | 17,469 |
+| HIGH | 2,000 | 641 | 737 | 574 | 48 | 361 | 11,857 |
+
+复合补充集需要 64 个 hub 才能覆盖 263 个连通复合 core motif 的 90.1 %，而 HIGH 主集合中只有 52 个复合 hub。
+
+**冗余的重新解读。** 去掉后不损失任何覆盖的 hub 比例在 LOW / MEDIUM / HIGH 分别为 0 / 0.2 % / 0.8 %；每个 hub 独占覆盖的中位数为 17 / 8 / 3 个 core motif。也就是说，19–25 % 的 hub 两两 s ≥ 0.85，但几乎每个 hub 都覆盖了其他 hub 覆盖不到的 motif，因为相似度不具有传递性。原冗余指标保留，结果不变（FAIL）。
+
+**稳定性（10 次子采样，中位数 [范围]）。**
+
+| 档位 | 样本内覆盖 | 全部 core 覆盖（参照 0.664 / 0.791 / 0.897） | 未保留 motif 覆盖（子样本 hub） | 同上，参照 hub | hub ID Jaccard | 参照 hub 在 τ 内有对应 |
+|---|---|---|---|---|---|---|
+| LOW | 0.682 | 0.660 | 0.394 [0.375–0.413] | 0.468 | 0.589 | 0.956 |
+| MEDIUM | 0.806 | 0.785 | 0.522 [0.504–0.547] | 0.650 | 0.566 | 0.941 |
+| HIGH | 0.907 | 0.887 | 0.636 [0.620–0.653] | 0.801 | 0.610 | 0.935 |
+
+- Hub 的具体 ID 只重合约 57–61 %，但 93–96 % 的参照 hub 在子样本中都有 s ≥ τ 的对应 hub：面板是“模式层面稳定、具体代表可替换”。
+- 全部 core 的覆盖率在子样本中只下降约 0.4–1 个百分点。
+- 对没有参与选择的 motif，覆盖率明显更低（HIGH 0.64 对样本内 0.91）。这是对覆盖率乐观偏差的直接估计。注意：被剔除的主要是只由单一实验支持的 core motif（高证据但实验数少），它们不是随机样本。
+
+### 结论
+
+三档覆盖贪心面板可以作为 v0.3 的探索性扫描参考交付，QC 标记照实保留：
+
+- `low_fidelity`：HIGH 的 core 覆盖为 0.897，低于 0.90，判为未通过。
+- `residual_redundancy`：成对冗余超过 0.15；但边际覆盖显示几乎没有可删的 hub。
+
+HIGH 的单体 core 来源记录覆盖为 97 %，unique motif 覆盖却不到 90 %，全部非孤立 unique motif 的覆盖只有 60 %。因此 HIGH 是一个偏向反复出现模式的实用压缩库，不是完整的 motif 特异性参考。
+
+对应证据（均在 `result/step3b_v03/align_tiers_greedy/` 下）：
+
+- `reference_{LOW,MEDIUM,HIGH}/PMA_representatives.meme`（扫描面板）、`PMA_cluster_summary.tsv`、`PMA_motif_to_cluster.tsv`、`PMA_unrepresented_motifs.tsv`、`reference_summary.json`
+- `hub_marginal.tsv`、`hub_marginal_summary.tsv`
+- `PMA_composite_supplement.meme`、`composite_supplement.tsv`
+- `stability.tsv`
+- `MANIFEST.json`
+
 ## Discussion
 
 这部分工作的主要发现是一个负结果加一个结构性解释：在 de novo 来源占绝大多数的统一 motif 宇宙中，“约 2,000 个 hub 忠实代表所有模式”的目标无法实现。原因不是聚类算法不够好，而是绝大多数 de novo motif 只出现一次，彼此之间相似度又不足以被同一个代表覆盖。§5 和 §7 的连续失败从不同角度指向同一点：重复拷贝会让图过密（去冗余前），长尾单例会让代表不足（去冗余后）。
@@ -288,6 +345,6 @@ Core 定义：任一记录有体外或整理证据（证据 v2 tier ≤ 2），�
 
 ## 下一步
 
-1. Hub 冗余：比较“hub 必须尚未被覆盖”的变体（冗余应降为 0）与当前方案的覆盖率差异。
-2. 每档的簇注释（TF 家族、来源构成）和代表 PWM 导出；hub 顺序对小扰动（子采样）的稳定性。
-3. 绘制 Figure 1C 面板：来源 → QC → 去冗余 → core → 三档的数量流（Sankey/漏斗），以及各档覆盖率与簇数关系。
+1. 外部审阅确认交付物后关闭 Step 3b（带 QC 标记）。
+2. 绘制 Figure 1C 面板：来源 → QC → 去冗余 → core → 三档的数量流，以及 hub 数与覆盖率（样本内 / 未保留）的关系。
+3. 后续步骤中，用这些面板扫描 occupancy 数据，并在独立数据上评估代表性。

@@ -56,10 +56,15 @@ def scan(part):
     a = pd.read_csv(U / f"scan_{part}.tsv.gz", sep="\t", dtype=str).set_index("unique_id")
     f = U / f"subscan_{part}.tsv.gz"
     parts = sorted(U.glob(f"subscan_{part}_w*.tsv.gz"))
+    cols = sorted(U.glob(f"subscan_{part}_res*.tsv.gz"))  # PMA_SUBSCAN_SPLIT runs, one column each
     if f.exists():
         b = pd.read_csv(f, sep="\t", dtype=str)
     elif parts:
         b = pd.concat([pd.read_csv(x, sep="\t", dtype=str) for x in parts], ignore_index=True)
+    elif cols:
+        b = pd.read_csv(cols[0], sep="\t", dtype=str)
+        for x in cols[1:]:
+            b = b.merge(pd.read_csv(x, sep="\t", dtype=str), on=["unique_id", "base"], validate="1:1")
     else:
         b = None
     if b is not None:

@@ -8,6 +8,8 @@
 #          -> unique/subscan_<part>.tsv.gz (unique_id, base, sub_r<r>...)
 #          with workers: unique/subscan_<part>_w<worker>.tsv.gz holding only that worker's base
 #          clusters (assigned round-robin by size rank, largest first); 17_unique_tiers.py merges them
+#        env PMA_SUBSCAN_SPLIT=1 with one sub-resolution: unique/subscan_<part>_res<r>.tsv.gz (all base
+#          clusters, one column), so a resolution that does not converge loses only its own column
 suppressPackageStartupMessages({ library(Seurat); library(Matrix) })
 args <- commandArgs(trailingOnly = TRUE)
 ud <- args[1]; part <- args[2]; base_col <- args[3]; subres <- as.numeric(strsplit(args[4], ",")[[1]])
@@ -43,5 +45,6 @@ mine <- unlist(groups, use.names = FALSE)
 out <- out[sort(mine), ]
 cat(part, base_col, "worker", wk, "of", nw, "subres:", subres, "\nK:",
     sapply(subres, function(r) length(unique(out[[sprintf("sub_r%s", r)]]))), format(Sys.time() - t0), "\n")
-f <- if (nw == 1) sprintf("subscan_%s.tsv.gz", part) else sprintf("subscan_%s_w%d.tsv.gz", part, wk)
+f <- if (Sys.getenv("PMA_SUBSCAN_SPLIT") == "1") sprintf("subscan_%s_res%s.tsv.gz", part, subres[1]) else
+  if (nw == 1) sprintf("subscan_%s.tsv.gz", part) else sprintf("subscan_%s_w%d.tsv.gz", part, wk)
 data.table::fwrite(out, file.path(ud, f), sep = "\t")

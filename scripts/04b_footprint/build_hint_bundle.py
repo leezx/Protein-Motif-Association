@@ -31,7 +31,7 @@ TARGET_SPECS = ("python=3.11", "numpy=1.26.4", "setuptools=80.9.0", "pip")
 SYSTEM_RUNTIME_LIBS = {
     "ld-linux-x86-64.so.2", "libc.so.6", "libm.so.6", "libpthread.so.0",
     "librt.so.1", "libdl.so.2", "libutil.so.1", "libresolv.so.2", "libnsl.so.1",
-    "linux-vdso.so.1",
+    "libgcc_s.so.1", "linux-vdso.so.1",
 }
 RUN_LOG: Path | None = None
 
@@ -251,22 +251,76 @@ def audit_conda_elf(records: list[dict], bundle: Path, work: Path) -> dict:
             raise RuntimeError(f"CONDA_{label}_PROVIDER_INCOMPATIBLE:{version_max(required)}:{version_max(provided)}")
     return {"elf_files_checked": checked, "glibc_max": glibc_max,
             "glibcxx_max": glibcxx_max, "cxxabi_max": cxxabi_max,
+            "provided_glibcxx_versions": sorted(set(provided_glibcxx)),
+            "provided_cxxabi_versions": sorted(set(provided_cxxabi)),
             "needed_libraries": sorted(needed_libraries),
             "package_library_names": sorted(package_libraries),
             "system_runtime_allowlist": sorted(SYSTEM_RUNTIME_LIBS),
             "method": "readelf machine, version-needs/definitions, and DT_NEEDED resolution across locked package members and explicit system runtime allowlist"}
 
 
-def audit_rgt_wheel(wheel: Path, builder: str, work: Path, sdist_digest: str) -> dict:
+def wheel_elf_members(wheel: Path) -> list[str]:
     with zipfile.ZipFile(wheel) as archive:
-        elf_members = []
-        for name in archive.namelist():
-            if name.endswith("/"):
-                continue
-            with archive.open(name) as member:
-                if member.read(4) == b"\x7fELF":
-                    elf_members.append(name)
+        return [name for name in archive.namelist() if not name.endswith("/")
+                and _zip_member_is_elf(archive, name)]
+
+
+def _zip_member_is_elf(archive: zipfile.ZipFile, name: str) -> bool:
+    with archive.open(name) as member:
+        return member.read(4) == b"\x7fELF"
+
+
+def audit_native_wheel_elf(wheel: Path, work: Path, available_libraries: set[str],
+                           conda_abi: dict) -> dict:
+    readelf = shutil.which("readelf")
+    if not readelf:
+        raise RuntimeError("READELF_MISSING_CANNOT_PROVE_WHEEL_ABI")
+    glibc, glibcxx, cxxabi, needed_libraries = [], [], [], set()
+    elf_members = wheel_elf_members(wheel)
+    for index, name in enumerate(elf_members):
+        staged = work / f"wheel-elf-{sha256(wheel)[:12]}-{index}"
+        try:
+            with zipfile.ZipFile(wheel) as archive, archive.open(name) as source, staged.open("wb") as out:
+                shutil.copyfileobj(source, out)
+            header = run([readelf, "--file-header", str(staged)], capture=True)
+            machine = re.search(r"^\s*Machine:\s*(.+)$", header, re.MULTILINE)
+            if not machine:
+                raise RuntimeError(f"WHEEL_ELF_MACHINE_UNREADABLE:{wheel.name}:{name}")
+            versions = run([readelf, "--version-info", str(staged)], capture=True)
+            dynamic = run([readelf, "--dynamic", str(staged)], capture=True)
+            needed = set(re.findall(r"\(NEEDED\).*?\[(.*?)\]", dynamic))
+            problems = check_elf_contract(machine.group(1), needed, available_libraries)
+            if problems:
+                raise RuntimeError(f"WHEEL_ELF_CONTRACT:{wheel.name}:{name}:{problems[0]}")
+            glibc.extend(readelf_versions(versions, "GLIBC", "needs"))
+            glibcxx.extend(readelf_versions(versions, "GLIBCXX", "needs"))
+            cxxabi.extend(readelf_versions(versions, "CXXABI", "needs"))
+            needed_libraries.update(needed)
+        finally:
+            staged.unlink(missing_ok=True)
+    glibc_max, glibcxx_max, cxxabi_max = map(version_max, (glibc, glibcxx, cxxabi))
+    if tuple(map(int, glibc_max.split("."))) > (2, 23):
+        raise RuntimeError(f"WHEEL_GLIBC_ABI_TOO_NEW:{wheel.name}:{glibc_max}")
+    for label, required, provider_key in (
+        ("GLIBCXX", glibcxx, "provided_glibcxx_versions"),
+        ("CXXABI", cxxabi, "provided_cxxabi_versions"),
+    ):
+        provided = conda_abi.get(provider_key, [])
+        if not abi_provider_compatible(required, provided):
+            raise RuntimeError(f"WHEEL_{label}_PROVIDER_INCOMPATIBLE:{wheel.name}:"
+                               f"{version_max(required)}:{version_max(provided)}")
+    return {"elf_files_checked": len(elf_members), "glibc_max": glibc_max,
+            "glibcxx_max": glibcxx_max, "cxxabi_max": cxxabi_max,
+            "needed_libraries": sorted(needed_libraries),
+            "provider_glibcxx_max": version_max(conda_abi.get("provided_glibcxx_versions", [])),
+            "provider_cxxabi_max": version_max(conda_abi.get("provided_cxxabi_versions", []))}
+
+
+def audit_rgt_wheel(wheel: Path, builder: str, work: Path, sdist_digest: str,
+                    conda_abi: dict, available_libraries: set[str]) -> dict:
+    elf_members = wheel_elf_members(wheel)
     if elf_members:
+        elf_audit = audit_native_wheel_elf(wheel, work, available_libraries, conda_abi)
         auditwheel = shutil.which("auditwheel")
         if not auditwheel:
             raise RuntimeError("AUDITWHEEL_MISSING_FOR_NATIVE_RGT_WHEEL")
@@ -283,7 +337,8 @@ def audit_rgt_wheel(wheel: Path, builder: str, work: Path, sdist_digest: str) ->
             raise RuntimeError(f"RGT_WHEEL_GLIBC_ABI_TOO_NEW:{glibc_max}")
         return {"builder": builder, "python_abi": "cp311", "glibc_symbol_max": glibc_max,
                 "auditwheel_policy": policy_match.group(0), "native_dependencies": elf_members,
-                "auditwheel_output": output, "rgt_sdist_sha256": sdist_digest,
+                "auditwheel_output": output, "native_elf_audit": elf_audit,
+                "rgt_sdist_sha256": sdist_digest,
                 "rgt_wheel": wheel.name, "rgt_wheel_sha256": sha256(wheel)}
     return {"builder": builder, "python_abi": "cp311", "glibc_symbol_max": "2.0",
             "auditwheel_policy": "pure-python-no-ELF", "native_dependencies": [],
@@ -291,23 +346,20 @@ def audit_rgt_wheel(wheel: Path, builder: str, work: Path, sdist_digest: str) ->
             "rgt_wheel_sha256": sha256(wheel)}
 
 
-def audit_pip_wheels(wheels: list[Path], work: Path) -> dict:
+def audit_pip_wheels(wheels: list[Path], work: Path, conda_abi: dict) -> dict:
     auditwheel = shutil.which("auditwheel")
     audited, glibc, glibcxx, cxxabi = [], [], [], []
+    members_by_wheel = {wheel: wheel_elf_members(wheel) for wheel in wheels}
+    wheel_library_names = {Path(name).name for members in members_by_wheel.values() for name in members}
+    available_libraries = set(conda_abi.get("package_library_names", [])) | wheel_library_names
     for wheel in wheels:
-        with zipfile.ZipFile(wheel) as archive:
-            elf_members = []
-            for name in archive.namelist():
-                if name.endswith("/"):
-                    continue
-                with archive.open(name) as member:
-                    if member.read(4) == b"\x7fELF":
-                        elf_members.append(name)
+        elf_members = members_by_wheel[wheel]
         if not elf_members:
             audited.append({"wheel": wheel.name, "sha256": sha256(wheel), "type": "pure-python-no-ELF"})
             continue
         if not auditwheel:
             raise RuntimeError(f"AUDITWHEEL_MISSING:{wheel.name}")
+        elf_audit = audit_native_wheel_elf(wheel, work, available_libraries, conda_abi)
         output = run([auditwheel, "show", str(wheel)], capture=True)
         matches = re.findall(r"GLIBC_(\d+(?:\.\d+)+)", output)
         if not matches:
@@ -323,9 +375,11 @@ def audit_pip_wheels(wheels: list[Path], work: Path) -> dict:
         cxxabi.extend(re.findall(r"CXXABI_(\d+(?:\.\d+)+)", output))
         audited.append({"wheel": wheel.name, "sha256": sha256(wheel), "type": "native",
                         "glibc_max": wheel_glibc, "manylinux_policy": policy.group(0),
-                        "elf_members": elf_members, "auditwheel_output": output})
+                        "elf_members": elf_members, "native_elf_audit": elf_audit,
+                        "auditwheel_output": output})
     return {"wheels": audited, "glibc_max": version_max(glibc),
-            "glibcxx_max": version_max(glibcxx), "cxxabi_max": version_max(cxxabi)}
+            "glibcxx_max": version_max(glibcxx), "cxxabi_max": version_max(cxxabi),
+            "available_library_names": sorted(available_libraries)}
 
 
 def fetch_and_build_rgt(bundle: Path, work: Path, python: Path) -> Path:
@@ -443,14 +497,15 @@ def main() -> int:
             raise RuntimeError(f"PREPROVISIONED_BUILDER_PYTHON_MISMATCH:{build_python_version}")
         rgt_wheel = fetch_and_build_rgt(bundle, work, build_python)
         wheels = resolve_pip_closure(rgt_wheel, bundle, work, conda_records, build_python)
-        wheel_abi = audit_pip_wheels(wheels, work)
+        wheel_abi = audit_pip_wheels(wheels, work, abi)
         conda_lock = bundle / "conda-explicit-linux-64.lock"
         conda_lock.write_text("".join("\t".join(row[k] for k in ("subdir", "name", "version", "build", "filename", "sha256")) + "\n" for row in conda_records), encoding="utf-8")
         pip_lock = bundle / "pip-requirements.lock"
         pip_lock.write_text(render_pip_lock(wheels), encoding="utf-8")
         report_path = bundle / "reports" / "rgt-wheel-audit.json"
         report_path.parent.mkdir(parents=True, exist_ok=True)
-        rgt_report = audit_rgt_wheel(rgt_wheel, os.environ["PMA_HINT_BUILDER_IMAGE"], work, RGT_SHA256)
+        rgt_report = audit_rgt_wheel(rgt_wheel, os.environ["PMA_HINT_BUILDER_IMAGE"], work,
+                                     RGT_SHA256, abi, set(wheel_abi["available_library_names"]))
         rgt_report["conda_abi_audit"] = abi
         report_path.write_text(json.dumps(rgt_report, indent=2) + "\n", encoding="utf-8")
         wheel_report_path = bundle / "reports" / "pip-wheel-abi-audit.json"

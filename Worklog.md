@@ -477,3 +477,14 @@ Sources used to pin the builder base/tool artifacts: [Pypa manylinux image](http
 在推送前复跑 11 项 `test_hint_bundle_build_contract.py`、`test_hint_bundle_builder_wrapper.sh`、`test_hint_env_builder.sh`、`test_step4b_runner_contract.sh`、shell syntax 和 diff whitespace 检查，全部通过。负向 runner fixtures 会打印 `BAM_CONVERSION_FAIL` / `BAM_PREP_FAIL`，但测试退出码为 0。以上均为 mock/static 测试，不证明真实 Docker/Linux build 或 ABI。
 
 已同步 CODEX_HANDOFF、dated stage handoff 和 PR description，随后在持久 PMA GPT 会话中请求对 GitHub 当前完整 HEAD `db5bb33c0df957b464efcf5b24fc7477cd4121d8` 相对 `e4826ca599603016cc19a451b64d4f5734c77b3d` 的精确复审；明确请求 APPROVE 或 REQUEST_CHANGES。该审核尚待回复。没有 Docker 镜像/bundle 构建、Argos 命令、环境或外部数据更改、分析运行或 PR merge。审核获批与具备合规 Linux builder 前不运行任何外部步骤。
+
+## 2026-10-18 06:15 EDT — GPT REQUEST_CHANGES on 18c1261; F3 native pip wheel gap
+
+GPT reviewed exact PR #4 HEAD `18c12617ff2cdfd04bcd906a9fe9d9d4132904b8` against `e4826ca599603016cc19a451b64d4f5734c77b3d`; GitHub verified OPEN/unmerged and the two intervening commits `db5bb33` (code) and `18c1261` (audit sync). Verdict `REQUEST_CHANGES`. F1, F2, and F4 are resolved; audit/PR-description consistency passed. The sole remaining blocker is F3: `audit_pip_wheels()` and native `audit_rgt_wheel()` collect GLIBCXX/CXXABI strings but do not compare native wheel ELF machine, DT_NEEDED, or symbol needs against the locked Conda providers/system runtime allowlist. A wheel requiring GLIBCXX_3.4.35 could pass while the Conda libstdc++ only provides GLIBCXX_3.4.30. GPT requests fail-closed checks for x86_64, resolvable DT_NEEDED, provider-covered GLIBCXX/CXXABI, and at least two behavior-level negative tests proving native wheel audit/build fails on an unsupported ABI and unresolved dependency. Static/mock repair and tests are authorized in this same PR; no bundle/Docker/Argos action is authorized by this review. No external execution or data/environment change occurred.
+
+
+## 2026-10-18 06:17 EDT — 定向修复 native pip/RGT wheel ABI fail-open
+
+按 GPT 对 `18c12617ff2cdfd04bcd906a9fe9d9d4132904b8` 的唯一 blocker F3 修复同一 PR。新增共享 `audit_native_wheel_elf()`，应用于 pip native wheels 与 RGT native wheel；它要求 readelf 证据完整、ELF machine 为 x86_64、所有 DT_NEEDED 可在锁定 Conda/wheel ELF 清单或系统运行库 allowlist 中解析、GLIBC ≤2.23，且 GLIBCXX/CXXABI needs 被 Conda ABI audit 提取的 `libstdc++` version definitions 覆盖。Conda ABI report 现在暴露 provider version inventory；pip/RGT wheel audit report 保存逐 wheel ELF 结果。
+
+新增两个行为级负向测试，实际调用 `audit_pip_wheels()`：wheel 要求 GLIBCXX_3.4.35 而 Conda provider 仅提供 GLIBCXX_3.4.30 时失败；wheel DT_NEEDED 引用 `libmissing.so` 时失败。运行 `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest tests/test_hint_bundle_build_contract.py`（13 pass）、`tests/test_hint_bundle_builder_wrapper.sh`、`tests/test_hint_env_builder.sh`、`tests/test_step4b_runner_contract.sh`、shell syntax、Python AST parse 和 `git diff --check` 均通过。负向测试打印预期错误，但 suite 退出码均为 0。无 Docker/Linux build、bundle、Argos 命令、环境/数据修改、分析或 merge。修复尚未推送；需同 PR 精确 HEAD GPT 复审后才可考虑外部构建。

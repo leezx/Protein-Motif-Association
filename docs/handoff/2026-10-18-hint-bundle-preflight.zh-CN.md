@@ -65,3 +65,11 @@
 - 最新验证：11 项 builder Python tests、wrapper tests、`test_hint_env_builder.sh`、`test_step4b_runner_contract.sh`、shell syntax、diff whitespace 检查均通过；runner 失败打印来自预期负向 fixture，退出码为 0。
 - 当前 GPT 持久会话已保留此前 F1 澄清；现在需要它审核 GitHub 当前完整 HEAD `db5bb33c0df957b464efcf5b24fc7477cd4121d8` 相对 `e4826ca599603016cc19a451b64d4f5734c77b3d` 的修复。尚未收到新审核结论。
 - 未构建 Docker 镜像或 bundle；未向 Argos 发命令、未修改环境/数据、未运行分析。获批前保持此状态。Docker daemon 仍不可用；PR 合并仍需用户另行明确确认。
+
+
+## 2026-10-18 06:17 EDT 状态更新：修复 native wheel ABI 漏检
+
+- GPT 对 `18c12617ff2cdfd04bcd906a9fe9d9d4132904b8` 返回 `REQUEST_CHANGES`，F1/F2/F4 已解决；唯一 blocker 是 F3：pip 和 RGT 的 native wheels 未将 ELF 架构、`DT_NEEDED` 与 Conda bundle provider/系统库 allowlist 闭环检查。GPT 指出可漏过 wheel 要求 `GLIBCXX_3.4.35`、而 Conda provider 最高仅 `3.4.30` 的情况，并要求两个 native-wheel 负向行为测试。
+- 已在同一 PR 的本地修复中复用 Conda ABI evidence 检查 pip/RGT native ELF：要求 x86_64、解析所有 `DT_NEEDED`、wheel GLIBC ≤2.23、GLIBCXX/CXXABI 需求由 Conda 锁定 `libstdc++` provider 覆盖；缺失证据 fail closed。审计报告记录每个 native wheel 的 ELF 检查结果。
+- 新增两个测试，调用真实 `audit_pip_wheels()` 路径，并断言 provider ABI 不足与未解析 `DT_NEEDED` 均抛出构建 blocker。13 项 Python contract tests、wrapper、既有 HINT builder/Step 4b runner tests、shell syntax、AST parse、`git diff --check` 均通过。输出的 runner fail 行是负向 fixture 预期内容，测试退出码为 0。
+- 修复尚未提交/推送/复审。没有 Docker/Linux 构建、bundle、Argos 操作、环境/外部数据变化、分析运行或 PR 合并。下一步在 Worklog、CODEX_HANDOFF 与本 handoff 记录本次修复后，显式暂存相关文件、提交推送、同步 PR body，并让 GPT 审核新的完整 HEAD。

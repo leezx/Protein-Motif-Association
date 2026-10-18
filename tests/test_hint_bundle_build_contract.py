@@ -46,7 +46,7 @@ class HintBundleBuildContract(unittest.TestCase):
                 archive.writestr("rgt/__init__.py", "__version__ = '1.0.2'\n")
                 archive.writestr("RGT-1.0.2.dist-info/METADATA", "Name: RGT\nVersion: 1.0.2\n")
             result = BUILDER.audit_rgt_wheel(wheel, "builder@sha256:" + "a" * 64,
-                                             Path(tmp), BUILDER.RGT_SHA256)
+                                             Path(tmp), BUILDER.RGT_SHA256, {}, set())
             self.assertEqual(result["auditwheel_policy"], "pure-python-no-ELF")
             self.assertEqual(result["native_dependencies"], [])
 
@@ -87,6 +87,55 @@ Version definition section '.gnu.version_d' contains 1 entry:
         self.assertTrue(BUILDER.abi_provider_compatible(["3.4.26"], ["3.4.29"]))
         self.assertFalse(BUILDER.abi_provider_compatible(["3.4.30"], ["3.4.29"]))
         self.assertFalse(BUILDER.abi_provider_compatible(["1.3.8"], []))
+
+    def _native_wheel(self, folder: Path, name: str) -> Path:
+        wheel = folder / f"{name}-1.0-cp311-cp311-manylinux_2_17_x86_64.whl"
+        with zipfile.ZipFile(wheel, "w") as archive:
+            archive.writestr(f"{name}/extension.so", b"\x7fELFfixture")
+        return wheel
+
+    def _mock_native_readelf(self, args, *, capture):
+        if "--file-header" in args:
+            return "Machine: Advanced Micro Devices X86-64\n"
+        if "--version-info" in args:
+            return "Version needs section '.gnu.version_r' contains 1 entry:\n  Name: GLIBC_2.17\n  Name: GLIBCXX_3.4.35\n"
+        if "--dynamic" in args:
+            return "(NEEDED) Shared library: [libstdc++.so.6]\n"
+        raise AssertionError(args)
+
+    def test_native_wheel_audit_fails_when_glibcxx_exceeds_conda_provider(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            wheel = self._native_wheel(folder, "nativepkg")
+            conda_abi = {"package_library_names": ["libstdc++.so.6"],
+                         "provided_glibcxx_versions": ["3.4.30"],
+                         "provided_cxxabi_versions": ["1.3.13"]}
+            with mock.patch.object(BUILDER.shutil, "which", side_effect=lambda name: f"/mock/{name}"), \
+                 mock.patch.object(BUILDER, "run", side_effect=self._mock_native_readelf):
+                with self.assertRaisesRegex(RuntimeError, "WHEEL_GLIBCXX_PROVIDER_INCOMPATIBLE"):
+                    BUILDER.audit_pip_wheels([wheel], folder, conda_abi)
+
+    def test_native_wheel_audit_fails_on_unresolved_dt_needed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            wheel = self._native_wheel(folder, "nativepkg")
+            conda_abi = {"package_library_names": ["libstdc++.so.6"],
+                         "provided_glibcxx_versions": ["3.4.40"],
+                         "provided_cxxabi_versions": ["1.3.20"]}
+
+            def unresolved_readelf(args, *, capture):
+                if "--file-header" in args:
+                    return "Machine: Advanced Micro Devices X86-64\n"
+                if "--version-info" in args:
+                    return "Version needs section '.gnu.version_r' contains 1 entry:\n  Name: GLIBC_2.17\n"
+                if "--dynamic" in args:
+                    return "(NEEDED) Shared library: [libmissing.so]\n"
+                raise AssertionError(args)
+
+            with mock.patch.object(BUILDER.shutil, "which", side_effect=lambda name: f"/mock/{name}"), \
+                 mock.patch.object(BUILDER, "run", side_effect=unresolved_readelf):
+                with self.assertRaisesRegex(RuntimeError, "ELF_NEEDED_UNRESOLVED:libmissing.so"):
+                    BUILDER.audit_pip_wheels([wheel], folder, conda_abi)
 
     def test_conda_solver_never_creates_its_target_prefix(self):
         with tempfile.TemporaryDirectory() as tmp:

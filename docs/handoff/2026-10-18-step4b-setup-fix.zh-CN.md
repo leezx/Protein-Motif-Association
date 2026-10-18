@@ -16,11 +16,17 @@ Argos 上 driver PID 8822 在 `00_setup.sh` 阶段以 `SETUP_FAIL` 退出，尚�
 
 - Shell 语法检查：`bash -n scripts/04b_footprint/00_setup.sh` 通过。
 - Git diff 检查：`git diff --check` 通过；修复 commit 为 `8e33a35`。
-- PR #4 已提交。ChatGPT 对完整 PR 给出 `REQUEST_CHANGES`：代码修复本身正确，但 handoff 不能把修复 PR 的批准表述成完整 driver 的运行授权。GPT 未能向 GitHub 提交正式 review（HTTP 403），结论记录在持久审核对话中。
+- GPT 对 commit `9c8ff5a` 的范围澄清给出 `APPROVE`；其后因 GitHub 集成 HTTP 403，结论只记录在持久审核对话，未写入 GitHub review。随后 setup 运行尝试发现 FASTA 中断恢复问题；本次 PR 又包含该修复，当前 HEAD 需要重新审核。
 - 当前远端 setup 已停止；数据和已生成的资源仍在 `/home/zz950/DATA/2.PROJECTS/PMA/atac_footprint/processed/round1/`。
 - 在当前 PR 获得明确 `APPROVE` 前，不重启 setup 或任何依赖分析。
 - PR 批准仅覆盖代码修复，不等于外部执行授权。仅做 setup 验证时，须直接调用 `scripts/04b_footprint/00_setup.sh`；不可用 `run_4b1.sh` 代替，因为它会继续运行 prep、smoke 和 12 个 round-1 jobs。
 - 重启完整 driver 必须有独立于 PR 审查的用户授权。本项目负责人此前已指示 Codex 在 §6 门禁满足后启动第一轮评测；仅在这一既有授权范围内执行，不得将 GPT 的 PR `APPROVE` 当成额外执行授权或扩展分析范围。
 - 重新请求同一 PR 的 GPT 复审。复审通过后，按上述授权边界继续；遇到新代码问题时仍在同一 PR 内最小修复并再次审查。
+
+## 2026-10-18 01:40 EDT — setup attempt stopped at external-run PR gate
+
+GPT approved the scope clarification at commit `9c8ff5a`. The driver was then started under the user's separate first-round benchmark direction but stopped during setup after recognizing that the repository requires a reviewed PR for each external run. PID 11481; log `/home/zz950/PMA_fetch/fp_4b1_rerun_20261018.log`. It copied chromosome sizes and started decompressing the reference, then stopped before `.fai`, input preparation, smoke tests, or round 1. The downloaded gzip reference is unchanged. The generated, unindexed `hg38.fa` is partial (1,398,439,936 bytes); no process remains.
+
+The attempt showed that the old setup treated any nonempty `hg38.fa` as complete. The PR now preserves unindexed output under `processed/round1/setup_interrupted/`, decompresses to a temporary path, atomically installs the full reference, and indexes it. This updated code and audit record require GPT review before another Argos command. No analysis has run.
 
 原始数据和分析输出均留在仓库外。

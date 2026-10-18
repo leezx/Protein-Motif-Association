@@ -15,8 +15,19 @@ fi
 cp -n $RAW/print_zenodo/Tn5_NN_model.h5 .
 ls -ld precomputedTn5Bias dispModel
 cp -n $SIZES $W/hg38.chrom.sizes
-if [ ! -s $RAW/reference/hg38.fa ]; then gunzip -c $RAW/reference/hg38.fa.gz > $RAW/reference/hg38.fa; fi
-[ -s $RAW/reference/hg38.fa.fai ] || $ENV/bin/samtools faidx $RAW/reference/hg38.fa
+FA=$RAW/reference/hg38.fa
+if [ ! -s "$FA.fai" ]; then
+  # Preserve an unindexed file from an interrupted extraction, then rebuild from the immutable gzip source.
+  if [ -s "$FA" ]; then
+    mkdir -p "$W/setup_interrupted"
+    mv "$FA" "$W/setup_interrupted/hg38.fa.no_fai.$(date +%Y%m%dT%H%M%S)"
+  fi
+  TMP=$RAW/reference/.hg38.fa.tmp.$$
+  gunzip -c "$RAW/reference/hg38.fa.gz" > "$TMP"
+  [ -s "$TMP" ]
+  mv "$TMP" "$FA"
+  $ENV/bin/samtools faidx "$FA"
+fi
 # RGT: genome path for hg38 (data.config.user overrides data.config)
 CFG=$HOME/rgtdata/data.config.user
 grep -q "^\[hg38\]" $CFG 2>/dev/null || printf "\n[hg38]\ngenome: %s\nchromosome_sizes: %s\n" $RAW/reference/hg38.fa $W/hg38.chrom.sizes >> $CFG

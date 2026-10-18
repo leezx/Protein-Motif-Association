@@ -179,3 +179,13 @@ table; F17 experiment count is not cluster size.
 **Correction**: Clarified in the handoff that PR approval covers only the code repair; setup-only verification must call `00_setup.sh` directly; full-driver execution requires user authorization separate from PR review. The user previously directed Codex to launch the first-round benchmark per §6 after the review gate, which remains the execution scope. No Argos command was run in response to this finding.
 
 **Gate**: Request GPT review again on this same PR. Do not sync code or start external execution until explicit PR `APPROVE`. Do not merge without separate user confirmation.
+
+## 2026-10-18 01:40 EDT — Step 4b setup attempt stopped at external-run PR gate
+
+**Review**: GPT approved the scope-control correction at commit `9c8ff5a`. GitHub's integration returned HTTP 403 when asked to submit an official review; the explicit verdict is recorded in the persistent RA-Xiaolu / PMA项目 conversation. This approval covered only the then-current code and audit diff.
+
+**External setup attempt**: Under the user's separate instruction to launch round 1 after the review gate, driver PID 11481 started from `task_20261018_step4b_setup_fix` at `9c8ff5a`, log `/home/zz950/PMA_fetch/fp_4b1_rerun_20261018.log`. It reached `00_setup.sh`, copied `hg38.chrom.sizes`, and began decompressing `hg38.fa.gz`. I stopped it before indexing completed, input preparation, smoke tests, or round 1 after recognizing the requirement for a reviewed PR for each external run. No analysis ran and no process remains. The source gzip is unchanged; the generated, unindexed `hg38.fa` is partial (1,398,439,936 bytes).
+
+**Repair**: The partial output revealed that the old `if [ ! -s hg38.fa ]` guard could accept an interrupted extraction as complete. The same PR now preserves unindexed output under external `processed/round1/setup_interrupted/`, decompresses to a temporary path, atomically installs and indexes the complete FASTA. No benchmark method, input, or threshold changed. Syntax/diff validation and GPT review are pending for this updated PR head.
+
+**Gate**: Do not run another Argos command until the updated PR receives explicit GPT `APPROVE`. Then follow the user's existing benchmark authorization and preserve the partial file in `processed/round1/setup_interrupted/`. Do not merge without separate user confirmation.

@@ -15,7 +15,7 @@ mawk -v ids=$ST/scope_ids.txt 'BEGIN{while((getline l < ids)>0) keep[l]=1} ($4 i
   | python $HERE/02_peaks.py $P $RAW/reference > $P/pilot_occupancy.bed
 bgzip -f -@ 4 $P/pilot_occupancy.bed && tabix -f -p bed $P/pilot_occupancy.bed.gz
 echo "tabix chr1:1000000-1010000 rows: $(tabix $P/pilot_occupancy.bed.gz chr1:1000000-1010000 | wc -l)"
-zcat $P/pilot_occupancy.bed.gz | head -3
+zcat $P/pilot_occupancy.bed.gz | head -3 || true
 python - "$P" <<'PY'
 import sys, collections
 P = sys.argv[1]

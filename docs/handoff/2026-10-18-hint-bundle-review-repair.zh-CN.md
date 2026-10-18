@@ -17,7 +17,7 @@
 ## 当前状态与门禁
 
 - 已知远端 PR HEAD 为 `2bf931c34727137a161a93224725db1c897c70e9`。GPT 对其给出 `REQUEST_CHANGES`（extras 依赖 closure，及审计当前状态同步）。
-- Extras fail-closed 修正、mock fixture 及同步审计待显式暂存、提交、推送；推送后再读取远端 HEAD、更新 PR 描述，并要求 GPT 审核精确完整 SHA。
+- Extras fail-closed 修正和 mock fixture 已在 `e5149b2` 推送。GPT 对该 HEAD 确认 extras finding 已解决，但指出当前状态文件仍滞后。此 handoff 和 `CODEX_HANDOFF.md` 正在同步 `e5149b2` review finding 与本地状态；本审计更新推送后，需重新读取远端 HEAD、确认 PR 描述一致，并请求 GPT 审核精确完整 SHA。
 - 在 GPT 对当前完整 HEAD 明确 `APPROVE` 前，禁止任何 Argos 命令或外部分析。既有部分 `pma_hint` 和源 `pmafp` 必须保留；无 HINT CLI/small-BED/smoke/round-1 结果；不合并。
 - 获批后才按用户此前 §6 授权，先构建/审计外置 Linux 离线包并做 Argos preflight、安装至新前缀、确认源环境不变，再验证真实 HINT CLI 与 small-BED，之后重试 smoke。所有 smoke caller 通过及输出检查后才可运行 12 个 round-1 jobs。
 

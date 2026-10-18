@@ -604,6 +604,12 @@ PR #5 远端完整 HEAD `e078a8d4df23bc446ed921e3ef2af245785c1513` 已获 GPT ex
 
 在同一 PR 本地做最小修复：不通过 import machinery 查询 pip spec，改为核对 external `root/pip/__init__.py` 文件与其已验证 distribution metadata。合同 fixture 加入一个 pip spec 查询时模拟清空 distutils / 关闭 finder 的 meta finder，使现有 probe 合同可捕获该回归。更新 CODEX_HANDOFF 和本任务 handoff 的实时状态、失败证据与下一 gate。用户要求所有计算只在 Argos，故 Mac 未运行 tests/build/analysis；当前改动尚未提交、推送或复审。下一步完成 diff 检查后提交到同一 PR #5、同步 PR body 并请求 GPT 新完整 HEAD APPROVE；未获批准前不再向 Argos 发测试或构建命令。已有失败 workspace 保持原样，pmafp 与 partial pma_hint 未修改；不运行 HINT/smoke/full analysis，不合并 PR。
 
+## 2026-10-18 11:38 EDT — GPT 对 e8d8b51 REQUEST_CHANGES；修正 G2-F3-T1 测试合同
+
+GPT 已核实 PR #5 exact HEAD `e8d8b51afc4ab0af98651a14401635bb1186c028`、base、OPEN 状态、完整 11-file diff、PR body 与审计记录。根因修复获认可：`find_spec("pip")` 会触发 setuptools 80.9.0 的特殊 pip finder，清除已加载 local distutils 并禁用 finder；改用 external `pip/__init__.py` 与 distribution metadata 核验可避免该副作用。唯一 blocker G2-F3-T1：模拟清理行为的 fake finder 在共用 fixture 中，导致真实 `python -m pip` 启动正向测试也触发模拟清理；此外真实 `pip wheel` fixture 未检查 build backend 导入的 `distutils.core` 来源。
+
+按该 finding 做最小本地修正：fake finder 改为 opt-in，仅用于专门的 pip-spec 副作用回归合同；真实 `pip wheel --no-index --no-deps --no-build-isolation` 临时 `setup.py` 现断言 `distutils.core.__file__` 在 external toolchain root 下且含 `_distutils` 路径。同步更新 handoff。未在 Mac mini 运行测试/编译/分析，未向 Argos发命令；改动尚未提交、推送或复审。下一步仅做静态 diff 检查，提交推送同一 PR #5、同步 PR body并请求新 exact HEAD review；新 SHA 未获 APPROVE 前不恢复 Argos测试或G2。保留全部失败 workspace，不动 pmafp/partial pma_hint，不跑 HINT/smoke/full analysis，不合并。
+
 ## 2026-10-18 11:32 EDT — 修复 PR 描述目标仓库并验证状态
 
 同步 PR #5 描述时，GitHub CLI 使用了默认仓库 `leezx/StelligenOS`，错误覆盖了已合并的同编号 PR 描述。发现返回 URL 与预期仓库不符后，立即将该 PR 描述恢复为符合其 Phase 4 内容的摘要，并经 `gh pr view --repo leezx/StelligenOS` 核验 PR 仍 MERGED、原标题与分支未变。随后使用显式 `--repo leezx/Protein-Motif-Association` 将本次准确的 e078a8d failure、05cab15 修复内容及验证状态写入目标 PR #5；核验目标 PR 仍 OPEN、base 正确、HEAD 为 `05cab152d4489b33d174fd3fd566c99339c87894`。未改 StelligenOS 仓库文件或提交任何代码。之后所有 PR 操作均使用显式仓库名。

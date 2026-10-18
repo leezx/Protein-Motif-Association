@@ -34,10 +34,20 @@ DATA_ROOT_SPEC.loader.exec_module(DATA_ROOT_VALIDATOR)
 
 
 class HintBundleBuildContract(unittest.TestCase):
-    def _write_import_probe_fixture(self, root: Path, *, metadata_root: Path | None = None):
+    def _write_import_probe_fixture(self, root: Path, *, metadata_root: Path | None = None,
+                                    simulate_pip_spec_side_effect: bool = False):
         metadata_root = metadata_root or root
         root.mkdir(parents=True, exist_ok=True)
-        (root / "_distutils_hack.py").write_text("""import importlib, sys
+        hack_source = """import importlib, sys
+def add_shim():
+    package = importlib.import_module('setuptools._distutils')
+    core = importlib.import_module('setuptools._distutils.core')
+    package.__name__ = 'distutils'
+    sys.modules['distutils'] = package
+    sys.modules['distutils.core'] = core
+"""
+        if simulate_pip_spec_side_effect:
+            hack_source += """
 class DistutilsMetaFinder:
     def find_spec(self, fullname, path=None, target=None):
         if fullname == 'pip':
@@ -49,15 +59,13 @@ class DistutilsMetaFinder:
                 pass
         return None
 DISTUTILS_FINDER = DistutilsMetaFinder()
+_original_add_shim = add_shim
 def add_shim():
-    package = importlib.import_module('setuptools._distutils')
-    core = importlib.import_module('setuptools._distutils.core')
-    package.__name__ = 'distutils'
-    sys.modules['distutils'] = package
-    sys.modules['distutils.core'] = core
+    _original_add_shim()
     if DISTUTILS_FINDER not in sys.meta_path:
         sys.meta_path.insert(0, DISTUTILS_FINDER)
-""", encoding="utf-8")
+"""
+        (root / "_distutils_hack.py").write_text(hack_source, encoding="utf-8")
         (root / "setuptools" / "_distutils").mkdir(parents=True)
         (root / "setuptools" / "__init__.py").write_text("__version__ = '80.9.0'\n", encoding="utf-8")
         (root / "setuptools" / "_distutils" / "__init__.py").write_text("\n", encoding="utf-8")
@@ -85,7 +93,7 @@ def add_shim():
 
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "toolchain"
-            self._write_import_probe_fixture(root)
+            self._write_import_probe_fixture(root, simulate_pip_spec_side_effect=True)
             env = PREP.toolchain_probe_environment(root, {"PATH": os.environ["PATH"]})
             self.assertEqual(env["SETUPTOOLS_USE_DISTUTILS"], "local")
             result = subprocess.run([sys.executable, str(PROBE_SCRIPT), str(root)], env=env,
@@ -160,6 +168,12 @@ def add_shim():
             source.mkdir()
             (source / "setup.py").write_text(
                 "from setuptools import setup\n"
+                "import distutils.core, os\n"
+                "from pathlib import Path\n"
+                "root = Path(os.environ['PMA_HINT_EXTERNAL_TOOLCHAIN_PYTHON_ROOT']).resolve()\n"
+                "origin = Path(distutils.core.__file__).resolve()\n"
+                "assert root in origin.parents, origin\n"
+                "assert '_distutils' in origin.parts, origin\n"
                 "setup(name='pma-startup-probe-fixture', version='0.0.1', py_modules=['fixture'])\n",
                 encoding="utf-8")
             (source / "fixture.py").write_text("value = 1\n", encoding="utf-8")

@@ -120,6 +120,8 @@ def solver_identity_rows(solve, repodata_by_subdir, channel_by_subdir, label):
                 not all(isinstance(value, str) and value for value in (name, version, build))):
             issues.append(f"{label}_SOLVE_LINK_IDENTITY_INVALID:{link_index}")
             continue
+        if link.get("dist_name") not in (None, f"{name}-{version}-{build}"):
+            issues.append(f"{label}_SOLVE_DIST_IDENTITY_MISMATCH:{name}")
         expected_channel = channel_by_subdir.get(subdir)
         if link.get("base_url") != expected_channel:
             issues.append(f"{label}_SOLVE_LINK_CHANNEL_MISMATCH:{name}")
@@ -144,8 +146,12 @@ def solver_identity_rows(solve, repodata_by_subdir, channel_by_subdir, label):
             fetch_build = fetch.get("build") or fetch.get("build_string")
             fetch_identity = (fetch.get("name"), fetch.get("version"), fetch_build)
             link_identity = (name, version, build)
+            fetch_base = fetch.get("base_url")
             if fetch_identity == link_identity and fetch_subdir != subdir:
                 issues.append(f"{label}_SOLVE_FETCH_SUBDIR_MISMATCH:{name}")
+            if (fetch_identity == link_identity and fetch_subdir == subdir and fetch_base and
+                    fetch_base.rstrip("/") != expected_channel.rstrip("/")):
+                issues.append(f"{label}_SOLVE_FETCH_CHANNEL_MISMATCH:{name}")
             if fetch_identity == link_identity and fetch_subdir == subdir:
                 matching_fetches.append((fetch_index, fetch))
         if len(matching_fetches) > 1:
@@ -164,14 +170,21 @@ def solver_identity_rows(solve, repodata_by_subdir, channel_by_subdir, label):
                 if filename and filename != url_filename:
                     issues.append(f"{label}_SOLVE_FETCH_FILENAME_CONFLICT:{name}")
                 filename = filename or url_filename
-            checksum = fetch.get("sha256") or fetch.get("md5")
-            if not filename or not checksum:
+            fetch_sha = fetch.get("sha256")
+            fetch_md5 = fetch.get("md5")
+            if (fetch_sha is not None and not re.fullmatch(r"[a-fA-F0-9]{64}", str(fetch_sha))):
+                issues.append(f"{label}_SOLVE_FETCH_SHA256_INVALID:{name}")
+            if (fetch_md5 is not None and not re.fullmatch(r"[a-fA-F0-9]{32}", str(fetch_md5))):
+                issues.append(f"{label}_SOLVE_FETCH_MD5_INVALID:{name}")
+            if not filename or not (fetch_sha or fetch_md5):
                 issues.append(f"{label}_SOLVE_FETCH_IDENTITY_INCOMPLETE:{name}")
                 continue
             candidates = [candidate for candidate in candidates
                           if candidate[1] == filename and
-                          str(candidate[2].get("sha256" if fetch.get("sha256") else "md5", "")).lower() ==
-                          str(checksum).lower()]
+                          (not fetch_sha or str(candidate[2].get("sha256", "")).lower() ==
+                           str(fetch_sha).lower()) and
+                          (not fetch_md5 or str(candidate[2].get("md5", "")).lower() ==
+                           str(fetch_md5).lower())]
             expected_url = f"{expected_channel.rstrip('/')}/{subdir}/{filename}"
             if fetch_url and fetch_url != expected_url:
                 issues.append(f"{label}_SOLVE_FETCH_URL_MISMATCH:{filename}")
@@ -184,6 +197,24 @@ def solver_identity_rows(solve, repodata_by_subdir, channel_by_subdir, label):
         if not re.fullmatch(r"[0-9a-fA-F]{64}", str(digest or "")) or not isinstance(size, int) or size <= 0:
             issues.append(f"{label}_SOLVE_REPODATA_IDENTITY_INVALID:{filename}")
             continue
+        if link.get("build_number") is not None and record.get("build_number") != link["build_number"]:
+            issues.append(f"{label}_SOLVE_BUILD_NUMBER_MISMATCH:{filename}")
+        for field in ("depends", "constrains"):
+            if field in link:
+                link_value = link.get(field)
+                source_value = record.get(field, [])
+                if (not isinstance(link_value, list) or not isinstance(source_value, list) or
+                        sorted(link_value) != sorted(source_value)):
+                    issues.append(f"{label}_SOLVE_METADATA_MISMATCH:{filename}:{field}")
+        for field, expected_value in (("sha256", digest), ("md5", record.get("md5"))):
+            if field in link and str(link[field]).lower() != str(expected_value or "").lower():
+                issues.append(f"{label}_SOLVE_METADATA_MISMATCH:{filename}:{field}")
+        for field in ("fn", "filename"):
+            if field in link and link[field] != filename:
+                issues.append(f"{label}_SOLVE_METADATA_MISMATCH:{filename}:{field}")
+        expected_url = f"{expected_channel.rstrip('/')}/{subdir}/{filename}"
+        if link.get("url") and link["url"] != expected_url:
+            issues.append(f"{label}_SOLVE_METADATA_MISMATCH:{filename}:url")
         identities.append((name, version, build, subdir, filename, digest.lower()))
     if consumed_fetches != set(range(len(fetches))):
         issues.append(f"{label}_SOLVE_FETCH_UNCONSUMED:{len(set(range(len(fetches)))-consumed_fetches)}")
@@ -204,12 +235,15 @@ def validate_solver_evidence(bundle, evidence):
             return None
 
     online = read_json(os.path.join(evidence, "conda-solve.json"), "ONLINE_SOLVE_EVIDENCE_INVALID")
+    enriched_online = read_json(os.path.join(evidence, "conda-upstream-link-records.json"),
+                                "ONLINE_ENRICHED_LINK_EVIDENCE_INVALID")
     offline = read_json(os.path.join(evidence, "conda-offline-solve.json"), "OFFLINE_SOLVE_EVIDENCE_INVALID")
     offline_provenance = read_json(os.path.join(evidence, "conda-offline-repodata-provenance.json"),
                                    "OFFLINE_REPODATA_PROVENANCE_INVALID")
     cache_root_record = read_json(os.path.join(evidence, "conda-solver-cache-root.json"),
                                   "CONDA_SOLVER_CACHE_ROOT_INVALID")
-    if not all(isinstance(item, dict) for item in (online, offline, offline_provenance, cache_root_record)):
+    if (not all(isinstance(item, dict) for item in (online, offline, offline_provenance, cache_root_record)) or
+            not isinstance(enriched_online, list)):
         return issues
 
     online_actions = online.get("actions", {})
@@ -243,6 +277,69 @@ def validate_solver_evidence(bundle, evidence):
             issues.append(f"UPSTREAM_REPODATA_SUBDIR_MISMATCH:{subdir}")
         if not all(isinstance(snapshot.get(key), dict) for key in ("packages", "packages.conda")):
             issues.append(f"UPSTREAM_REPODATA_SECTIONS_INVALID:{subdir}")
+    online_ids, online_issues = solver_identity_rows(online, online_repodata, online_bases, "ONLINE")
+    issues.extend(online_issues)
+
+    def solver_key(row):
+        subdir = row.get("subdir") or row.get("platform")
+        build = row.get("build") or row.get("build_string")
+        return subdir, row.get("name"), row.get("version"), build
+
+    raw_by_key = {}
+    if not isinstance(link_rows, list):
+        issues.append("ONLINE_SOLVE_LINKS_INVALID")
+        link_rows = []
+    for index, row in enumerate(link_rows):
+        if not isinstance(row, dict):
+            issues.append(f"ONLINE_SOLVE_LINK_ROW_INVALID:{index}")
+            continue
+        key = solver_key(row)
+        if key in raw_by_key:
+            issues.append(f"ONLINE_SOLVE_LINK_IDENTITY_DUPLICATE:{key}")
+        raw_by_key[key] = row
+    enriched_by_key = {}
+    for index, row in enumerate(enriched_online):
+        if not isinstance(row, dict):
+            issues.append(f"ONLINE_ENRICHED_LINK_ROW_INVALID:{index}")
+            continue
+        key = solver_key(row)
+        if key in enriched_by_key:
+            issues.append(f"ONLINE_ENRICHED_LINK_IDENTITY_DUPLICATE:{key}")
+        enriched_by_key[key] = row
+    if set(raw_by_key) != set(enriched_by_key):
+        issues.append("ONLINE_RAW_ENRICHED_LINK_IDENTITY_SET_MISMATCH")
+    identities_by_key = {}
+    for name, version, build, subdir, filename, digest in online_ids:
+        key = (subdir, name, version, build)
+        if key in identities_by_key:
+            issues.append(f"ONLINE_RESOLVED_IDENTITY_DUPLICATE:{key}")
+        identities_by_key[key] = (name, version, build, subdir, filename, digest)
+    for key in sorted(set(raw_by_key) & set(enriched_by_key), key=str):
+        raw, enriched = raw_by_key[key], enriched_by_key[key]
+        for field in ("base_url", "channel", "dist_name", "name", "version", "build", "build_string",
+                      "build_number", "platform", "subdir", "depends", "constrains", "sha256", "md5",
+                      "fn", "filename", "url"):
+            if field in raw and enriched.get(field) != raw[field]:
+                issues.append(f"ONLINE_RAW_ENRICHED_FIELD_MISMATCH:{key}:{field}")
+        identity = identities_by_key.get(key)
+        artifact = enriched.get("pma_artifact")
+        if identity is None or not isinstance(artifact, dict):
+            issues.append(f"ONLINE_ENRICHED_ARTIFACT_MISSING:{key}")
+        else:
+            name, version, build, subdir, filename, digest = identity
+            expected_artifact = (name, version, build, subdir, filename, digest)
+            observed_artifact = (artifact.get("name"), artifact.get("version"), artifact.get("build"),
+                                 artifact.get("subdir"), artifact.get("filename"),
+                                 str(artifact.get("sha256", "")).lower())
+            if observed_artifact != expected_artifact:
+                issues.append(f"ONLINE_ENRICHED_ARTIFACT_MISMATCH:{key}")
+            section = "packages.conda" if filename.endswith(".conda") else "packages"
+            source_record = online_repodata.get(subdir, {}).get(section, {}).get(filename)
+            if enriched.get("pma_upstream_repodata_record") != source_record:
+                issues.append(f"ONLINE_ENRICHED_REPODATA_RECORD_MISMATCH:{key}")
+            expected_upstream = enriched.get("pma_upstream_repodata")
+            if not isinstance(expected_upstream, dict):
+                issues.append(f"ONLINE_ENRICHED_REPODATA_PROVENANCE_MISSING:{key}")
 
     local_repodata = {}
     local_channel = os.path.join(bundle, "conda")
@@ -302,7 +399,7 @@ def validate_solver_evidence(bundle, evidence):
                             provenance.get("size") != expected_size):
                         issues.append(f"OFFLINE_CACHE_PROVENANCE_MISMATCH:{subdir}")
                 else:
-                    subdir_links = [row for row in link_rows if isinstance(row, dict) and
+                    subdir_links = [row for row in enriched_online if isinstance(row, dict) and
                                     (row.get("subdir") or row.get("platform")) == subdir]
                     for row in subdir_links:
                         upstream = row.get("pma_upstream_repodata", {})
@@ -322,8 +419,6 @@ def validate_solver_evidence(bundle, evidence):
                             issues.append(f"ONLINE_CACHE_PROVENANCE_MISMATCH:{subdir}")
                             break
 
-    online_ids, online_issues = solver_identity_rows(online, online_repodata, online_bases, "ONLINE")
-    issues.extend(online_issues)
     offline_ids, offline_issues = solver_identity_rows(
         offline, local_repodata, {subdir: local_channel_url for subdir in ("linux-64", "noarch")}, "OFFLINE")
     issues.extend(offline_issues)

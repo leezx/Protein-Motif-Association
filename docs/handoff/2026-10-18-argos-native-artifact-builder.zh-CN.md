@@ -167,3 +167,13 @@ GPT 对 PR #5 完整 HEAD `2e34f2f8a8ce2707e7845f153e74995b68e7d746` / base `6c2
 ## 2026-10-18 16:31 EDT — 五项复审修订已提交到本地同一分支
 
 同一 PR #5 的 validator/resolver/archive/extractor/ABI 修订、Argos cache 路径协调、合同 fixtures 与 Worklog/CODEX_HANDOFF/handoff 已形成一个本地 Git 提交。Python/embedded-preflight 编译、wrapper shell 语法、`git diff --check` PASS；未运行测试/构建或 Argos 命令。尚未推送，PR 远端仍是被 GPT 拒绝的旧 HEAD。下一步推送并更新 PR body，再请求新完整 HEAD 的 GPT 明确审核；无新 APPROVE 不向 Argos 发命令。BED6 与 footprint benchmark 均未有新产物。
+
+## 2026-10-18 16:35 EDT — GPT 对 299da84 发现 producer/consumer schema 阻断
+
+GPT 对精确 HEAD `299da84a747cbe37bd413de9f18ff01f5f0c5890` 返回 `REQUEST_CHANGES`，无 Argos/G2/合同测试或 merge 授权。B1 与 B2 已闭合；B4 已补七类 archive 负例但尚未运行；B5 主要闭合。F1：main 最终保存的是 `load_solver_plan()` 原始 Conda stdout，而 validator 却从该 raw LINK 读取 builder 自定义的 `pma_upstream_repodata`，正常运行会被拒绝。F2：此前 validator fixture 手工注入该字段，绕开真实 evidence producer。F3：validator 未独立复核完整 LINK metadata invariants、FETCH 的双 hash、channel 与 build metadata。
+
+本地同 PR 修订新增 evidence writer，保留 raw transaction 和 enriched LINK provenance 两个不同语义文件；validator 建立两者 identity/字段一对一映射，复核 enriched artifact/source record 与 snapshots/cache；fixture 经真实 mock Conda JSON→`load_solver_plan()`→evidence writer→validator，并覆盖双 hash正确和错误。独立 identity validator补齐 `dist_name/build_number/depends/constrains/hashes/filename/url/channel` 检查。Python 语法、wrapper shell 语法和 `git diff --check` PASS；未运行任何测试或 Argos 命令。下一步静态复核、同 PR 提交推送并请求新 HEAD GPT exact review。两项科学目标未完成。
+
+## 2026-10-18 16:36 EDT — F1–F3 本地修订静态检查完成
+
+raw 与 enriched solver evidence 已分开写入；validator 检查两份 LINK 记录的 identity/原字段关系，使用 enriched provenance 绑定 upstream snapshot/cache，并独立验证锁定 artifact identity。合同 fixture 现模拟真实 Conda JSON，经过 `load_solver_plan()` 与 builder 的 evidence writer，再交给 validator；增加双 SHA/MD5一致/冲突路径。Python 编译、wrapper `bash -n`、`git diff --check` PASS。按要求未运行合同测试或 Argos 任务。工作仍在同一 PR 本地修改，需提交/推送并重请完整 HEAD GPT 审核；Argos gate 尚不允许。

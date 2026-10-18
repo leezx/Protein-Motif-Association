@@ -718,3 +718,15 @@ PMA GPT 已通过 GitHub 读取 PR #5 完整 diff，并锁定 HEAD `2e34f2f8a8ce
 ## 2026-10-18 16:31 EDT — 五项修订已整理为同一 PR 提交，待推送和复审
 
 同一 PR #5 的代码、合同 fixture 和三份审计记录现已本地提交为 `Harden Argos HINT bundle validation`；提交前 Python/embedded-preflight 编译、Argos wrapper `bash -n` 与 `git diff --check` 均 PASS。没有运行合同测试、bundle build 或 Argos 命令。该提交尚未推送，也未获新 GPT review；PR 远端仍是 `2e34f2f` 的 REQUEST_CHANGES 状态。下一步推送、更新 PR body，并把新完整 HEAD 交给持久 PMA GPT 审核。新 HEAD 获明确 APPROVE 前不得运行 Argos。两项 PI 科学产物均未完成，不合并。
+
+## 2026-10-18 16:35 EDT — GPT 对 299da84 REQUEST_CHANGES；修复 evidence producer/consumer 并增强独立核验
+
+GPT 对 PR #5 完整 HEAD `299da84a747cbe37bd413de9f18ff01f5f0c5890` / base `6c2e323fc80cc3e05f9de05282d1bbce49ba98fa` 返回 `REQUEST_CHANGES`，未授权合同测试、G2、任何 Argos 操作或合并。其核对确认 B1/B2 已闭合、B4 fixture 已补、B5 主要闭合；cache wrapper 路径一致。新增 F1 是实际 producer/consumer schema 不匹配：`load_solver_plan()` 更新了 in-memory LINK 和其 work plan，但 `main()` 对 `load_solver_plan()` 返回的原始 Conda stdout 重新解析并写入 `conda-solve.json`；validator 却从该 raw transaction 要求 `pma_upstream_repodata`。F2 是此前测试手工向 raw LINK 填 provenance，漏掉实际 producer 写证据路径。F3 是独立 validator 没完整复制 builder 对 `dist_name/build_number/depends/constrains` 和双 SHA/MD5 的约束。
+
+同一 PR 本地修订增加 `write_online_solver_evidence()`，分别写原始 Conda `conda-solve.json` 与 resolver enriched `conda-upstream-link-records.json`；validator 要求两者 LINK identity/字段一一对应、比对 enriched artifact 和 upstream record 到快照，并从 enriched records 验证 repodata/cache provenance。合同 fixture 改用真实 Conda JSON 调用 `load_solver_plan()` 和实际 evidence writer 后再执行 validator；增加 raw/enriched 区分及双 hash 一致/冲突负例。validator solver identity 现校验 dist_name、build_number、link depends/constrains/sha/md5/filename/url、FETCH channel 与提供的所有 checksum。
+
+Python 编译、Argos wrapper `bash -n`、`git diff --check` PASS；依照 Argos-only 与 exact-head gate，未运行测试/构建/分析，未向 Argos 发命令。修订尚未提交，PR 远端仍为 `299da84`。下一步继续静态检查，提交/推送同一 PR，更新 PR body 并再次请求新的完整 HEAD GPT review；当前不允许 Argos。目标 1 unique BED6 和目标 2 footprint benchmark 均无科学结果，不合并。
+
+## 2026-10-18 16:36 EDT — F1–F3 修订静态检查完成，尚未运行门禁
+
+针对 299da84 GPT review 的 producer/consumer 和独立 validator findings，新增 raw/enriched evidence 双文件 helper，validator 按 raw/enriched LINK identity 精确对应后从 enriched provenance 检查 cache 和 repodata；独立复核补齐 builder 的 identity/metadata/hash invariant；合同 fixture 将 mock Conda transaction 输入真实 `load_solver_plan()` 与 evidence writer，再运行 validator，并含双 hash反例。Python 文件编译、内嵌 preflight 语法、wrapper `bash -n`、`git diff --check` PASS。根据 Argos-only 与当前未批准状态，未运行测试/构建/Argos。改动和三份审计记录仍在同一 PR 的本地工作区，等待提交；无 Argos 授权，BED6/footprint 两项科学目标均未完成。

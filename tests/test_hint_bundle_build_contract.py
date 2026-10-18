@@ -1151,7 +1151,7 @@ Version definition section '.gnu.version_d' contains 1 entry:
                 digest = BUILDER.sha256(archive_path)
                 repodata[subdir]["packages"][filename] = {
                     "name": name, "version": version, "build": build, "sha256": digest,
-                    "size": archive_path.stat().st_size
+                    "md5": BUILDER.md5(archive_path), "size": archive_path.stat().st_size
                 }
                 lock_rows.append("\t".join((subdir, name, version, build, filename, digest)) + "\n")
                 inventory_paths.append(archive_path)
@@ -1242,12 +1242,32 @@ Version definition section '.gnu.version_d' contains 1 entry:
                                          "size": len(local_payload)}
             for subdir, name, version, build in conda_rows:
                 online_links.append({"base_url": online_channel, "name": name, "version": version,
-                                     "build_string": build, "platform": subdir,
-                                     "pma_upstream_repodata": online_provenance[subdir]})
+                                     "dist_name": f"{name}-{version}-{build}",
+                                     "build_string": build, "platform": subdir})
                 offline_links.append({"base_url": local_channel_url, "name": name, "version": version,
                                       "build_string": build, "platform": subdir})
-            (evidence / "conda-solve.json").write_text(
-                json.dumps({"actions": {"LINK": online_links, "FETCH": []}}), encoding="utf-8")
+            raw_solve = json.dumps({"actions": {"LINK": online_links, "FETCH": []}})
+            snapshots = {}
+            for subdir in ("linux-64", "noarch"):
+                snapshot = dict(repodata[subdir])
+                snapshot.update({"url": f"{online_channel}/{subdir}/repodata.json",
+                                 "sha256": hashlib.sha256(
+                                     (work / f"upstream-repodata-{subdir}-after.json").read_bytes()
+                                 ).hexdigest(),
+                                 "size": (work / f"upstream-repodata-{subdir}-after.json").stat().st_size,
+                                 "evidence_file": f"upstream-repodata-{subdir}-after.json"})
+                snapshots[subdir] = snapshot
+            with mock.patch.dict(os.environ, {"PMA_HINT_ARGOS_CONDA_CHANNEL": online_channel}), \
+                 mock.patch.object(BUILDER, "fetch_repodata_snapshot",
+                                  side_effect=lambda channel, subdir, _work, *, load_records, snapshot_id:
+                                  dict(snapshots[subdir])), \
+                 mock.patch.object(BUILDER, "conda_dry_run", return_value=raw_solve), \
+                 mock.patch.object(BUILDER, "verify_solver_repodata_cache",
+                                  side_effect=lambda _cache, _channel, subdir, _snapshot:
+                                  online_provenance[subdir]["solver_cache"]):
+                resolved_links, _solve_command, solver_output = BUILDER.load_solver_plan(
+                    "conda", work, package_cache=cache_root)
+            BUILDER.write_online_solver_evidence(evidence, solver_output, resolved_links)
             (evidence / "conda-offline-solve.json").write_text(
                 json.dumps({"actions": {"LINK": offline_links, "FETCH": []}}), encoding="utf-8")
             (evidence / "conda-offline-repodata-provenance.json").write_text(
@@ -1263,6 +1283,50 @@ Version definition section '.gnu.version_d' contains 1 entry:
                                      str(bundle), "--evidence-dir", str(evidence)],
                                     capture_output=True, text=True, env=env)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            raw_online_path = evidence / "conda-solve.json"
+            raw_online_bytes = raw_online_path.read_bytes()
+            raw_online = json.loads(raw_online_bytes)
+            self.assertNotIn("pma_upstream_repodata", raw_online["actions"]["LINK"][0])
+            enriched_path = evidence / "conda-upstream-link-records.json"
+            enriched_bytes = enriched_path.read_bytes()
+            enriched_records = json.loads(enriched_bytes)
+            self.assertIn("pma_upstream_repodata", enriched_records[0])
+
+            # The validator must compare both FETCH digests when the real solver supplies them.
+            link = raw_online["actions"]["LINK"][0]
+            enriched = enriched_records[0]
+            artifact = enriched["pma_artifact"]
+            source = repodata[link["platform"]][artifact["repodata_section"]][artifact["filename"]]
+            matching_fetch = {"name": link["name"], "version": link["version"],
+                              "build_string": link["build_string"], "platform": link["platform"],
+                              "fn": artifact["filename"], "base_url": online_channel,
+                              "url": artifact["artifact_url"], "sha256": source["sha256"],
+                              "md5": source["md5"]}
+            raw_online["actions"]["FETCH"] = [matching_fetch]
+            raw_online_path.write_text(json.dumps(raw_online), encoding="utf-8")
+            both_hashes_valid = subprocess.run([BUILDER.sys.executable,
+                str(ROOT / "scripts/04b_footprint/validate_hint_bundle.py"),
+                str(bundle), "--evidence-dir", str(evidence)], capture_output=True, text=True, env=env)
+            self.assertEqual(both_hashes_valid.returncode, 0,
+                             both_hashes_valid.stdout + both_hashes_valid.stderr)
+            matching_fetch["md5"] = "c" * 32
+            raw_online_path.write_text(json.dumps(raw_online), encoding="utf-8")
+            wrong_fetch_md5 = subprocess.run([BUILDER.sys.executable,
+                str(ROOT / "scripts/04b_footprint/validate_hint_bundle.py"),
+                str(bundle), "--evidence-dir", str(evidence)], capture_output=True, text=True, env=env)
+            self.assertNotEqual(wrong_fetch_md5.returncode, 0)
+            self.assertIn("ONLINE_SOLVE_ARTIFACT_NOT_UNIQUE", wrong_fetch_md5.stderr)
+            raw_online_path.write_bytes(raw_online_bytes)
+
+            enriched_records[0].pop("pma_upstream_repodata")
+            enriched_path.write_text(json.dumps(enriched_records), encoding="utf-8")
+            missing_enriched_provenance = subprocess.run([BUILDER.sys.executable,
+                str(ROOT / "scripts/04b_footprint/validate_hint_bundle.py"),
+                str(bundle), "--evidence-dir", str(evidence)], capture_output=True, text=True, env=env)
+            self.assertNotEqual(missing_enriched_provenance.returncode, 0)
+            self.assertIn("ONLINE_ENRICHED_REPODATA_PROVENANCE_MISSING", missing_enriched_provenance.stderr)
+            enriched_path.write_bytes(enriched_bytes)
+
             offline_solve_path = evidence / "conda-offline-solve.json"
             offline_solve_bytes = offline_solve_path.read_bytes()
             offline_solve_path.write_text(json.dumps({"actions": {"LINK": [], "FETCH": []}}),

@@ -685,6 +685,23 @@ def load_solver_plan(conda: str, work: Path, package_cache: Path | None = None) 
     return links, " ".join(command), output
 
 
+def write_online_solver_evidence(evidence: Path, raw_output: str, resolved_links: list[dict]) -> None:
+    """Persist raw Conda transaction separately from PMA-enriched LINK provenance."""
+    try:
+        transaction = json.loads(raw_output)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"CONDA_SOLVER_EVIDENCE_JSON_INVALID:{exc}") from exc
+    actions = transaction.get("actions") if isinstance(transaction, dict) else None
+    if not isinstance(actions, dict) or not isinstance(actions.get("LINK"), list):
+        raise RuntimeError("CONDA_SOLVER_EVIDENCE_ACTIONS_INVALID")
+    if len(actions["LINK"]) != len(resolved_links):
+        raise RuntimeError("CONDA_SOLVER_EVIDENCE_LINK_COUNT_MISMATCH")
+    (evidence / "conda-solve.json").write_text(
+        json.dumps(sanitize_evidence(transaction), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    (evidence / "conda-upstream-link-records.json").write_text(
+        json.dumps(sanitize_evidence(resolved_links), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
 def fetch_repodata_snapshot(channel: str, subdir: str, work: Path, *, load_records: bool,
                             snapshot_id: str) -> dict:
     if subdir not in ("linux-64", "noarch"):
@@ -1273,11 +1290,7 @@ def main() -> int:
         encoding="utf-8")
     try:
         links, solve_command, solve_json = load_solver_plan(conda, work, package_cache=package_cache)
-        parsed_solve = json.loads(solve_json)
-        (evidence / "conda-solve.json").write_text(
-            json.dumps(sanitize_evidence(parsed_solve), indent=2, sort_keys=True) + "\n", encoding="utf-8")
-        (evidence / "conda-upstream-link-records.json").write_text(
-            json.dumps(sanitize_evidence(links), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        write_online_solver_evidence(evidence, solve_json, links)
         conda_records = copy_conda_closure(links, bundle, conda, work)
         if EXTRACTOR_PROVENANCE:
             (evidence / "conda-extractor-provenance.json").write_text(

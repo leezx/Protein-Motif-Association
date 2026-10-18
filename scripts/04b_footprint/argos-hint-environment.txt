@@ -1,0 +1,24 @@
+Dedicated Argos HINT runtime contract (keep pmafp unchanged).
+
+The previous whole-environment clone was rejected because Argos did not have all 288 package artifacts cached. Do not retry that clone. Preserve the partial pma_hint directory as failure evidence; the recovery target is a new pma_hint_v2 prefix.
+
+The builder accepts an external, pre-audited offline bundle with this layout:
+
+- conda-explicit-linux-64.lock: tab-separated rows of subdir, package name, version, build, filename, SHA-256. This is a solver lock, not an @EXPLICIT URL file. The channel contains the exact archives and indexed repodata.json under conda/linux-64/ and conda/noarch/.
+- conda/<subdir>/<filename>: exact Conda archives referenced by the lock; the lock must contain the complete Python 3.11 / NumPy 1.26.4 / setuptools 80.9.0 environment and dependency closure.
+- pip-requirements.lock: one exact name==version --hash=sha256:... row for every pip-managed distribution, including a validated RGT 1.0.2 wheel and all pip-managed dependencies. Conda and pip may not both own a distribution.
+- wheels/<filename>.whl: CPython 3.11-compatible or pure-Python wheels only; no source distributions.
+- reports/rgt-wheel-audit.json: controlled-builder report binding the verified sdist, RGT wheel name/hash, CPython ABI, builder identity, maximum GLIBC symbol version, auditwheel policy, and native dependencies.
+- artifacts.sha256: SHA-256 inventory for every Conda archive, wheel, and both repodata.json files, relative to the bundle root.
+- bundle-manifest.json: schema_version=1, target_platform=linux-64, python_abi=cp311, glibc_max<=2.23, builder/Conda/pip versions, RGT source-distribution SHA-256, RGT wheel name/hash, and SHA-256 values for both lock files, artifacts.sha256, and the wheel audit report.
+
+The bundle is prepared outside the Git repository. It must target linux-64, CPython 3.11, and glibc 2.23 or older; record artifact source, versions/builds, and hashes. PyPI RGT 1.0.2 is a source distribution, so a compatible wheel must be built and validated in a controlled Linux builder before transfer. Do not assume a Bioconda Python 3.7 build is compatible with Python 3.11.
+
+Run the builder in two stages:
+
+1. setup_hint_env.sh preflight <conda> <pmafp> <pma_hint_v2> <bundle> <audit_dir> scans and reports all missing/hash-invalid archives; requires both repodata files in the hashed inventory; parses them and verifies each locked archive's filename, name, version, build, and SHA-256; validates wheel metadata/tags and every active Requires-Dist against the Conda/pip pins; then asks Conda to solve against the bundled local channel in offline dry-run mode. The resulting LINK package identities must equal the complete Conda lock, and any subdir/filename exposed by Conda must match it. Preflight also writes a fixed @EXPLICIT file URL list from the validated lock; install uses those exact archives after solver closure validation. Pip dry-run uses --no-deps after the validator proves dependency mapping, so Conda-managed NumPy is not re-resolved by pip. Preflight must not create the target prefix.
+2. Only after preflight passes, setup_hint_env.sh install repeats the checks, installs the exact local archive URLs with --copy, installs pinned wheels with pip --no-deps, runs pip check/import/CLI checks, and compares pmafp conda/pip manifests. Linux Conda/pip subprocesses receive a conservative 48,000,000 KB virtual-memory limit; failure to apply it is fail-closed. Failed installs retain the partial target and never publish READY. The legacy partial pma_hint and pmafp are never modified.
+
+Wheel validation is target-based (CPython 3.11/Linux x86_64), checks Requires-Python and a complete explicit target marker environment. Bare linux_x86_64 tags are rejected because they do not establish a glibc baseline; compatible manylinux tags are required for binary wheels. Requirements depending on unknown Argos kernel release/version markers fail closed.
+
+HINT_ENV_READY.json is published only after the full package lock, imports, CLI, and pmafp integrity audit pass. The driver verifies its code commit, prefix, exact package versions, and lock digest. After all three HINT smoke calls pass, the driver separately writes HINT_SMALLBED_VALIDATED.json with code/environment identity and SHA-256 values for each smoke BAM, region BED, and event BED. Full round 1 is gated on this marker. Empty event BEDs remain legal when the caller exits successfully and no failed-chunk marker exists. Keep package installation serial and monitor peak RSS and disk/inode availability.

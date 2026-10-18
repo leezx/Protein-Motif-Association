@@ -220,37 +220,22 @@ benchmark. See `docs/STEP1_*`, `docs/STEP2_*`.
   - `reference/hg38.fa.gz`.
 - **Working directory:** `processed/round1/`.
 
-## 6. State at handoff time (check first)
+## 6. Current execution state (2026-10-18 06:17 EDT; verify live before any external action)
 
-- **Downloads still running on Argos (nohup):** `fp_download.sh` (the last ENCODE BAM, ENCFF745WLX, plus MD5SUMS)
-  and `fp_refs.sh` (hg38Tn5Bias.tar.gz, 11.2 GB, then MD5SUMS.refs). Logs are in `/home/zz950/PMA_fetch/`.
-  - They write `raw/2026-10-17/download.done` and `refs.done` when finished.
-  - `reference/hg38.fa.gz` is already complete (`hg38.fa.gz.ok`).
-- **The 4b driver was stopped by the user's decision before any analysis ran.** `/home/zz950/PMA_fetch/fp_4b1.log`
-  has a note. **Codex starts round 1.** Once both `.done` files exist, launch the driver from
-  `/home/zz950/PMA_code_4b`: `git pull` first, then run it via nohup as below.
-  ```
-  R=/home/zz950/DATA/2.PROJECTS/PMA/atac_footprint/raw/2026-10-17
-  W=/home/zz950/DATA/2.PROJECTS/PMA/atac_footprint/processed/round1
-  C=/home/zz950/DATA/2.PROJECTS/PMA/occupancy_chipatlas/raw/2026-10-17/reference
-  nohup bash scripts/04b_footprint/run_4b1.sh $R $W /home/zz950/softwares/miniforge3/envs/pmafp \
-    /home/zz950/softwares/src/PRINT $C/hg38.chrom.sizes $C/hg38-blacklist.v2.bed.gz \
-    /home/zz950/PMA_fetch/fp_env6.log > /home/zz950/PMA_fetch/fp_4b1.log 2>&1 &
-  ```
-- **Driver sequence:** it waits for inputs → setup → prep → **smoke test** (20 regions per set) → round 1 (12 parallel
-  jobs × 6 cores). Outputs go to `processed/round1/runs/<gdna|ctrl|aux>/`.
-- **If the smoke test fails,** the driver stops with `SMOKE_FAIL`/`SMOKE_MISSING`. Fix the runner, commit, `git pull`
-  on Argos, then re-run the driver. Setup and prep reuse existing outputs (fragments, BAMs, unpacked resources); the
-  caller runs are redone.
-- **Expect first-run bugs.** None of the four runners has executed end-to-end yet. The most likely failure points:
-  - TraceBIND `get_bias` (reticulate → `pmafp` python, Keras 3 loading the Keras 2 `.h5`);
-  - PRINT `getPrecomputedBias` (h5 layout inside the Zenodo tar, `00_setup.sh` path logic);
-  - the RGT genome config in `~/rgtdata/data.config.user`;
-  - TOBIAS needing an uncompressed, indexed fasta.
-- **The tool environment is complete** (`fp_env6.log`: rgt, tf, tracebind and bsgenome all OK).
-- **Nothing else of ours runs on Argos.** The obsolete Step 2c ENCODE model fetch was stopped on purpose; see
-  `motif_reference/raw/encode_grammar/2026-10-16/FETCH_NOTE.txt`.
+- **Inputs and prior run:** the user confirmed all first-round inputs are downloaded and checksums/byte counts match. The last Argos activity was the reviewed HINT clone attempt at 4d099df; offline Conda cache lacked packages. The pmafp conda/pip manifests compared byte-identical. The partial /home/zz950/softwares/miniforge3/envs/pma_hint must be preserved. No real HINT CLI, small-BED, smoke callers or full round ran.
+- **GPT gate:** GPT approved complete code HEAD `b76da4d9f2bb8a32126cc83b55537e1325f6e060`, stage-audit HEAD `62868bf4a42e04e5959901636e59077064211c05`, and subsequent audit-only heads through `9c3a0735b3761378236949f00a03d383269feb8e`. GPT returned `REQUEST_CHANGES` on builder HEAD `e4826ca599603016cc19a451b64d4f5734c77b3d` (F1–F4 plus behavior-test gaps). It clarified F1: a digest-pinned Docker image may contain pre-provisioned build tools, but builder runtime must only run Conda dry-run solves and must not create/update/install into any prefix; Argos remains untouched. Focused repairs were committed and pushed as `db5bb33c0df957b464efcf5b24fc7477cd4121d8`; GPT returned `REQUEST_CHANGES` on `18c12617ff2cdfd04bcd906a9fe9d9d4132904b8`; F1/F2/F4 are resolved, with one F3 blocker: native pip/RGT wheels lacked ELF/provider checks. F3 was repaired and pushed in commit `ba26845f57dcdb3a7ea6585f70a7897c03c484e7`; GPT approved builder code at exact HEAD `b43b8772b5c357a05125428e6c997b4e3d299fbf`, resolving F1–F5, and approved the audit-only sync at exact HEAD `515cd767053f6fe83760ecba39b625734a5bb19b`. No compliant Linux builder is available on the current host, so external bundle construction remains blocked. Existing stage scope permits only external bundle preparation and Argos offline preflight after a complete valid bundle; installation, CLI, small-BED, smoke, full jobs, and merge are not authorized by this current stage gate.
+- **Remote branch:** PR #4 is OPEN and unmerged, branch `task_20261018_step4b_setup_fix`. Last live-verified full remote HEAD `ba26845f57dcdb3a7ea6585f70a7897c03c484e7`. The F3 repair is pushed and approved at exact full HEAD `b43b8772b5c357a05125428e6c997b4e3d299fbf`; no bundle has been built. Preserve unrelated untracked `design/protein_binding_resources.md`; stage only task files.
+- **Builder host blocker:** local host is macOS arm64; Docker Desktop is installed, but its daemon did not start because its backend requested administrator authorization to configure privileged port mapping. No such authorization was accepted; there is no Docker socket and no alternative local OCI runtime was found. No bundle was built, no Argos command ran, and no environment changed. See `docs/handoff/2026-10-18-hint-bundle-preflight.zh-CN.md`.
+- **Validation:** after the local GPT-requested repair, 13 Python builder contract tests (including native-wheel GLIBCXX-provider and unresolved-DT_NEEDED failure behavior), `tests/test_hint_bundle_builder_wrapper.sh`, `tests/test_hint_env_builder.sh`, `tests/test_step4b_runner_contract.sh`, shell syntax checks, AST parse, and `git diff --check` pass. The Python fixture now builds a mocked bundle through the repository validator. These are local/mock checks; real Linux Conda/pip behavior, Docker image build, native wheel/ELF audit, and Argos preflight remain UNVERIFIED. L2 package closure/runtime remains BLOCKED; human L3 acceptance is pending.
+- **Repository cleanliness:** preserve unrelated untracked `design/protein_binding_resources.md`. Stage only this task's explicit files. No Argos command has run since the recorded 04:09 clone failure.
 
+**Next:** synchronize the PR description to full HEAD `ba26845f57dcdb3a7ea6585f70a7897c03c484e7` and ask GPT to review that exact new full HEAD. Do not build a bundle or contact Argos before that approval and a compliant Linux builder. No real bundle build before that review and a compliant builder host. After both gates, within the user's earlier §6 scope:
+
+1. Prepare and audit the Linux CPython 3.11/glibc ≤2.23 HINT bundle entirely outside this repository; record source provenance, full dependency closure, wheel/Conda hashes, and bundle digest.
+2. Run the bundle `preflight` on Argos. If any package, wheel, hash, marker, closure, or target compatibility check fails, stop before target creation and return the complete audit report for GPT review. No network fallback, no mutation of `pmafp`, and preserve the existing partial `pma_hint`.
+3. Only after complete preflight success, install to the fresh `pma_hint_v2` prefix. On any install/integrity/CLI failure, stop, preserve the partial new prefix and all logs, and do not write READY or launch HINT callers.
+4. After install and source-manifest checks pass, verify the real HINT CLI/reference configuration and run the approved small-BED/smoke gate. Stop on any caller error or required-output failure; do not start the 12 full callers until every smoke caller passes.
+5. Preserve all bundles, manifests, logs, and outputs outside the repository. Update this PR's Worklog/handoff and obtain GPT review before each dependent external stage under the repository gate. Never merge without separate user confirmation.
 ## 7. Next steps (in order)
 
 1. **Get round 1 running.**

@@ -1,5 +1,17 @@
 # Step 4b-1 Argos 原生 bundle builder 交接
 
+## 2026-10-18 11:48 EDT — 目标对照与实时状态
+
+**PI 两项最终产出：** (1) human-only ChIP-Atlas 的坐标唯一标准 BED6，允许一个 region 对应多个 ChIP-seq experiment；(2) 对比全部 motif-free footprint callers 的 genome-wide 无偏检测、准确度和运行速度，再与冻结 motif reference 整合。后续每次 PR/GPT review 都要列出对其中哪项的推进、可验证产物和下一验收条件。
+
+**十轮验收路径：** BED6 语义定稿 → builder/fixtures → Argos 产物与 QC → HINT runtime → 四工具同输入 smoke → 首轮调用与速度/事件统计 → matched-recall 准确度评估 → B2/B3 验证 → genome-wide run 与工具选择 → footprint-motif 整合报告。每轮 review 记录轮次及可测产物；失败时记录具体 blocker 和修复，不宣称完成。
+
+ChIP-Atlas 原始 hg38 21 GB archive 与 `experimentList.tab`、`fileList.tab` 已在 Argos；现有处理文件是 443,029,514 行、24 列的 BED6+18，按有限 antigen classes 过滤，不能当作用户要求的 reference。可以复用现有下载；去重与多实验字段规则须纳入新设计并审核。
+
+Footprint 的 fragment/region inputs 已就绪、当前无 caller 进程。Argos 有 TOBIAS 0.17.5、RGT 1.0.2 和用于 PRINT/TraceBIND 的 r4p3 R stack。RGT 在共享 `pmafp` 中与 NumPy 2.4.6 冲突，因此需要独立 HINT runtime。PR #5 builder 只推进这个前置项，尚无 caller benchmark 结果。
+
+PR #5 exact approved HEAD `6ec6fc230aec422c1124aeb42ee71c308d23de81` 的 Argos contract suite 已运行 40 tests、3 failures：import-origin fixture 的路径顺序不匹配；pip wheel 因 host `pmafp/site-packages/jaraco` 被 fail-closed probe 拒绝；wrapper test 由于 PATH 选中 Argos 系统 Python 3.5.2 而失败。完整日志：`/home/zz950/PMA_fetch/pma_pr5_g2_tests_6ec6fc2/contract-tests-discovery.log`。`py_compile`、`bash -n` 通过，`pmafp` manifests 前后相同。没有 bundle、环境变更、HINT/smoke/round-1。错误日志保留，不得绕过 gate；PR #5 修复需同一 PR 最小变更和新 exact-head GPT approval。
+
 更新时间：2026-10-18 10:43 EDT
 仓库：`Protein-Motif-Association`
 基线：PR #4 merge commit `6c2e323fc80cc3e05f9de05282d1bbce49ba98fa`，目标分支 `step4b-atac-footprinting`

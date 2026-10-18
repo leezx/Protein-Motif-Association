@@ -1,5 +1,24 @@
 # PMA — handoff to Codex (2026-10-17, written by Claude Code)
 
+## Live status update — 2026-10-18 11:48 EDT — PI north star and current blockers
+
+The PI's two outcome targets now govern every task review and PR review:
+
+1. Reuse/download ChIP-Atlas human ChIP-seq data to produce one standard BED6 reference with unique genomic regions and support for multiple experiments per region.
+2. Compare all motif-free footprint callers for unbiased genome-wide detection, accuracy and runtime; then integrate the selected calls with the frozen motif reference.
+
+Every review must name which target it advances, the concrete artifact or measurement it produces, and the next acceptance criterion. A maintenance or environment task counts only when it removes a named blocker on that path; report explicitly when it produces no scientific result.
+
+**Ten-round progress contract:** Each review identifies its round and expected measurable output: (1) approve the revised BED6 semantics from existing source metadata; (2) reviewed builder and fixtures; (3) Argos BED6 build plus uniqueness/source-count QC; (4) isolated HINT runtime ready; (5) four callers pass the same-input smoke gate; (6) first-round calls and wall/RSS/event metrics; (7) matched-recall accuracy and speed evaluation; (8) B2/B3 validation; (9) genome-wide run and tool selection; (10) join selected footprints to frozen PMA motifs and report. If a gate fails, the round's output is the named diagnosis and reviewed corrective patch, not a claim of completion.
+
+**Step 4a reality check:** Argos already holds the 21 GB raw `allPeaks_light.hg38.05.bed.gz` archive plus `experimentList.tab` and `fileList.tab`; no redownload is needed for the next BED6 build. The existing processed reference is 443,029,514 rows, 24 columns (BED6+18), filtered to 38,795 experiments from selected antigen classes. It is not the requested all-human, coordinate-unique BED6 reference. The source `fileList.tab` contains genome and antigen-class fields that can support a corrected human ChIP-seq selection; exact grouping/score semantics still need to be recorded in a reviewed design before processing.
+
+**Step 4b reality check:** Required fragments and regions are staged under Argos and no caller process is running. Existing tools include TOBIAS 0.17.5, RGT 1.0.2 and the r4p3 PRINT/TraceBIND R stack. HINT cannot run in shared `pmafp`: RGT imports the removed `numpy.mat` under NumPy 2.4.6, while TOBIAS requires NumPy >=2, so HINT needs an isolated compatible runtime. The current PR #5 builder is only that HINT prerequisite; it has produced no benchmark result.
+
+**Current gate:** PR #5 HEAD `6ec6fc230aec422c1124aeb42ee71c308d23de81` had exact-head GPT `APPROVE`, but its Argos contract suite ran 40 tests and failed 3. Failures: an import-origin fixture path-order mismatch; the real pip-wheel subprocess correctly failed closed on a `jaraco` module loaded from host `pmafp/site-packages`; and a wrapper test selected system Python 3.5.2 because the test invocation did not put `pmafp/bin` first in `PATH`. The complete log is `/home/zz950/PMA_fetch/pma_pr5_g2_tests_6ec6fc2/contract-tests-discovery.log`. `py_compile` and `bash -n` passed; `pmafp` Conda/pip manifests are identical before/after. No artifact build, environment change, HINT call, smoke, or benchmark ran. Do not retry these tests or advance to caller analysis until a minimal same-PR correction receives exact-head approval.
+
+The next reviews must connect any approved HINT-runtime repair to the four-caller benchmark and avoid expanding the builder beyond what is needed to reach caller smoke. In parallel, the next ChIP-Atlas design must convert the existing raw archive/metadata into the requested unique BED6 without downloading the same archive again. Both targets remain scientifically incomplete. `HUMAN DECISION: PENDING`.
+
 ## Live status update — 2026-10-18 10:55 EDT
 
 PR #5 is OPEN and unmerged at reviewed HEAD `ede0f811e14c3d1e133b120c6afafaf433f91cd6`; GPT approved this exact HEAD for G2 artifact-only bundle construction and the existing offline preflight. Argos SSH works, and its available Conda/Python and data paths were verified. A separate checkout at the approved SHA was created under `/home/zz950/PMA_fetch/pma_pr5_code_ede0f81`; the existing `/home/zz950/PMA_code_4b` checkout was not changed.

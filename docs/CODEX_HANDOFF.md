@@ -220,21 +220,36 @@ benchmark. See `docs/STEP1_*`, `docs/STEP2_*`.
   - `reference/hg38.fa.gz`.
 - **Working directory:** `processed/round1/`.
 
-## 6. Running at handoff time (check first)
+## 6. State at handoff time (check first)
 
-- **4b driver** `run_4b1.sh` (Argos, nohup; log `/home/zz950/PMA_fetch/fp_4b1.log`).
-  - It is waiting for `raw/2026-10-17/download.done` (the last ENCODE BAM) and `refs.done` (hg38Tn5Bias, 11.2 GB).
-  - Then it runs setup → prep → **smoke test** → round 1: 12 parallel jobs × 6 cores. Outputs go to
-    `processed/round1/runs/<gdna|ctrl|aux>/`.
-  - If the smoke test fails, the driver stops with `SMOKE_FAIL`/`SMOKE_MISSING`. Fix the runner, then re-run the
-    driver. Setup and prep reuse existing outputs (fragments, BAMs, unpacked resources); the caller runs are
-    redone.
-  - **Expect first-run bugs.** None of the four runners has executed end-to-end yet. The most likely failure points:
-    - TraceBIND `get_bias` (reticulate → `pmafp` python, Keras 3 loading the Keras 2 `.h5`);
-    - PRINT `getPrecomputedBias` (h5 layout inside the Zenodo tar, `00_setup.sh` path logic);
-    - the RGT genome config in `~/rgtdata/data.config.user`;
-    - TOBIAS needing an uncompressed, indexed fasta.
-- **Background download scripts:** `fp_download.sh` and `fp_refs.sh` in `/home/zz950/PMA_fetch/`.
+- **Downloads still running on Argos (nohup):** `fp_download.sh` (the last ENCODE BAM, ENCFF745WLX, plus MD5SUMS)
+  and `fp_refs.sh` (hg38Tn5Bias.tar.gz, 11.2 GB, then MD5SUMS.refs). Logs are in `/home/zz950/PMA_fetch/`.
+  - They write `raw/2026-10-17/download.done` and `refs.done` when finished.
+  - `reference/hg38.fa.gz` is already complete (`hg38.fa.gz.ok`).
+- **The 4b driver was stopped by the user's decision before any analysis ran.** `/home/zz950/PMA_fetch/fp_4b1.log`
+  has a note. **Codex starts round 1.** Once both `.done` files exist, launch the driver from
+  `/home/zz950/PMA_code_4b`: `git pull` first, then run it via nohup as below.
+  ```
+  R=/home/zz950/DATA/2.PROJECTS/PMA/atac_footprint/raw/2026-10-17
+  W=/home/zz950/DATA/2.PROJECTS/PMA/atac_footprint/processed/round1
+  C=/home/zz950/DATA/2.PROJECTS/PMA/occupancy_chipatlas/raw/2026-10-17/reference
+  nohup bash scripts/04b_footprint/run_4b1.sh $R $W /home/zz950/softwares/miniforge3/envs/pmafp \
+    /home/zz950/softwares/src/PRINT $C/hg38.chrom.sizes $C/hg38-blacklist.v2.bed.gz \
+    /home/zz950/PMA_fetch/fp_env6.log > /home/zz950/PMA_fetch/fp_4b1.log 2>&1 &
+  ```
+- **Driver sequence:** it waits for inputs → setup → prep → **smoke test** (20 regions per set) → round 1 (12 parallel
+  jobs × 6 cores). Outputs go to `processed/round1/runs/<gdna|ctrl|aux>/`.
+- **If the smoke test fails,** the driver stops with `SMOKE_FAIL`/`SMOKE_MISSING`. Fix the runner, commit, `git pull`
+  on Argos, then re-run the driver. Setup and prep reuse existing outputs (fragments, BAMs, unpacked resources); the
+  caller runs are redone.
+- **Expect first-run bugs.** None of the four runners has executed end-to-end yet. The most likely failure points:
+  - TraceBIND `get_bias` (reticulate → `pmafp` python, Keras 3 loading the Keras 2 `.h5`);
+  - PRINT `getPrecomputedBias` (h5 layout inside the Zenodo tar, `00_setup.sh` path logic);
+  - the RGT genome config in `~/rgtdata/data.config.user`;
+  - TOBIAS needing an uncompressed, indexed fasta.
+- **The tool environment is complete** (`fp_env6.log`: rgt, tf, tracebind and bsgenome all OK).
+- **Nothing else of ours runs on Argos.** The obsolete Step 2c ENCODE model fetch was stopped on purpose; see
+  `motif_reference/raw/encode_grammar/2026-10-16/FETCH_NOTE.txt`.
 
 ## 7. Next steps (in order)
 

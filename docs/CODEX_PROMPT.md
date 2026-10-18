@@ -22,7 +22,8 @@ You are taking over the PMA (Protein–Motif-Association) project from another a
    one-liner.
 
 **Your task now: Step 4b-1, the round-1 benchmark of motif-free ATAC footprint callers on CPU.**
-- If the driver `run_4b1.sh` is still waiting or running, monitor it.
+- The driver `run_4b1.sh` was stopped before any analysis. When `download.done` and `refs.done` both exist, start it
+  with the command in handoff §6, then monitor it.
 - If the smoke test failed, find the real error in `processed/round1/runs_smoke/*/*.log`, fix the runner in
   `scripts/04b_footprint/`, commit, `git pull` in `/home/zz950/PMA_code_4b`, and re-run the driver.
 - When the 12 round-1 jobs finish, write `scripts/04b_footprint/eval_round1.py`. Report per caller × dataset:

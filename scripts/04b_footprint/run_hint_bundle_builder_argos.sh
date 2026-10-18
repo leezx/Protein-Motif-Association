@@ -28,8 +28,18 @@ print(os.path.realpath(os.path.abspath(sys.argv[1])))
 PY
 )
 CHANNEL=$5
+python3 - "$CHANNEL" <<'PY'
+import sys
+from urllib.parse import urlsplit
+value = urlsplit(sys.argv[1])
+if (value.scheme != "https" or not value.hostname or value.username or value.password or
+        value.query or value.fragment):
+    raise SystemExit("ARGOS_CONDA_CHANNEL_MUST_NOT_CONTAIN_CREDENTIALS_OR_QUERY")
+PY
 HERE=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 REPO=$(git -C "$HERE/../.." rev-parse --show-toplevel)
+# Resolve the repository's configured PMA data root before accepting caller paths.
+source "$REPO/config/pma_env.sh"
 PMAFP=${PMA_HINT_SOURCE_PREFIX:-/home/zz950/softwares/miniforge3/envs/pmafp}
 CONDA=${PMA_HINT_CONDA:-/home/zz950/softwares/miniforge3/bin/conda}
 PYTHON="$PMAFP/bin/python"
@@ -41,9 +51,7 @@ TOOLCHAIN_REPORT="$TOOLCHAIN/host-toolchain.json"
 
 [[ "$CHANNEL" == https://* ]] || { echo "ARGOS_CONDA_CHANNEL_MUST_BE_EXPLICIT_HTTPS_URL" >&2; exit 2; }
 [[ -x "$PYTHON" && -x "$CONDA" ]] || { echo "ARGOS_PYTHON_OR_CONDA_MISSING" >&2; exit 2; }
-[[ -d "$DATA_ROOT/raw" && -d "$DATA_ROOT/processed/round1" ]] || {
-  echo "ARGOS_DATA_ROOT_LAYOUT_INVALID:$DATA_ROOT" >&2; exit 2;
-}
+python3 "$HERE/validate_argos_data_root.py" "$DATA_ROOT" "$PMA_DATA"
 
 python3 - "$REPO" "$PMAFP" "$CONDA" "$DATA_ROOT" "$WORK" "$BUNDLE" "$EVIDENCE" <<'PY'
 import json, os, subprocess, sys
@@ -82,9 +90,57 @@ CONDA_BEFORE="$EVIDENCE/pmafp-conda-before.txt"
 PIP_BEFORE="$EVIDENCE/pmafp-pip-before.txt"
 CONDA_AFTER="$EVIDENCE/pmafp-conda-after.txt"
 PIP_AFTER="$EVIDENCE/pmafp-pip-after.txt"
+sanitize_manifest() {
+  python3 - "$1" <<'PY'
+import re, sys
+from urllib.parse import urlsplit, urlunsplit
+path = sys.argv[1]
+def clean(match):
+    parsed = urlsplit(match.group(0))
+    host = parsed.hostname or ""
+    if parsed.port:
+        host += f":{parsed.port}"
+    return urlunsplit((parsed.scheme, host, parsed.path, "", ""))
+with open(path, encoding="utf-8", errors="replace") as stream:
+    content = stream.read()
+with open(path, "w", encoding="utf-8") as stream:
+    stream.write(re.sub(r'''https?://[^\s"'<>]+''', clean, content))
+PY
+}
 "$CONDA" list --explicit --prefix "$PMAFP" > "$CONDA_BEFORE"
+sanitize_manifest "$CONDA_BEFORE"
 env -u PYTHONPATH PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 \
   "$PYTHON" -m pip freeze --all > "$PIP_BEFORE"
+sanitize_manifest "$PIP_BEFORE"
+
+capture_pmafp_integrity() {
+  local original_status=$?
+  local integrity_status=0
+  trap - EXIT
+  set +e
+  env -u PYTHONPATH PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 \
+    "$CONDA" list --explicit --prefix "$PMAFP" > "$CONDA_AFTER" || integrity_status=1
+  env -u PYTHONPATH PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 \
+    "$PYTHON" -m pip freeze --all > "$PIP_AFTER" || integrity_status=1
+  [[ ! -f "$CONDA_AFTER" ]] || sanitize_manifest "$CONDA_AFTER" || integrity_status=1
+  [[ ! -f "$PIP_AFTER" ]] || sanitize_manifest "$PIP_AFTER" || integrity_status=1
+  if [[ "$integrity_status" -eq 0 ]] && cmp -s "$CONDA_BEFORE" "$CONDA_AFTER" && cmp -s "$PIP_BEFORE" "$PIP_AFTER"; then
+    python3 - "$CONDA_BEFORE" "$PIP_BEFORE" > "$EVIDENCE/pmafp-integrity.json" <<'PY'
+import hashlib,json,sys
+def sha(p): return hashlib.sha256(open(p,"rb").read()).hexdigest()
+print(json.dumps({"status":"PMAFP_INTEGRITY_OK","conda_explicit_sha256":sha(sys.argv[1]),
+                  "pip_freeze_sha256":sha(sys.argv[2])},indent=2,sort_keys=True))
+PY
+  else
+    printf '%s\n' 'PMAFP_INTEGRITY_FAIL' > "$EVIDENCE/pmafp-integrity-failure.txt"
+    integrity_status=1
+  fi
+  if [[ "$original_status" -eq 0 && "$integrity_status" -ne 0 ]]; then
+    original_status=1
+  fi
+  exit "$original_status"
+}
+trap capture_pmafp_integrity EXIT
 
 env -u PYTHONPATH PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 \
   "$PYTHON" "$HERE/prepare_hint_argos_toolchain.py" \
@@ -126,18 +182,16 @@ export PMA_HINT_EXTERNAL_TOOLCHAIN="$TOOLCHAIN"
 export PMA_HINT_HOST_TOOLCHAIN_REPORT="$TOOLCHAIN/host-toolchain.json"
 export PMA_HINT_ARGOS_CONDA_CHANNEL="$CHANNEL"
 export CONDA_PKGS_DIRS="$PACKAGE_CACHE"
-export PATH="$CONDA/bin:$PATH"
+export PMA_HINT_CONDA_EXECUTABLE="$CONDA"
+export PATH="$(dirname -- "$CONDA"):$PATH"
 export PYTHONPATH="$PYTHON_ROOT"
 export PYTHONNOUSERSITE=1
 export PYTHONDONTWRITEBYTECODE=1
 ulimit -v 48000000 || { echo "MEMORY_LIMIT_UNAVAILABLE" >&2; exit 125; }
 
-set +e
 # The builder requires a fresh evidence directory; wrapper integrity manifests live in the parent.
 "$PYTHON" "$HERE/build_hint_bundle.py" "$BUNDLE" --evidence-dir "$EVIDENCE/builder" \
   > "$EVIDENCE/argos-builder.stdout.log" 2>&1
-BUILD_STATUS=$?
-set -e
 python3 - "$EVIDENCE/argos-builder.stdout.log" <<'PY'
 import re, sys
 from urllib.parse import urlsplit, urlunsplit
@@ -154,23 +208,4 @@ with open(path, "w", encoding="utf-8") as stream:
     stream.write(re.sub(r'''https?://[^\s"'<>]+''', clean, content))
 PY
 
-env -u PYTHONPATH PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 \
-  "$CONDA" list --explicit --prefix "$PMAFP" > "$CONDA_AFTER" || BUILD_STATUS=1
-env -u PYTHONPATH PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 \
-  "$PYTHON" -m pip freeze --all > "$PIP_AFTER" || BUILD_STATUS=1
-if ! cmp -s "$CONDA_BEFORE" "$CONDA_AFTER" || ! cmp -s "$PIP_BEFORE" "$PIP_AFTER"; then
-  printf '%s\n' 'PMAFP_INTEGRITY_FAIL' > "$EVIDENCE/pmafp-integrity-failure.txt"
-  BUILD_STATUS=1
-else
-  python3 - "$CONDA_BEFORE" "$PIP_BEFORE" > "$EVIDENCE/pmafp-integrity.json" <<'PY'
-import hashlib,json,sys
-def sha(p): return hashlib.sha256(open(p,"rb").read()).hexdigest()
-print(json.dumps({"status":"PMAFP_INTEGRITY_OK","conda_explicit_sha256":sha(sys.argv[1]),
-                  "pip_freeze_sha256":sha(sys.argv[2])},indent=2,sort_keys=True))
-PY
-fi
-if [[ "$BUILD_STATUS" -ne 0 ]]; then
-  echo "ARGOS_BUNDLE_BUILD_FAILED; preserve $EVIDENCE" >&2
-  exit "$BUILD_STATUS"
-fi
 echo "ARGOS_BUNDLE_BUILD_OK bundle=$BUNDLE evidence=$EVIDENCE"

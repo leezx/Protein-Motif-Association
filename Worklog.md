@@ -529,3 +529,13 @@ Committed the Argos-native bundle builder, contract fixtures, and task documenta
 ## 2026-10-18 10:08 EDT — PR #5 audit synchronization complete
 
 The PR-specific Worklog, CODEX_HANDOFF, and dated handoff synchronization was committed and pushed as `dbbed77953702da3b83806ddb638da3ff862caec`. GitHub still reports PR #5 OPEN on the intended base. The previous entry's planned audit sync is complete; next is to verify the current full HEAD, sync the PR description, and request exact-head GPT review. No Argos artifact build or analysis has occurred.
+
+## 2026-10-18 10:22 EDT — 修复 GPT 对 PR #5 完整 HEAD 的 F1–F7
+
+检查 PR #5 当前远端状态：OPEN，分支 `task_20261018_argos_artifact_builder`，已审查完整 HEAD `483c38bf40b258b2ee2d42a45086f13dcc26d0d9`。持久 PMA GPT 会话对该 HEAD 给出 `REQUEST_CHANGES`，具体指出 Conda mock 的 env 参数不匹配、solver 凭据可能落盘、工具准备早退漏掉 pmafp 完整性检查、repodata/归档依赖差异缺少完整来源证据、PATH 可能解析到错误 Conda、纯 wheel 元数据/ELF 检查不足，以及 DATA 参数未绑定仓库配置。没有因此联系 Argos或进行外部构建。
+
+在同一 PR 本地修订：完善 mock 和审计缓存；在落盘前拒绝认证/查询型 channel，清理持久 URL；增加 EXIT trap，让工具下载失败后也记录 pmafp 前后清单与完整性结果；固定 upstream repodata snapshot，并校验 solver LINK 与冻结依赖，只有保留 repodata URL/hash 与 solver 记录时才记录归档 hotfix 差异；要求 builder 实际解析的 Conda 与审计可执行文件一致并修正 PATH；验证 wheel Requires-Python、Tag、Root-Is-Purelib 和无 ELF/native payload；从 config/pma_env.sh 取得 PMA_DATA 并拒绝错误数据根。新增相应正负行为测试，包含 wrapper 模拟工具准备失败。
+
+验证：`python3 -m unittest tests/test_hint_bundle_build_contract.py`（25 pass）、修改 Python 文件 `py_compile`、Argos wrapper `bash -n` 与 `git diff --check` 均通过。测试失败后修正了 DATA root helper 的 argparse destination、规范化临时目录符号路径，以及旧 repodata fixture 中缺失的归档 dependency 字段。以上为本地合同/mock 验证，真实 Argos Conda repodata/外部 bundle 行为仍未验证。
+
+更新本 handoff 和 CODEX_HANDOFF 当前状态。当前修订尚未提交或推送；下一步完成 diff 复核，显式暂存相关文件，提交并推送同一 PR #5，更新 PR body 到精确 HEAD，再请求 GPT 复审。取得该 HEAD 明确 APPROVE 前，不得在 Argos 下载或构建。仍不安装环境、不跑 HINT CLI/smoke/full analysis、不合并。

@@ -11,6 +11,10 @@ from urllib.parse import urlsplit, urlunsplit
 import zipfile
 from email.parser import Parser
 from pathlib import Path, PurePosixPath
+from pip._vendor.packaging.specifiers import SpecifierSet
+from pip._vendor.packaging.tags import Tag, parse_tag
+from pip._vendor.packaging.utils import parse_wheel_filename
+from pip._vendor.packaging.version import Version
 
 
 def digest(path: Path) -> str:
@@ -56,6 +60,45 @@ def safe_wheel_path(name: str) -> PurePosixPath:
     return path
 
 
+def validate_py3_none_any_wheel(wheel: Path, python_version: str) -> tuple[str, str, object]:
+    """Validate filename, metadata tags, Requires-Python, and absence of native payload."""
+    name, version, _build, filename_tags = parse_wheel_filename(wheel.name)
+    expected_tag = Tag("py3", "none", "any")
+    if filename_tags != {expected_tag}:
+        raise RuntimeError(f"ARGOS_TOOLCHAIN_WHEEL_NOT_PURE_PY3:{wheel.name}")
+    with zipfile.ZipFile(wheel) as archive:
+        members = archive.namelist()
+        metadata_paths = [item for item in members if item.endswith(".dist-info/METADATA")]
+        wheel_paths = [item for item in members if item.endswith(".dist-info/WHEEL")]
+        if len(metadata_paths) != 1 or len(wheel_paths) != 1:
+            raise RuntimeError(f"ARGOS_TOOLCHAIN_WHEEL_METADATA_INVALID:{wheel.name}")
+        metadata = Parser().parsestr(archive.read(metadata_paths[0]).decode("utf-8"))
+        wheel_metadata = Parser().parsestr(archive.read(wheel_paths[0]).decode("utf-8"))
+        declared_tags = set()
+        for value in wheel_metadata.get_all("Tag", []):
+            declared_tags.update(parse_tag(value))
+        if declared_tags != filename_tags:
+            raise RuntimeError(f"ARGOS_TOOLCHAIN_WHEEL_TAG_MISMATCH:{wheel.name}")
+        if wheel_metadata.get("Root-Is-Purelib", "").lower() != "true":
+            raise RuntimeError(f"ARGOS_TOOLCHAIN_WHEEL_NOT_PURELIB:{wheel.name}")
+        requires_python = metadata.get("Requires-Python")
+        if requires_python and not SpecifierSet(requires_python).contains(Version(python_version), prereleases=True):
+            raise RuntimeError(f"ARGOS_TOOLCHAIN_REQUIRES_PYTHON_MISMATCH:{wheel.name}:{requires_python}")
+        native_suffixes = (".pyd", ".dll", ".dylib", ".o", ".a", ".obj", ".lib")
+        for member in members:
+            if member.endswith("/"):
+                continue
+            lower_name = member.lower()
+            is_shared_object = lower_name.endswith(".so") or ".so." in lower_name
+            if (is_shared_object or lower_name.endswith(native_suffixes) or
+                    archive.read(member).startswith(bytes((0x7f,)) + b"ELF")):
+                raise RuntimeError(f"ARGOS_TOOLCHAIN_PURE_WHEEL_HAS_NATIVE_PAYLOAD:{wheel.name}:{member}")
+    normalized_name = re.sub(r"[-_.]+", "-", metadata.get("Name", "")).lower()
+    if normalized_name != re.sub(r"[-_.]+", "-", str(name)).lower() or Version(metadata.get("Version", "0")) != version:
+        raise RuntimeError(f"ARGOS_TOOLCHAIN_WHEEL_FILENAME_METADATA_MISMATCH:{wheel.name}")
+    return normalized_name, str(version), metadata
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--python", required=True, type=Path)
@@ -91,8 +134,7 @@ def main() -> int:
         raise RuntimeError(f"ARGOS_TOOLCHAIN_WHEEL_COUNT_MISMATCH:{len(wheels)}:{len(expected)}")
     inventory = []
     for wheel in wheels:
-        if not wheel.name.endswith("-py3-none-any.whl"):
-            raise RuntimeError(f"ARGOS_TOOLCHAIN_WHEEL_NOT_PURE_PY3:{wheel.name}")
+        package, version, metadata = validate_py3_none_any_wheel(wheel, "3.11.17")
         if digest(wheel) not in {value[1] for value in expected.values()}:
             raise RuntimeError(f"ARGOS_TOOLCHAIN_WHEEL_HASH_UNEXPECTED:{wheel.name}")
         with zipfile.ZipFile(wheel) as archive:
@@ -108,12 +150,6 @@ def main() -> int:
                         raise RuntimeError(f"ARGOS_TOOLCHAIN_WHEEL_DATA_UNSUPPORTED:{wheel.name}:{name}")
                 if not path.parts:
                     raise RuntimeError(f"ARGOS_TOOLCHAIN_WHEEL_PATH_EMPTY:{wheel.name}:{name}")
-            metadata_names = [name for name in members if name.endswith(".dist-info/METADATA")]
-            if len(metadata_names) != 1:
-                raise RuntimeError(f"ARGOS_TOOLCHAIN_METADATA_INVALID:{wheel.name}")
-            metadata = Parser().parsestr(archive.read(metadata_names[0]).decode("utf-8"))
-            package = re.sub(r"[-_.]+", "-", metadata.get("Name", "")).lower()
-            version = metadata.get("Version", "")
             if package not in expected or expected[package][0] != version:
                 raise RuntimeError(f"ARGOS_TOOLCHAIN_METADATA_IDENTITY_MISMATCH:{wheel.name}:{package}:{version}")
             if digest(wheel) != expected[package][1]:

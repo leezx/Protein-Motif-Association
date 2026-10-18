@@ -19,9 +19,91 @@ SCRIPT = ROOT / "scripts/04b_footprint/build_hint_bundle.py"
 SPEC = importlib.util.spec_from_file_location("build_hint_bundle", SCRIPT)
 BUILDER = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(BUILDER)
+PREP_SCRIPT = ROOT / "scripts/04b_footprint/prepare_hint_argos_toolchain.py"
+PREP_SPEC = importlib.util.spec_from_file_location("prepare_hint_argos_toolchain", PREP_SCRIPT)
+PREP = importlib.util.module_from_spec(PREP_SPEC)
+PREP_SPEC.loader.exec_module(PREP)
+DATA_ROOT_SPEC = importlib.util.spec_from_file_location(
+    "validate_argos_data_root", ROOT / "scripts/04b_footprint/validate_argos_data_root.py")
+DATA_ROOT_VALIDATOR = importlib.util.module_from_spec(DATA_ROOT_SPEC)
+DATA_ROOT_SPEC.loader.exec_module(DATA_ROOT_VALIDATOR)
 
 
 class HintBundleBuildContract(unittest.TestCase):
+    def _write_toolchain_wheel(self, path: Path, *, requires_python=">=3.11", declared_tag="py3-none-any",
+                               root_is_purelib="true", payload=b"python source"):
+        with zipfile.ZipFile(path, "w") as archive:
+            archive.writestr("example/__init__.py", payload)
+            archive.writestr("example-1.2.3.dist-info/METADATA",
+                             f"Name: example\nVersion: 1.2.3\nRequires-Python: {requires_python}\n\n")
+            archive.writestr("example-1.2.3.dist-info/WHEEL",
+                             f"Wheel-Version: 1.0\nRoot-Is-Purelib: {root_is_purelib}\nTag: {declared_tag}\n")
+
+    def test_toolchain_wheel_requires_compatible_python(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            wheel = Path(tmp) / "example-1.2.3-py3-none-any.whl"
+            self._write_toolchain_wheel(wheel, requires_python="<3.11.17")
+            with self.assertRaisesRegex(RuntimeError, "REQUIRES_PYTHON_MISMATCH"):
+                PREP.validate_py3_none_any_wheel(wheel, "3.11.17")
+
+    def test_toolchain_wheel_declared_tag_must_match_filename(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            wheel = Path(tmp) / "example-1.2.3-py3-none-any.whl"
+            self._write_toolchain_wheel(wheel, declared_tag="cp311-cp311-manylinux_2_17_x86_64")
+            with self.assertRaisesRegex(RuntimeError, "WHEEL_TAG_MISMATCH"):
+                PREP.validate_py3_none_any_wheel(wheel, "3.11.17")
+
+    def test_toolchain_py3_none_any_wheel_rejects_elf_payload(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            wheel = Path(tmp) / "example-1.2.3-py3-none-any.whl"
+            self._write_toolchain_wheel(wheel, payload=bytes((0x7f,)) + b"ELFfixture")
+            with self.assertRaisesRegex(RuntimeError, "PURE_WHEEL_HAS_NATIVE_PAYLOAD"):
+                PREP.validate_py3_none_any_wheel(wheel, "3.11.17")
+
+    def test_argos_data_root_must_match_repository_configured_root(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            configured = root / "configured-data" / "PMA"
+            expected = configured / "atac_footprint"
+            wrong = root / "lookalike" / "atac_footprint"
+            for candidate in (expected, wrong):
+                (candidate / "raw").mkdir(parents=True)
+                (candidate / "processed" / "round1").mkdir(parents=True)
+            self.assertEqual(DATA_ROOT_VALIDATOR.validate_data_root(expected, configured), expected.resolve())
+            with self.assertRaisesRegex(ValueError, "DOES_NOT_MATCH_REPOSITORY_CONFIG"):
+                DATA_ROOT_VALIDATOR.validate_data_root(wrong, configured)
+
+    def test_wrapper_records_pmafp_integrity_when_toolchain_preparation_fails(self):
+        wrapper = ROOT / "scripts/04b_footprint/run_hint_bundle_builder_argos.sh"
+        with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryDirectory() as prefix_tmp:
+            root = Path(tmp)
+            data = root / "data" / "2.PROJECTS" / "PMA" / "atac_footprint"
+            (data / "raw").mkdir(parents=True)
+            (data / "processed" / "round1").mkdir(parents=True)
+            workspace = root / "external-work"
+            bundle = workspace / "bundle"
+            evidence = workspace / "evidence"
+            prefix = Path(prefix_tmp) / "software" / "envs" / "pmafp"
+            (prefix / "bin").mkdir(parents=True)
+            python = prefix / "bin" / "python"
+            python.write_text("#!/bin/sh\nif [ \"$1\" = \"-m\" ] && [ \"$2\" = \"pip\" ]; then\n  echo fake==1.0\n  exit 0\nfi\necho simulated-download-failure >&2\nexit 17\n")
+            python.chmod(0o755)
+            conda = root / "conda"
+            conda.write_text("#!/bin/sh\nif [ \"$1\" = \"env\" ]; then\n  printf '{\"envs\": []}\\n'\nelif [ \"$1\" = \"list\" ]; then\n  printf '@EXPLICIT\\n'\nelse\n  exit 2\nfi\n")
+            conda.chmod(0o755)
+            env = dict(os.environ, BIO_DATA=str(root / "data"), BIO_SOFTWARES=str(root / "software"),
+                       BIOWORKSPACE_ROOT=str(root), PMA_HINT_SOURCE_PREFIX=str(prefix),
+                       PMA_HINT_CONDA=str(conda))
+            result = subprocess.run(["bash", str(wrapper), str(data), str(workspace), str(bundle),
+                                     str(evidence), "https://conda.example.org/conda-forge"],
+                                    capture_output=True, text=True, env=env)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("simulated-download-failure", result.stderr)
+            self.assertTrue((evidence / "pmafp-conda-after.txt").is_file())
+            self.assertTrue((evidence / "pmafp-pip-after.txt").is_file())
+            integrity = json.loads((evidence / "pmafp-integrity.json").read_text(encoding="utf-8"))
+            self.assertEqual(integrity["status"], "PMAFP_INTEGRITY_OK")
+
     def test_solver_evidence_removes_url_credentials_and_queries(self):
         payload = {"url": "https://user:secret@example.org/linux-64/pkg.tar.bz2?token=hidden",
                    "nested": ["https://example.org/noarch/pkg.tar.bz2?sig=hidden"]}
@@ -31,11 +113,79 @@ class HintBundleBuildContract(unittest.TestCase):
         self.assertNotIn("secret", json.dumps(cleaned))
         self.assertNotIn("hidden", json.dumps(cleaned))
 
+    def test_argos_channel_credentials_are_rejected_before_solver_or_evidence_write(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            work = Path(tmp)
+            with mock.patch.dict(BUILDER.os.environ, {
+                "PMA_HINT_BUILDER_MODE": "argos-native",
+                "PMA_HINT_ARGOS_CONDA_CHANNEL": "https://user:secret@example.org/channel?token=hidden",
+            }), mock.patch.object(BUILDER, "conda_dry_run") as solve, \
+                 mock.patch.object(BUILDER, "fetch_repodata_snapshot") as repodata:
+                with self.assertRaisesRegex(RuntimeError, "CREDENTIALS_OR_QUERY"):
+                    BUILDER.load_solver_plan("/mock/conda", work)
+            solve.assert_not_called()
+            repodata.assert_not_called()
+            self.assertEqual(list(work.iterdir()), [])
+
+    def test_solver_plan_evidence_redacts_tokens_across_full_json(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            work = Path(tmp)
+            output = json.dumps({"actions": {"LINK": [{
+                "name": "python", "version": "3.11.9", "build": "mock_0",
+                "fn": "python-3.11.9-mock_0.tar.bz2", "subdir": "linux-64",
+                "sha256": "a" * 64,
+                "url": "https://example.org/linux-64/python-3.11.9-mock_0.tar.bz2?token=secret"
+            }]}})
+            snapshot_record = {"name": "python", "version": "3.11.9", "build": "mock_0",
+                              "sha256": "a" * 64, "depends": [], "constrains": []}
+            snapshot = {"url": "https://example.org/linux-64/repodata.json", "sha256": "b" * 64,
+                        "packages": {"python-3.11.9-mock_0.tar.bz2": snapshot_record}}
+            with mock.patch.dict(BUILDER.os.environ, {
+                "PMA_HINT_BUILDER_MODE": "argos-native",
+                "PMA_HINT_ARGOS_CONDA_CHANNEL": "https://example.org/channel",
+            }), mock.patch.object(BUILDER, "fetch_repodata_snapshot", return_value=snapshot), \
+                 mock.patch.object(BUILDER, "conda_dry_run", return_value=output):
+                BUILDER.load_solver_plan("/mock/conda", work)
+            for path in work.rglob("*"):
+                if path.is_file():
+                    content = path.read_text(encoding="utf-8")
+                    self.assertNotIn("secret", content)
+                    self.assertNotIn("token=", content)
+
+    def test_argos_repodata_records_hotfix_difference_with_frozen_evidence(self):
+        record = {"subdir": "linux-64", "name": "python", "version": "3.11.9",
+                  "build": "mock_0", "filename": "python-3.11.9-mock_0.tar.bz2",
+                  "sha256": "a" * 64, "md5": "b" * 32, "size": 123,
+                  "index_record": {"name": "python", "version": "3.11.9", "build": "mock_0",
+                                   "depends": ["archive-hotfix >=1"]},
+                  "source_record": {"name": "python", "version": "3.11.9", "build": "mock_0",
+                                    "depends": ["upstream-dep >=2"], "constrains": []},
+                  "source_repodata": {"url": "https://example.org/linux-64/repodata.json",
+                                      "sha256": "c" * 64},
+                  "solver_record": {"depends": ["upstream-dep >=2"], "constrains": []}}
+        result = BUILDER.build_local_repodata([record], "linux-64")
+        self.assertEqual(result["packages"][record["filename"]]["depends"], ["upstream-dep >=2"])
+        self.assertEqual(record["dependency_metadata_diff"]["depends"], {
+            "archive_index": ["archive-hotfix >=1"], "upstream_repodata": ["upstream-dep >=2"]
+        })
+
+    def test_argos_repodata_rejects_archive_dependency_difference_without_provenance(self):
+        record = {"subdir": "linux-64", "name": "python", "version": "3.11.9",
+                  "build": "mock_0", "filename": "python-3.11.9-mock_0.tar.bz2",
+                  "sha256": "a" * 64, "md5": "b" * 32, "size": 123,
+                  "index_record": {"name": "python", "version": "3.11.9", "build": "mock_0",
+                                   "depends": ["archive-dep >=1"]},
+                  "source_record": {"name": "python", "version": "3.11.9", "build": "mock_0",
+                                    "depends": ["solver-dep >=2"]}}
+        with self.assertRaisesRegex(RuntimeError, "DIFF_WITHOUT_UPSTREAM_EVIDENCE"):
+            BUILDER.build_local_repodata([record], "linux-64")
+
     def test_argos_local_repodata_requires_frozen_solver_dependencies(self):
         record = {"subdir": "linux-64", "name": "python", "version": "3.11.9",
                   "build": "h955ad1f_0", "filename": "python-3.11.9-h955ad1f_0.tar.bz2",
                   "sha256": "a" * 64, "md5": "b" * 32, "size": 123,
-                  "index_record": {"name": "python", "version": "3.11.9", "build": "h955ad1f_0"},
+                  "index_record": {"name": "python", "version": "3.11.9", "build": "h955ad1f_0",
+                                   "depends": ["libc >=2.17"]},
                   "source_record": {"name": "python", "version": "3.11.9",
                                     "build_string": "h955ad1f_0", "depends": ["libc >=2.17"]}}
         with self.assertRaisesRegex(RuntimeError, "REPODATA_UPSTREAM_DEPENDS_MISSING"):
@@ -63,6 +213,22 @@ class HintBundleBuildContract(unittest.TestCase):
              mock.patch.dict(BUILDER.os.environ, {"PMA_HINT_BUILDER_IMAGE": "mutable:latest"}):
             with self.assertRaisesRegex(RuntimeError, "MUST_BE_DIGEST_PINNED"):
                 BUILDER.require_builder()
+
+    def test_argos_conda_path_must_resolve_to_audited_executable(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            expected = root / "bin" / "conda"
+            expected.parent.mkdir()
+            expected.write_text("mock")
+            alias = root / "alias-conda"
+            alias.symlink_to(expected)
+            BUILDER.validate_audited_conda(str(alias), str(expected))
+            other = root / "other-conda"
+            other.write_text("other")
+            with self.assertRaisesRegex(RuntimeError, "DOES_NOT_MATCH_AUDITED"):
+                BUILDER.validate_audited_conda(str(other), str(expected))
+            with self.assertRaisesRegex(RuntimeError, "AUDITED_CONDA_EXECUTABLE_REQUIRED"):
+                BUILDER.require_audited_conda(str(expected), None)
 
     def test_rgt_pure_python_wheel_gets_explicit_no_elf_report(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -167,16 +333,20 @@ Version definition section '.gnu.version_d' contains 1 entry:
             prefix = Path(tmp) / "must-remain-absent"
             observed = []
 
-            def fake_run(argv, *, capture):
+            def fake_run(argv, *, capture, env=None):
                 observed.extend(argv)
+                self.assertIsNotNone(env)
+                self.assertEqual(env.get("CONDA_PKGS_DIRS"), str((prefix.parent / "cache").resolve()))
                 return "{}"
 
             with mock.patch.object(BUILDER, "run", side_effect=fake_run):
-                self.assertEqual(BUILDER.conda_dry_run("conda", prefix, ["--offline"], ("python=3.11",)), "{}")
+                cache = prefix.parent / "cache"
+                self.assertEqual(BUILDER.conda_dry_run("conda", prefix, ["--offline"],
+                                                        ("python=3.11",), package_cache=cache), "{}")
             self.assertIn("--dry-run", observed)
             self.assertFalse(prefix.exists())
 
-            def violating_run(argv, *, capture):
+            def violating_run(argv, *, capture, env=None):
                 Path(argv[argv.index("-p") + 1]).mkdir()
                 return "{}"
 

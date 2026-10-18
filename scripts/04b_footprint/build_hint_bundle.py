@@ -163,6 +163,9 @@ def require_builder() -> tuple[str, str]:
     conda = shutil.which("conda")
     if not conda:
         raise RuntimeError("CONDA_EXECUTABLE_MISSING")
+    expected_conda = os.environ.get("PMA_HINT_CONDA_EXECUTABLE")
+    if mode == "argos-native":
+        require_audited_conda(conda, expected_conda)
     executables = [("readelf", "READELF_MISSING_CANNOT_PROVE_CONDA_ABI"),
                    ("gcc", "GCC_MISSING_FOR_CONTROLLED_RGT_BUILD")]
     if mode == "docker-image":
@@ -179,6 +182,17 @@ def auditwheel_command(*args: str) -> list[str]:
     return ["auditwheel", *args]
 
 
+def validate_audited_conda(conda: str, expected: str) -> None:
+    if not expected:
+        raise RuntimeError("ARGOS_AUDITED_CONDA_EXECUTABLE_REQUIRED")
+    if Path(conda).resolve() != Path(expected).resolve():
+        raise RuntimeError("ARGOS_CONDA_PATH_DOES_NOT_MATCH_AUDITED_EXECUTABLE")
+
+
+def require_audited_conda(conda: str, expected: str | None) -> None:
+    validate_audited_conda(conda, expected or "")
+
+
 def load_solver_plan(conda: str, work: Path, package_cache: Path | None = None) -> tuple[list[dict], str, str]:
     plan_path = work / "conda-solve.json"
     solve_prefix = work / "solve-prefix"
@@ -192,8 +206,11 @@ def load_solver_plan(conda: str, work: Path, package_cache: Path | None = None) 
     options = ["--no-default-packages", "--override-channels", "-c", channel]
     command = [conda, "create", "--dry-run", "--json", "--yes", *options,
                "-p", str(solve_prefix), *TARGET_SPECS]
+    repodata_before = {}
+    if os.environ.get("PMA_HINT_BUILDER_MODE") == "argos-native":
+        for subdir in ("linux-64", "noarch"):
+            repodata_before[subdir] = fetch_repodata_snapshot(channel, subdir, work, load_records=False)
     output = conda_dry_run(conda, solve_prefix, options, TARGET_SPECS, package_cache=package_cache)
-    plan_path.write_text(output, encoding="utf-8")
     try:
         parsed = json.loads(output)
         links = parsed["actions"]["LINK"]
@@ -201,7 +218,67 @@ def load_solver_plan(conda: str, work: Path, package_cache: Path | None = None) 
         raise RuntimeError(f"CONDA_SOLVER_JSON_INVALID:{exc}") from exc
     if not links:
         raise RuntimeError("CONDA_SOLVER_LINK_EMPTY")
+    if repodata_before:
+        repodata_by_subdir = {}
+        for subdir in ("linux-64", "noarch"):
+            snapshot = fetch_repodata_snapshot(channel, subdir, work, load_records=True)
+            if snapshot["sha256"] != repodata_before[subdir]["sha256"]:
+                raise RuntimeError(f"ARGOS_UPSTREAM_REPODATA_CHANGED_DURING_SOLVE:{subdir}")
+            repodata_by_subdir[subdir] = snapshot
+        for item in links:
+            subdir = item.get("subdir") or item.get("platform")
+            url = item.get("url", "")
+            if subdir not in ("linux-64", "noarch"):
+                subdir = "noarch" if "/noarch/" in url else "linux-64" if "/linux-64/" in url else None
+            filename = item.get("fn") or url.rsplit("/", 1)[-1]
+            snapshot = repodata_by_subdir.get(subdir)
+            source_record = (snapshot["packages"].get(filename) if snapshot else None)
+            if source_record is None:
+                raise RuntimeError(f"ARGOS_UPSTREAM_REPODATA_RECORD_MISSING:{subdir}:{filename}")
+            for key, value in (("name", item.get("name")), ("version", item.get("version")),
+                               ("build", item.get("build") or item.get("build_string")),
+                               ("sha256", item.get("sha256"))):
+                if source_record.get(key) != value:
+                    raise RuntimeError(f"ARGOS_SOLVER_REPODATA_IDENTITY_MISMATCH:{filename}:{key}")
+            for key in ("depends", "constrains"):
+                link_value = item.get(key, [])
+                source_value = source_record.get(key, [])
+                if not isinstance(link_value, list) or not isinstance(source_value, list):
+                    raise RuntimeError(f"ARGOS_SOLVER_REPODATA_METADATA_MISSING:{filename}:{key}")
+                if sorted(link_value) != sorted(source_value):
+                    raise RuntimeError(f"ARGOS_SOLVER_REPODATA_METADATA_MISMATCH:{filename}:{key}")
+            item["pma_upstream_repodata_record"] = source_record
+            item["pma_upstream_repodata"] = {"url": snapshot["url"], "sha256": snapshot["sha256"]}
+    plan_path.write_text(json.dumps(sanitize_evidence(parsed), indent=2, sort_keys=True) + "\n",
+                         encoding="utf-8")
     return links, " ".join(command), output
+
+
+def fetch_repodata_snapshot(channel: str, subdir: str, work: Path, *, load_records: bool) -> dict:
+    if subdir not in ("linux-64", "noarch"):
+        raise RuntimeError(f"ARGOS_REPODATA_SUBDIR_UNSUPPORTED:{subdir}")
+    url = f"{channel.rstrip('/')}/{subdir}/repodata.json"
+    path = work / f"upstream-repodata-{subdir}.json.tmp"
+    try:
+        urllib.request.urlretrieve(url, path)
+        digest = sha256(path)
+        result = {"url": sanitize_url(url), "sha256": digest}
+        if load_records:
+            try:
+                with path.open(encoding="utf-8") as stream:
+                    repodata = json.load(stream)
+            except (OSError, json.JSONDecodeError) as exc:
+                raise RuntimeError(f"ARGOS_UPSTREAM_REPODATA_INVALID:{subdir}:{exc}") from exc
+            packages = repodata.get("packages")
+            if not isinstance(packages, dict):
+                raise RuntimeError(f"ARGOS_UPSTREAM_REPODATA_PACKAGES_MISSING:{subdir}")
+            result["packages"] = {name: record for name, record in packages.items()
+                                   if name.endswith(".tar.bz2")}
+        return result
+    except (OSError, urllib.error.URLError) as exc:
+        raise RuntimeError(f"ARGOS_UPSTREAM_REPODATA_FETCH_FAILED:{subdir}:{sanitize_text(str(exc))}") from exc
+    finally:
+        path.unlink(missing_ok=True)
 
 
 def copy_conda_closure(links: list[dict], bundle: Path) -> list[dict]:
@@ -236,8 +313,13 @@ def copy_conda_closure(links: list[dict], bundle: Path) -> list[dict]:
         record["size"] = destination.stat().st_size
         record["source_url"] = sanitize_url(url)
         record["index_record"] = index
-        record["source_record"] = {key: value for key, value in item.items()
-                                   if key not in {"url", "base_url", "channel", "channel_url"}}
+        if "pma_upstream_repodata_record" in item:
+            record["source_record"] = item["pma_upstream_repodata_record"]
+            record["source_repodata"] = item["pma_upstream_repodata"]
+            record["solver_record"] = {key: item.get(key, []) for key in ("depends", "constrains")}
+        else:
+            record["source_record"] = {key: value for key, value in item.items()
+                                       if key not in {"url", "base_url", "channel", "channel_url"}}
         records.append(record)
     return records
 
@@ -256,6 +338,21 @@ def build_local_repodata(records: list[dict], subdir: str) -> dict:
             raise RuntimeError(f"REPODATA_ARCHIVE_UNSUPPORTED:{filename}")
         if not isinstance(source.get("depends"), list):
             raise RuntimeError(f"REPODATA_UPSTREAM_DEPENDS_MISSING:{filename}")
+        source_repodata = row.get("source_repodata")
+        solver_record = row.get("solver_record")
+        if source_repodata is not None:
+            if (not source_repodata.get("url", "").startswith("https://") or
+                    not re.fullmatch(r"[a-fA-F0-9]{64}", source_repodata.get("sha256", ""))):
+                raise RuntimeError(f"REPODATA_UPSTREAM_PROVENANCE_INVALID:{filename}")
+            if not isinstance(solver_record, dict):
+                raise RuntimeError(f"REPODATA_SOLVER_RECORD_MISSING:{filename}")
+            for key in ("depends", "constrains"):
+                upstream = source.get(key, [])
+                solved = solver_record.get(key, [])
+                if not isinstance(upstream, list) or not isinstance(solved, list):
+                    raise RuntimeError(f"REPODATA_SOLVER_METADATA_MISSING:{filename}:{key}")
+                if sorted(upstream) != sorted(solved):
+                    raise RuntimeError(f"REPODATA_SOLVER_SOURCE_DEPENDENCY_MISMATCH:{filename}:{key}")
         record = {key: value for key, value in source.items()
                   if key in {"name", "version", "build", "build_number", "depends", "constrains",
                              "track_features", "features", "noarch", "arch", "platform", "license",
@@ -268,6 +365,19 @@ def build_local_repodata(records: list[dict], subdir: str) -> dict:
             record[key] = expected
         if record.get("subdir", subdir) != subdir:
             raise RuntimeError(f"REPODATA_UPSTREAM_SUBDIR_MISMATCH:{filename}:{record.get('subdir')}:{subdir}")
+        index = row.get("index_record") or {}
+        dependency_diff = {}
+        for key in ("depends", "constrains"):
+            index_value = index.get(key, [])
+            source_value = source.get(key, [])
+            if not isinstance(index_value, list) or not isinstance(source_value, list):
+                raise RuntimeError(f"REPODATA_DEPENDENCY_METADATA_INVALID:{filename}:{key}")
+            if sorted(index_value) != sorted(source_value):
+                if source_repodata is None:
+                    raise RuntimeError(f"REPODATA_DEPENDENCY_DIFF_WITHOUT_UPSTREAM_EVIDENCE:{filename}:{key}")
+                dependency_diff[key] = {"archive_index": index_value, "upstream_repodata": source_value}
+        if dependency_diff:
+            row["dependency_metadata_diff"] = dependency_diff
         record.update({"subdir": subdir, "fn": filename, "sha256": row["sha256"],
                        "md5": row["md5"], "size": row["size"]})
         if filename in packages:

@@ -198,6 +198,8 @@ ulimit -v 48000000 || { echo "MEMORY_LIMIT_UNAVAILABLE" >&2; exit 125; }
 # The builder requires a fresh evidence directory; wrapper integrity manifests live in the parent.
 set +e
 python3 "$HERE/run_redacted_command.py" "$EVIDENCE/argos-builder.stdout.log" -- \
+  env PYTHONPATH="$HERE:$PYTHON_ROOT" \
+  PMA_HINT_EXTERNAL_TOOLCHAIN_PYTHON_ROOT="$PYTHON_ROOT" \
   "$PYTHON" "$HERE/build_hint_bundle.py" "$BUNDLE" --evidence-dir "$EVIDENCE/builder"
 BUILD_STATUS=$?
 set -e

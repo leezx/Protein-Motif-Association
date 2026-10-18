@@ -584,3 +584,11 @@ The PR-specific Worklog, CODEX_HANDOFF, and dated handoff synchronization was co
 本地验证最终结果：`python3 -m unittest tests/test_hint_bundle_build_contract.py` 37 PASS；相关 Python `py_compile`、wrapper `bash -n`、`git diff --check` PASS。测试最初暴露本地宿主不允许 `ulimit -v 48000000`，通过 wrapper 测试 BASH_ENV mock 处理该宿主限制；生产 wrapper 行为和 48 GB 限额未变。两个失败 workspace 证据均保留；Argos `pmafp` Conda/pip before/after manifests 相同，`PMAFP_INTEGRITY_OK`；solver、bundle、ABI audit、offline preflight 均未运行。无环境创建/安装、HINT CLI/分析或 PR merge。
 
 当前修复仍为本地未提交变更；下一步复核完整 diff、显式暂存并提交推送同一 PR #5、更新 PR 描述到新完整 SHA，再请求持久 PMA GPT exact-head review。新 HEAD 明确 APPROVE 前不重试 Argos；获批后使用第三个新 external workspace 做 artifact-only G2，失败则停止并留证。
+
+## 2026-10-18 11:18 EDT — GPT 对 PR #5 HEAD 8d3e72d REQUEST_CHANGES；定向修复 F2.1/F2.2
+
+持久 PMA GPT 会话完成对 PR #5 精确 HEAD `8d3e72d11ad82d4612f0ea4b61dc26b0c882b33b` 的完整复审，结论 `REQUEST_CHANGES`。F2.1 指出独立 probe 不能证明后续 `python -m pip wheel` 的子进程先初始化 external setuptools；F2.2 指出仅按六个包命名空间扫 `sys.modules` 会漏掉宿主 `site-packages` 中的传递依赖，也未检查 builder 主进程在 probe 前导入的 `packaging`。其他导入顺序、distutils、版本、模块和 metadata 直接来源检查通过；GPT 要求只对两项 blocker 定向补强。
+
+同一 PR 本地实现：新增 `sitecustomize.py`，Argos builder 及所有继承其启动环境的 Python 子进程（包括 `pip wheel` 与 build backend）在执行命令前调用 startup probe；失败使用非零进程退出 fail closed。Builder `require_builder()` 现直接复核自身进程内已加载模块及 distribution metadata 来源，不再以独立子进程 probe 代替主进程证据。来源检查采用明确 allowlist（Python 标准库、builder 源码目录和 external toolchain），对任意第三方模块拒绝宿主 `site-packages` 或未批准路径；保留 distutils 路径专门断言。新增真实 `python -m pip wheel --no-build-isolation` 临时 sdist subprocess 测试（仅在提供已准备 external Argos toolchain 时运行）、`python -m pip` startup 集成测试和宿主传递依赖注入负例。Wrapper 只在启动 builder 时传递 sitecustomize 搜索路径与 external Python root。
+
+按用户要求，不在 Mac mini 运行测试、构建或分析。已完成 Git 状态/完整 diff 静态检查，`git diff --check` PASS；未运行单元测试、py_compile 或 shell 测试。当前尚未向 Argos 发命令：新代码未获 exact-HEAD APPROVE，已有门禁要求在获批前不做任何 Argos 操作。审计文档已更新；下一步提交并推送同一 PR #5、同步 PR body，再请 GPT 审核新的完整 SHA。通过后才在 Argos 远程执行合同测试及 bounded artifact-only G2/offline preflight；不创建/修改环境、不跑 HINT CLI/smoke/full analysis、不合并 PR。

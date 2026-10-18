@@ -26,6 +26,7 @@ PREP_SPEC = importlib.util.spec_from_file_location("prepare_hint_argos_toolchain
 PREP = importlib.util.module_from_spec(PREP_SPEC)
 PREP_SPEC.loader.exec_module(PREP)
 PROBE_SCRIPT = ROOT / "scripts/04b_footprint/probe_hint_argos_toolchain.py"
+SITECUSTOMIZE_DIR = ROOT / "scripts/04b_footprint"
 DATA_ROOT_SPEC = importlib.util.spec_from_file_location(
     "validate_argos_data_root", ROOT / "scripts/04b_footprint/validate_argos_data_root.py")
 DATA_ROOT_VALIDATOR = importlib.util.module_from_spec(DATA_ROOT_SPEC)
@@ -120,6 +121,72 @@ def add_shim():
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("ARGOS_TOOLCHAIN_DISTUTILS_POLICY_MISMATCH", result.stderr)
 
+    def test_sitecustomize_bootstraps_setuptools_before_child_pip_processes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "toolchain"
+            self._write_import_probe_fixture(root)
+            (root / "pip" / "__main__.py").write_text(
+                "import distutils.core, pathlib\n"
+                "assert '_distutils' in pathlib.Path(distutils.core.__file__).parts\n"
+                "print('child-pip-started')\n", encoding="utf-8")
+            env = PREP.toolchain_probe_environment(root, {"PATH": os.environ["PATH"]})
+            env["PMA_HINT_EXTERNAL_TOOLCHAIN_PYTHON_ROOT"] = str(root)
+            env["PYTHONPATH"] = os.pathsep.join((str(SITECUSTOMIZE_DIR), str(root)))
+            result = subprocess.run([sys.executable, "-m", "pip"],
+                                    env=env, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn("child-pip-started", result.stdout)
+
+    def test_real_pip_wheel_subprocess_uses_external_toolchain_startup(self):
+        python_root = os.environ.get("PMA_HINT_EXTERNAL_TOOLCHAIN_PYTHON_ROOT")
+        if not python_root or not Path(python_root).is_dir():
+            self.skipTest("requires the prepared external Argos toolchain")
+        with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as tmp:
+            workspace = Path(tmp)
+            source = workspace / "source"
+            source.mkdir()
+            (source / "setup.py").write_text(
+                "from setuptools import setup\n"
+                "setup(name='pma-startup-probe-fixture', version='0.0.1', py_modules=['fixture'])\n",
+                encoding="utf-8")
+            (source / "fixture.py").write_text("value = 1\n", encoding="utf-8")
+            wheels = workspace / "wheels"
+            wheels.mkdir()
+            temp_dir = workspace / "tmp"
+            temp_dir.mkdir()
+            cache_dir = workspace / "pip-cache"
+            env = dict(os.environ)
+            env["PMA_HINT_EXTERNAL_TOOLCHAIN_PYTHON_ROOT"] = str(Path(python_root).resolve())
+            env["PYTHONPATH"] = os.pathsep.join((str(SITECUSTOMIZE_DIR), str(Path(python_root).resolve())))
+            env["SETUPTOOLS_USE_DISTUTILS"] = "local"
+            env["PIP_NO_CACHE_DIR"] = "1"
+            env["PIP_CACHE_DIR"] = str(cache_dir)
+            env["TMPDIR"] = str(temp_dir)
+            command = [sys.executable, "-m", "pip", "wheel", "--no-index", "--no-deps",
+                       "--no-build-isolation", "--wheel-dir", str(wheels), str(source)]
+            result = subprocess.run(command, cwd=workspace, env=env,
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertEqual(len(list(wheels.glob("pma_startup_probe_fixture-*.whl"))), 1)
+
+    def test_sitecustomize_fails_closed_on_transitive_host_site_package(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "toolchain"
+            host = Path(tmp) / "host" / "site-packages"
+            self._write_import_probe_fixture(root)
+            (host / "hosthelper").mkdir(parents=True)
+            (host / "hosthelper" / "__init__.py").write_text("\n", encoding="utf-8")
+            (root / "setuptools" / "__init__.py").write_text(
+                "import hosthelper\n__version__ = '80.9.0'\n", encoding="utf-8")
+            env = PREP.toolchain_probe_environment(root, {"PATH": os.environ["PATH"]})
+            env["PMA_HINT_EXTERNAL_TOOLCHAIN_PYTHON_ROOT"] = str(root)
+            env["PYTHONPATH"] = os.pathsep.join((str(SITECUSTOMIZE_DIR), str(root), str(host)))
+            result = subprocess.run([sys.executable, "-c", "print('must-not-run')"],
+                                    env=env, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 78)
+            self.assertIn("ARGOS_TOOLCHAIN_HOST_SITE_PACKAGES_MODULE:hosthelper", result.stderr)
+            self.assertNotIn("must-not-run", result.stdout)
+
     def test_argos_builder_runs_import_origin_probe_before_conda_discovery(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -136,6 +203,8 @@ def add_shim():
                 "CONDA_PKGS_DIRS": str(root / "pkgs"),
                 "PMA_HINT_CONDA_EXECUTABLE": str(conda),
                 "SETUPTOOLS_USE_DISTUTILS": "local",
+                "PMA_HINT_EXTERNAL_TOOLCHAIN_PYTHON_ROOT": str(toolchain / "python"),
+                "PYTHONPATH": os.pathsep.join((str(SITECUSTOMIZE_DIR), str(toolchain / "python"))),
             }
             with mock.patch.dict(BUILDER.os.environ, env, clear=True), \
                     mock.patch.object(BUILDER.platform, "system", return_value="Linux"), \
@@ -144,14 +213,10 @@ def add_shim():
                     mock.patch.object(BUILDER.sys, "version_info", (3, 11, 17)), \
                     mock.patch.object(BUILDER.platform, "python_version", return_value="3.11.17"), \
                     mock.patch.object(BUILDER.shutil, "which", side_effect=lambda name: str(conda) if name == "conda" else str(root / name)), \
-                    mock.patch.object(BUILDER, "run", return_value="probe-pass") as run:
+                    mock.patch.object(BUILDER, "verify_argos_toolchain_in_process") as verify:
                 result = BUILDER.require_builder()
             self.assertEqual(result, (str(conda), "2.23"))
-            run.assert_called_once()
-            command = run.call_args.args[0]
-            self.assertEqual(command[1], str(PROBE_SCRIPT))
-            self.assertEqual(command[2], str(toolchain / "python"))
-            self.assertEqual(run.call_args.kwargs["env"]["SETUPTOOLS_USE_DISTUTILS"], "local")
+            verify.assert_called_once_with(toolchain / "python")
 
     def _write_toolchain_wheel(self, path: Path, *, requires_python=">=3.11", declared_tag="py3-none-any",
                                root_is_purelib="true", payload=b"python source"):
@@ -291,7 +356,8 @@ case "$(basename "$1")" in
     exit 0
     ;;
   build_hint_bundle.py)
-    printf '%s\n' "${SETUPTOOLS_USE_DISTUTILS:-}" > "$BUILDER_ENV_REPORT"
+    printf '%s|%s|%s\n' "${SETUPTOOLS_USE_DISTUTILS:-}" \
+      "${PMA_HINT_EXTERNAL_TOOLCHAIN_PYTHON_ROOT:-}" "${PYTHONPATH:-}" > "$BUILDER_ENV_REPORT"
     echo 'https://user:secret@example.org/pkg?token=secret' >&2
     exit 23
     ;;
@@ -362,7 +428,12 @@ fi
                                               "https://conda.example.org/conda-forge"],
                                              capture_output=True, text=True, env=builder_env)
             self.assertEqual(builder_failure.returncode, 23, builder_failure.stderr)
-            self.assertEqual(builder_env_report.read_text(encoding="utf-8").strip(), "local")
+            builder_values = builder_env_report.read_text(encoding="utf-8").strip().split("|")
+            self.assertEqual(builder_values[0], "local")
+            self.assertEqual(Path(builder_values[1]).resolve(),
+                             (builder_workspace / "toolchain" / "python").resolve())
+            self.assertEqual(builder_values[2].split(os.pathsep)[0], str(SITECUSTOMIZE_DIR))
+            self.assertEqual(builder_values[2].split(os.pathsep)[1], builder_values[1])
 
 
     def test_redacted_command_sanitizes_logs_and_preserves_failure_status(self):

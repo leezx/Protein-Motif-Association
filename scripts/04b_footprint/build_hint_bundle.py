@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import os
 import platform
@@ -99,6 +100,17 @@ def run(argv: list[str], *, capture: bool = False, env: dict[str, str] | None = 
     return output
 
 
+def verify_argos_toolchain_in_process(python_root: Path) -> None:
+    """Check the builder's already-loaded third-party modules in this process."""
+    probe_path = Path(__file__).with_name("probe_hint_argos_toolchain.py")
+    spec = importlib.util.spec_from_file_location("pma_argos_toolchain_probe", probe_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError("ARGOS_TOOLCHAIN_PROBE_UNLOADABLE")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    module.probe(python_root)
+
+
 def conda_dry_run(conda: str, prefix: Path, options: list[str], specs: tuple[str, ...],
                   package_cache: Path | None = None) -> str:
     if prefix.exists():
@@ -142,12 +154,17 @@ def require_builder() -> tuple[str, str]:
         python_root = toolchain / "python"
         if not python_root.is_dir():
             raise RuntimeError("ARGOS_EXTERNAL_TOOLCHAIN_PYTHON_ROOT_MISSING")
+        configured_root = Path(os.environ.get("PMA_HINT_EXTERNAL_TOOLCHAIN_PYTHON_ROOT", ""))
+        if not configured_root.is_absolute() or configured_root.resolve() != python_root.resolve():
+            raise RuntimeError("ARGOS_EXTERNAL_TOOLCHAIN_STARTUP_ROOT_MISMATCH")
+        pythonpath = os.environ.get("PYTHONPATH", "").split(os.pathsep)
+        script_root = str(Path(__file__).resolve().parent)
+        if len(pythonpath) < 2 or pythonpath[0] != script_root or pythonpath[1] != str(python_root.resolve()):
+            raise RuntimeError("ARGOS_EXTERNAL_TOOLCHAIN_STARTUP_PATH_MISMATCH")
         package_cache = Path(os.environ.get("CONDA_PKGS_DIRS", ""))
         if not package_cache.is_absolute():
             raise RuntimeError("ARGOS_CONDA_PACKAGE_CACHE_MUST_BE_EXPLICIT_EXTERNAL_PATH")
-        probe = Path(__file__).with_name("probe_hint_argos_toolchain.py")
-        run([sys.executable, str(probe), str(python_root)], capture=True,
-            env=os.environ.copy())
+        verify_argos_toolchain_in_process(python_root)
     else:
         raise RuntimeError(f"BUILDER_MODE_UNSUPPORTED:{mode}")
     conda = shutil.which("conda")

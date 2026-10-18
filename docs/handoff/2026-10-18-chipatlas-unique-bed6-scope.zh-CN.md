@@ -1,9 +1,9 @@
 # ChIP-Atlas 坐标唯一 BED6 范围交接
 
-更新时间：2026-10-18 17:22 EDT
+更新时间：2026-10-18 19:16 EDT
 工作分支：`task_20261018_chipatlas_unique_bed6_design`
 基线：`origin/step4b-atac-footprinting`
-PR：[#6](https://github.com/leezx/Protein-Motif-Association/pull/6)，OPEN；设计-only，当前完整 HEAD 审核待请求。初始提交 `49621ade482fb8fa1b73de8392dd8d65da4c782d`；PR 中已包含审计同步和空白修正，复核远端 HEAD 后送审。
+PR：[#6](https://github.com/leezx/Protein-Motif-Association/pull/6)，OPEN、未合并；分支当前 HEAD `3e15ab23c42a44d8139f3b4fb04038428fa3bc3c`，base `6c2e323fc80cc3e05f9de05282d1bbce49ba98fa`。GPT 对该精确完整 HEAD 给出 `APPROVE — Design-only gate`，零 blocker。批准范围只覆盖设计，不包括实现、Argos 读取、数据处理、资源预检、运行或合并。
 
 ## PI 目标
 
@@ -30,4 +30,19 @@ PR：[#6](https://github.com/leezx/Protein-Motif-Association/pull/6)，OPEN；�
 
 这轮只写了设计提案和审计文件，没有 Argos 查询/命令、数据处理、测试、环境变更或 footprint 分析。Step 4b 的 HINT builder G2 上次在 Conda repodata 下载处 OS network timeout，尚未获准重试；没有 benchmark 结果。PR #5 仍 OPEN/unmerged，审核只覆盖 audit-only 文档更新。
 
-下一步：推送本轮 PR/handoff/worklog 审计同步并通过完整 diff 的 `git diff --check`，复核 GitHub 当前完整 HEAD 和 diff，随后请求 GPT 对该 exact HEAD 明确 APPROVE/REQUEST_CHANGES。只有该 HEAD 获批后，才继续按批准范围执行；数据级 Argos 构建需要单独明确授权。两项目标当前完成度仍不可报为完成；本轮可测进展是目标 1 获得一份可审核的修订契约，目标 2 无进展。`HUMAN DECISION: PENDING`。
+### GPT 审核与实现建议（2026-10-18）
+
+GPT 核验了 PR #6 完整 diff、PR body 和精确 SHA，结论为 `APPROVE — Design-only gate`。其非阻塞实现建议：
+
+1. 冻结互斥 `primary_status` 优先级，并用附加 QC flags 保留并存异常。
+2. 报告 global unique-region 数、三个互相重叠的 class-specific 数和七种非空 class-membership mask；七种互斥 mask 的计数之和必须等于 global 数。
+3. 历史 Step 4a v1 仍是旧类别子集，不能沿用其计数作为新目标结果。
+4. 采用两次 GNU external sort、三次流式扫描：坐标/experiment/source-row 排序后流式聚合；映射按 source-row 排序；重读输入并按源行次序生成完整 provenance。此方案避免全量 SQLite/内存索引，但未在 Argos 验证资源需求。
+
+建议的 status 优先级：`MALFORMED_SOURCE_ROW`、`INVALID_COORDINATE`、`UNSUPPORTED_CHROM`、`EXPERIMENT_METADATA_MISSING_OR_AMBIGUOUS`、`OUT_OF_SCOPE_GENOME`、`OUT_OF_SCOPE_CLASS`、`INCLUDED_PAIR_FIRST`、`INCLUDED_PAIR_ADDITIONAL`。`INCLUDED_PAIR_ADDITIONAL` 仍是纳入 provenance 的行，不是排除项。实现前需把 status 和 provenance 能否随机回查的合同写清楚。这里的 8–12 GiB sort buffer / 2–4 workers 仅为初始规划建议，不是实测。
+
+### 最新 Argos / benchmark 状态
+
+2026-10-18 19:15 EDT 的只读检查没有发现可识别的 PMA 计算进程；最近一小时没有 PMA 日志更新。发现一个旧 `singularity help build` 命令仍存活，未对其采取操作。PR #5 仍 OPEN、未合并，HEAD `c1f9329cd395eff82d2374184c3e1f7cc674922c`；先前 G2 在 Conda repodata 网络超时，没有重试授权。四工具 benchmark 尚未产生结果。
+
+下一验收：把 status/provenance 与 class-mask 规则并入契约，明确全源行 traceability 是逻辑回查还是随机回查；实现外排 builder 并在审查通过后做合同验证。任何 Argos 元数据读取、磁盘预检或数据处理之前，须确认当时完整 PR HEAD 的 GPT `APPROVE` 明确覆盖具体步骤。两个最终产出仍未完成；目标 1 已从未复核提案推进到设计 gate 通过、实现方案成形，但没有输出行或资源实测；目标 2 无结果。`HUMAN DECISION: PENDING`。

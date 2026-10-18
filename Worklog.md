@@ -363,3 +363,7 @@ After fixing the lock-loop stdin collision and correcting the mock to execute re
 ## 2026-10-18 04:29 EDT — revalidated provenance argument wiring
 
 Final hardening passed `bash -n`, `bash tests/test_hint_env_builder.sh`, `bash tests/test_step4b_runner_contract.sh`, and `git diff --check`. The confirmed RGT sdist digest is now a single builder constant passed into Python validation; mock dispatch distinguishes the manifest check from READY publication. Wrong-platform and wrong-provenance cases are rejected, while success/failure install paths and runner regressions pass. No Argos operation occurred. The exact verified local draft and this audit are ready for explicit-file commit/push; current PR body must then be synchronized and GPT review requested for the new complete HEAD.
+
+## 2026-10-18 04:29 EDT — offline builder implementation committed locally
+
+Committed the focused offline HINT builder, driver READY contract, environment bundle specification, fixtures, and audit updates as `58bff3b` on the existing `task_20261018_step4b_setup_fix` branch. Explicit staging included only the seven related tracked files and new `tests/test_hint_env_builder.sh`; unrelated untracked `design/protein_binding_resources.md` remains untouched. Commit is local only at this moment; PR #4 body and remote branch have not yet been synchronized to this new code HEAD. No Argos action occurred. Next: correct current-state docs to `58bff3b`, commit that audit correction, push the same branch, align PR body, then ask GPT for full-HEAD review. No execution before approval.

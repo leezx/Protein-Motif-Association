@@ -115,3 +115,8 @@ GPT 已批准审计版 HEAD `fc124f1`，但其关于克隆失败的诊断明确�
 ## 2026-10-18 04:29 EDT — 负向验证补齐
 
 修复 Conda lock 循环中的 here-doc/stdin 冲突后，最终重跑 `bash -n`、`tests/test_hint_env_builder.sh`、`tests/test_step4b_runner_contract.sh` 与 `git diff --check`，均通过。bundle mock 现验证错误平台与错误 RGT sdist 校验值会在创建目标前拒绝；测试中的 BAM conversion/prep failure 文本属于预期负向 fixture。Argos 没有连接或运行，也没有环境、数据、caller 或合并状态变化。接下来将这份本地实现和审计同步到同一 PR，并请 GPT 审核新完整 HEAD；审核明确通过前继续禁止任何 Argos 命令。
+
+
+## 2026-10-18 04:29 EDT — recovery 实现本地提交
+
+离线 HINT builder、driver READY 检查、bundle 规范、mock fixtures 及当前审计已提交为本地 commit `58bff3b`。提交时显式暂存 7 个相关文件并新增 `tests/test_hint_env_builder.sh`；无关的 `design/protein_binding_resources.md` 保持未暂存。此时 `origin` 和 PR #4 仍停在 `fc124f1`，尚未推送；当前 handoff/worklog 需再提交一次以反映这一状态。没有 Argos 操作。下一步提交审计更正，推送同一分支，更新 PR 正文，并请求 GPT 审核完整新 HEAD。

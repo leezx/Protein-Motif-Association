@@ -30,3 +30,10 @@
 - 对 `b6a9b294b1daf7ee09977e189021426e1a996dad` 的 GPT 回复明确为 `APPROVE`，只确认该 audit-only 更新与预定计划一致、无阻断发现。
 - 本 handoff、worklog 与 PR 描述需随新增提交同步；GPT 对包含这些记录的精确新 PR HEAD 审核通过后，才进行本阶段 bundle 准备和 Argos preflight。
 - HUMAN DECISION：待定。PR 合并：未经授权。
+
+## 构建器缺口与当前阻塞（05:21 EDT）
+
+- GPT 核对后建议先实现最小可审计的 bundle builder/contract，再用固定镜像 digest 的 Docker `linux/amd64` 构建；不要手工拼装后声称可复现。建议的增量仅生成 bundle，不具备 Argos 安装能力；新代码 HEAD 必须先通过同一 PR 的 GPT 审核。
+- 必须区分 Conda 完整 solver 闭包、本地 channel/repodata 与 RGT wheel ABI 审计；Conda 闭包和 wheel 的 GLIBC/GLIBCXX/动态库证据需要分别验证。若要求的 `.tar.bz2` 工件、依赖闭包或 glibc 证据不可得则停止，不放宽锁或绕过 validator。
+- 本机为 macOS arm64。发现 Docker Desktop 已安装但 daemon 未启动；启动后 Docker 后端请求系统管理员授权以配置 privileged port mapping。未接受该授权，Docker socket 尚未建立。无 Podman、nerdctl、Buildah、Lima 等替代运行时可用。
+- 当前没有 bundle 构建、Argos 访问、目标环境修改或 caller/benchmark 运行。只有在 builder 代码获得 GPT 审核，且 Docker daemon 可用后，才继续仓库外构建；Argos 仍只运行经审核的 offline preflight。

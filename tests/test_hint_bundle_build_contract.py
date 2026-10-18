@@ -5,6 +5,7 @@ import json
 import os
 import re
 import subprocess
+import sys
 import tarfile
 import tempfile
 import unittest
@@ -73,36 +74,113 @@ class HintBundleBuildContract(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "DOES_NOT_MATCH_REPOSITORY_CONFIG"):
                 DATA_ROOT_VALIDATOR.validate_data_root(wrong, configured)
 
-    def test_wrapper_records_pmafp_integrity_when_toolchain_preparation_fails(self):
+    def test_wrapper_failures_preserve_sanitized_evidence_and_externalize_all_writes(self):
         wrapper = ROOT / "scripts/04b_footprint/run_hint_bundle_builder_argos.sh"
         with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryDirectory() as prefix_tmp:
             root = Path(tmp)
-            data = root / "data" / "2.PROJECTS" / "PMA" / "atac_footprint"
+            bio_data = root / "data"
+            pma_data = bio_data / "2.PROJECTS" / "PMA"
+            data = pma_data / "atac_footprint"
             (data / "raw").mkdir(parents=True)
             (data / "processed" / "round1").mkdir(parents=True)
-            workspace = root / "external-work"
-            bundle = workspace / "bundle"
-            evidence = workspace / "evidence"
             prefix = Path(prefix_tmp) / "software" / "envs" / "pmafp"
             (prefix / "bin").mkdir(parents=True)
             python = prefix / "bin" / "python"
-            python.write_text("#!/bin/sh\nif [ \"$1\" = \"-m\" ] && [ \"$2\" = \"pip\" ]; then\n  echo fake==1.0\n  exit 0\nfi\necho simulated-download-failure >&2\nexit 17\n")
+            python.write_text("""#!/bin/sh
+if [ "$1" = "-m" ] && [ "$2" = "pip" ]; then
+  echo fake==1.0
+  exit 0
+fi
+case "$(basename "$1")" in
+  prepare_hint_argos_toolchain.py)
+    printf '%s|%s|%s\\n' "${PIP_NO_CACHE_DIR:-}" "${PIP_CACHE_DIR:-}" "${TMPDIR:-}" > "$PREP_ENV_REPORT"
+    if [ "${PREPARE_FAIL:-0}" = "1" ]; then
+      echo simulated-download-failure >&2
+      exit 17
+    fi
+    while [ "$#" -gt 0 ]; do
+      if [ "$1" = "--report" ]; then shift; report=$1; fi
+      if [ "$1" = "--python-root" ]; then shift; pyroot=$1; fi
+      if [ "$1" = "--downloads" ]; then shift; downloads=$1; fi
+      shift
+    done
+    mkdir -p "$(dirname "$report")" "$pyroot" "$downloads"
+    printf '{"wheels": []}\\n' > "$report"
+    exit 0
+    ;;
+  build_hint_bundle.py)
+    echo 'https://user:secret@example.org/pkg?token=secret' >&2
+    exit 23
+    ;;
+esac
+echo unexpected-python-call >&2
+exit 2
+""")
             python.chmod(0o755)
             conda = root / "conda"
-            conda.write_text("#!/bin/sh\nif [ \"$1\" = \"env\" ]; then\n  printf '{\"envs\": []}\\n'\nelif [ \"$1\" = \"list\" ]; then\n  printf '@EXPLICIT\\n'\nelse\n  exit 2\nfi\n")
+            conda.write_text("""#!/bin/sh
+if [ "$1" = "env" ]; then
+  printf '{"envs": []}\\n'
+elif [ "$1" = "list" ]; then
+  printf '@EXPLICIT\\n'
+elif [ "$1" = "--version" ]; then
+  printf 'conda 25.5.1\\n'
+else
+  exit 2
+fi
+""")
             conda.chmod(0o755)
-            env = dict(os.environ, BIO_DATA=str(root / "data"), BIO_SOFTWARES=str(root / "software"),
+            for tool in ("gcc", "readelf"):
+                tool_path = root / tool
+                tool_path.write_text(f"#!/bin/sh\nprintf '{tool} mock\\n'\n")
+                tool_path.chmod(0o755)
+            prep_report = root / "toolchain-env.txt"
+            env = dict(os.environ, BIO_DATA=str(bio_data), BIO_SOFTWARES=str(root / "software"),
                        BIOWORKSPACE_ROOT=str(root), PMA_HINT_SOURCE_PREFIX=str(prefix),
-                       PMA_HINT_CONDA=str(conda))
-            result = subprocess.run(["bash", str(wrapper), str(data), str(workspace), str(bundle),
-                                     str(evidence), "https://conda.example.org/conda-forge"],
-                                    capture_output=True, text=True, env=env)
-            self.assertNotEqual(result.returncode, 0)
-            self.assertIn("simulated-download-failure", result.stderr)
-            self.assertTrue((evidence / "pmafp-conda-after.txt").is_file())
-            self.assertTrue((evidence / "pmafp-pip-after.txt").is_file())
-            integrity = json.loads((evidence / "pmafp-integrity.json").read_text(encoding="utf-8"))
+                       PMA_HINT_CONDA=str(conda), PREP_ENV_REPORT=str(prep_report),
+                       PATH=str(root) + os.pathsep + os.environ.get("PATH", ""))
+
+            protected_work = pma_data / "artifact-builder-work"
+            protected = subprocess.run(["bash", str(wrapper), str(data), str(protected_work),
+                                        str(protected_work / "bundle"), str(protected_work / "evidence"),
+                                        "https://conda.example.org/conda-forge"],
+                                       capture_output=True, text=True, env=env)
+            self.assertNotEqual(protected.returncode, 0)
+            self.assertIn("ARGOS_OUTPUT_PATH_PROTECTED", protected.stderr)
+            self.assertFalse(protected_work.exists())
+
+            prep_workspace = root / "prep-workspace"
+            prep_evidence = prep_workspace / "evidence"
+            prep_env = dict(env, PREPARE_FAIL="1")
+            prep_failure = subprocess.run(["bash", str(wrapper), str(data), str(prep_workspace),
+                                           str(prep_workspace / "bundle"), str(prep_evidence),
+                                           "https://conda.example.org/conda-forge"],
+                                          capture_output=True, text=True, env=prep_env)
+            self.assertNotEqual(prep_failure.returncode, 0)
+            self.assertIn("simulated-download-failure", prep_failure.stderr)
+            self.assertTrue((prep_evidence / "pmafp-conda-after.txt").is_file())
+            self.assertTrue((prep_evidence / "pmafp-pip-after.txt").is_file())
+            integrity = json.loads((prep_evidence / "pmafp-integrity.json").read_text(encoding="utf-8"))
             self.assertEqual(integrity["status"], "PMAFP_INTEGRITY_OK")
+            prep_values = prep_report.read_text(encoding="utf-8").strip().split("|")
+            self.assertEqual(prep_values[0], "1")
+            self.assertEqual(Path(prep_values[1]).resolve(), (prep_workspace / "pip-cache").resolve())
+            self.assertEqual(Path(prep_values[2]).resolve(), (prep_workspace / "tmp").resolve())
+
+
+    def test_redacted_command_sanitizes_logs_and_preserves_failure_status(self):
+        helper = ROOT / "scripts/04b_footprint/run_redacted_command.py"
+        with tempfile.TemporaryDirectory() as tmp:
+            log = Path(tmp) / "builder.log"
+            result = subprocess.run([
+                sys.executable, str(helper), str(log), "--", sys.executable, "-c",
+                "import sys; print('https://user:secret@example.org/pkg?token=secret'); sys.exit(23)",
+            ], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 23)
+            content = log.read_text(encoding="utf-8")
+            self.assertIn("https://example.org/pkg", content)
+            self.assertNotIn("user:secret", content)
+            self.assertNotIn("token=secret", content)
 
     def test_solver_evidence_removes_url_credentials_and_queries(self):
         payload = {"url": "https://user:secret@example.org/linux-64/pkg.tar.bz2?token=hidden",
@@ -139,6 +217,7 @@ class HintBundleBuildContract(unittest.TestCase):
             snapshot_record = {"name": "python", "version": "3.11.9", "build": "mock_0",
                               "sha256": "a" * 64, "depends": [], "constrains": []}
             snapshot = {"url": "https://example.org/linux-64/repodata.json", "sha256": "b" * 64,
+                        "evidence_file": "upstream-repodata-linux-64-after.json",
                         "packages": {"python-3.11.9-mock_0.tar.bz2": snapshot_record}}
             with mock.patch.dict(BUILDER.os.environ, {
                 "PMA_HINT_BUILDER_MODE": "argos-native",
@@ -161,13 +240,38 @@ class HintBundleBuildContract(unittest.TestCase):
                   "source_record": {"name": "python", "version": "3.11.9", "build": "mock_0",
                                     "depends": ["upstream-dep >=2"], "constrains": []},
                   "source_repodata": {"url": "https://example.org/linux-64/repodata.json",
-                                      "sha256": "c" * 64},
+                                      "sha256": "c" * 64,
+                                      "evidence_file": "upstream-repodata-linux-64-after.json"},
                   "solver_record": {"depends": ["upstream-dep >=2"], "constrains": []}}
         result = BUILDER.build_local_repodata([record], "linux-64")
         self.assertEqual(result["packages"][record["filename"]]["depends"], ["upstream-dep >=2"])
         self.assertEqual(record["dependency_metadata_diff"]["depends"], {
             "archive_index": ["archive-hotfix >=1"], "upstream_repodata": ["upstream-dep >=2"]
         })
+
+    def test_argos_upstream_repodata_snapshot_is_retained_and_hash_verifiable(self):
+        payload = b'{"packages": {"demo-1.0-0.tar.bz2": {"depends": []}}}'
+        with tempfile.TemporaryDirectory() as tmp:
+            work = Path(tmp)
+
+            def write_snapshot(url, path):
+                Path(path).write_bytes(payload)
+                return str(path), None
+
+            with mock.patch.object(BUILDER.urllib.request, "urlretrieve", side_effect=write_snapshot):
+                snapshot = BUILDER.fetch_repodata_snapshot(
+                    "https://example.org/channel", "linux-64", work,
+                    load_records=True, snapshot_id="after")
+            retained = work / snapshot["evidence_file"]
+            self.assertTrue(retained.is_file())
+            self.assertEqual(BUILDER.sha256(retained), snapshot["sha256"])
+            self.assertEqual(json.loads(retained.read_bytes()), json.loads(payload))
+            provenance = json.loads((work / f"{retained.name}.provenance.json").read_text(encoding="utf-8"))
+            self.assertEqual(provenance["url"], snapshot["url"])
+            self.assertEqual(provenance["sha256"], snapshot["sha256"])
+            provenance = json.loads((work / f"{retained.name}.provenance.json").read_text(encoding="utf-8"))
+            self.assertEqual(provenance["url"], snapshot["url"])
+            self.assertEqual(provenance["sha256"], snapshot["sha256"])
 
     def test_argos_repodata_rejects_archive_dependency_difference_without_provenance(self):
         record = {"subdir": "linux-64", "name": "python", "version": "3.11.9",

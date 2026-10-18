@@ -209,7 +209,8 @@ def load_solver_plan(conda: str, work: Path, package_cache: Path | None = None) 
     repodata_before = {}
     if os.environ.get("PMA_HINT_BUILDER_MODE") == "argos-native":
         for subdir in ("linux-64", "noarch"):
-            repodata_before[subdir] = fetch_repodata_snapshot(channel, subdir, work, load_records=False)
+            repodata_before[subdir] = fetch_repodata_snapshot(
+                channel, subdir, work, load_records=False, snapshot_id="before")
     output = conda_dry_run(conda, solve_prefix, options, TARGET_SPECS, package_cache=package_cache)
     try:
         parsed = json.loads(output)
@@ -221,7 +222,8 @@ def load_solver_plan(conda: str, work: Path, package_cache: Path | None = None) 
     if repodata_before:
         repodata_by_subdir = {}
         for subdir in ("linux-64", "noarch"):
-            snapshot = fetch_repodata_snapshot(channel, subdir, work, load_records=True)
+            snapshot = fetch_repodata_snapshot(
+                channel, subdir, work, load_records=True, snapshot_id="after")
             if snapshot["sha256"] != repodata_before[subdir]["sha256"]:
                 raise RuntimeError(f"ARGOS_UPSTREAM_REPODATA_CHANGED_DURING_SOLVE:{subdir}")
             repodata_by_subdir[subdir] = snapshot
@@ -248,21 +250,30 @@ def load_solver_plan(conda: str, work: Path, package_cache: Path | None = None) 
                 if sorted(link_value) != sorted(source_value):
                     raise RuntimeError(f"ARGOS_SOLVER_REPODATA_METADATA_MISMATCH:{filename}:{key}")
             item["pma_upstream_repodata_record"] = source_record
-            item["pma_upstream_repodata"] = {"url": snapshot["url"], "sha256": snapshot["sha256"]}
+            item["pma_upstream_repodata"] = {
+                "url": snapshot["url"], "sha256": snapshot["sha256"],
+                "evidence_file": snapshot["evidence_file"]}
     plan_path.write_text(json.dumps(sanitize_evidence(parsed), indent=2, sort_keys=True) + "\n",
                          encoding="utf-8")
     return links, " ".join(command), output
 
 
-def fetch_repodata_snapshot(channel: str, subdir: str, work: Path, *, load_records: bool) -> dict:
+def fetch_repodata_snapshot(channel: str, subdir: str, work: Path, *, load_records: bool,
+                            snapshot_id: str) -> dict:
     if subdir not in ("linux-64", "noarch"):
         raise RuntimeError(f"ARGOS_REPODATA_SUBDIR_UNSUPPORTED:{subdir}")
+    if snapshot_id not in ("before", "after"):
+        raise RuntimeError("ARGOS_REPODATA_SNAPSHOT_ID_INVALID")
     url = f"{channel.rstrip('/')}/{subdir}/repodata.json"
-    path = work / f"upstream-repodata-{subdir}.json.tmp"
+    path = work / f"upstream-repodata-{subdir}-{snapshot_id}.json"
     try:
         urllib.request.urlretrieve(url, path)
         digest = sha256(path)
-        result = {"url": sanitize_url(url), "sha256": digest}
+        result = {"url": sanitize_url(url), "sha256": digest, "evidence_file": path.name}
+        (work / f"{path.name}.provenance.json").write_text(
+            json.dumps({"snapshot_id": snapshot_id, "subdir": subdir, "url": result["url"],
+                        "sha256": digest, "evidence_file": path.name},
+                       indent=2, sort_keys=True) + "\n", encoding="utf-8")
         if load_records:
             try:
                 with path.open(encoding="utf-8") as stream:
@@ -277,8 +288,6 @@ def fetch_repodata_snapshot(channel: str, subdir: str, work: Path, *, load_recor
         return result
     except (OSError, urllib.error.URLError) as exc:
         raise RuntimeError(f"ARGOS_UPSTREAM_REPODATA_FETCH_FAILED:{subdir}:{sanitize_text(str(exc))}") from exc
-    finally:
-        path.unlink(missing_ok=True)
 
 
 def copy_conda_closure(links: list[dict], bundle: Path) -> list[dict]:
@@ -341,8 +350,11 @@ def build_local_repodata(records: list[dict], subdir: str) -> dict:
         source_repodata = row.get("source_repodata")
         solver_record = row.get("solver_record")
         if source_repodata is not None:
+            evidence_file = source_repodata.get("evidence_file", "")
             if (not source_repodata.get("url", "").startswith("https://") or
-                    not re.fullmatch(r"[a-fA-F0-9]{64}", source_repodata.get("sha256", ""))):
+                    not re.fullmatch(r"[a-fA-F0-9]{64}", source_repodata.get("sha256", "")) or
+                    Path(evidence_file).name != evidence_file or
+                    not re.fullmatch(r"upstream-repodata-(linux-64|noarch)-after\.json", evidence_file)):
                 raise RuntimeError(f"REPODATA_UPSTREAM_PROVENANCE_INVALID:{filename}")
             if not isinstance(solver_record, dict):
                 raise RuntimeError(f"REPODATA_SOLVER_RECORD_MISSING:{filename}")

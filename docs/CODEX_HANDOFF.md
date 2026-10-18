@@ -1,33 +1,14 @@
 # PMA — handoff to Codex (2026-10-17, written by Claude Code)
 
-## Live status update — 2026-10-18
+## Live status update — 2026-10-18 10:35 EDT
 
-This update supersedes conflicting status statements in the historical handoff below. PR #4 was merged at
-`2026-10-18T13:13:02Z` as merge commit `6c2e323fc80cc3e05f9de05282d1bbce49ba98fa` into
-`step4b-atac-footprinting`. The current task branch is `task_20261018_argos_artifact_builder`, based on that merge.
-Its code commit `f692499ff9bbdd38c36940cf35ea2c68bb994c13` and audit-sync commit
-`dbbed77953702da3b83806ddb638da3ff862caec` are in open PR #5 against `step4b-atac-footprinting`. The PR has not
-yet received GPT review. No bundle build, environment change, HINT CLI, smoke gate, or analysis has run.
+PR #4 was merged at `2026-10-18T13:13:02Z` as merge commit `6c2e323fc80cc3e05f9de05282d1bbce49ba98fa` into `step4b-atac-footprinting`. The current branch is `task_20261018_argos_artifact_builder`; PR #5 is OPEN against that base. Latest pushed HEAD `45b785b2a4699571c13eb817271615d063588490` received GPT `REQUEST_CHANGES`. The follow-up local changes cover F2/F4/F7/F8/F9, including retained raw repodata snapshots with provenance sidecars; they remain uncommitted pending exact-head review. No PR #5 Argos download/build or analysis has run.
 
-Argos itself is available. Read-only SSH confirmed the host `rcGPUs.dfci.harvard.edu` has 72 CPUs and about 1 TiB
-RAM. The Docker CLI exists, but the account cannot access `/var/run/docker.sock`; `/usr/games/singularity` is a
-Debian game launcher rather than a container runtime. The current `pmafp` prefix is CPython 3.11.17, but has no
-`auditwheel` or `pyelftools`; its RGT install also fails to import against NumPy 2.4.6 (`numpy.mat` was removed).
-The partial `pma_hint` prefix has no Python interpreter or Conda metadata and remains preserved. These findings
-block the old Docker-image route, not access to Argos compute.
+Argos is available. Read-only SSH confirmed the host `rcGPUs.dfci.harvard.edu` has 72 CPUs and about 1 TiB RAM. The Docker CLI exists, but the account cannot access `/var/run/docker.sock`; `/usr/games/singularity` is a Debian game launcher rather than a container runtime. The `pmafp` prefix remains unmodified by PR #5; preserve the partial `pma_hint`. These findings block the old Docker-image route, not access to Argos compute.
 
-The new branch adds a hash-pinned external pure-Python audit toolchain, host provenance capture, local Conda
-repodata from the frozen upstream solver closure, offline Conda dry-run identity comparison, URL credential/query
-scrubbing, and a wrapper that keeps the checkout, all Conda prefixes, data root, and existing round-1 outputs out of
-the write set. This is a new PR and must receive GPT `APPROVE` on its exact full HEAD before any Argos artifact
-download or bundle construction. Current authorization is limited to artifact preparation and offline preflight;
-installing a new prefix, HINT CLI/smoke, and full analysis remain behind their own stage gate. Do not merge the new
-PR without a separate user instruction.
+The PR #5 adapter prepares bundle artifacts externally and supports the existing offline preflight contract. It must receive GPT `APPROVE` on the exact full HEAD before any Argos download or bundle construction. Current stage scope excludes environment installation, HINT CLI, smoke, and full analysis; those need later gates. Do not merge PR #5 without a separate user instruction.
 
-Current code checks performed: Python compilation, wrapper `bash -n`, and `git diff --check` pass. The contract test
-file has new fixtures but the test suite has not been run in this task. PR #5 needs exact full-HEAD GPT approval
-before external artifact preparation. Real Conda repodata/solver behavior and external wheel/ELF audit remain
-unverified.
+Validation for the current local fixes: `python3 -m unittest tests/test_hint_bundle_build_contract.py` passes 27 tests; Python compilation, wrapper `bash -n`, and `git diff --check` pass. The wrapper now confines pip cache and temporary files under external work, and builder logs are streamed through URL sanitization even on child failure. Real Conda repodata/solver behavior, external wheel/ELF audit, bundle generation, and Argos preflight remain unverified.
 
 **Read this first, then `docs/PROJECT_CHARTER.md`, the workspace `AGENTS.md` and `HANDOFF.md`, and the step design
 doc for whatever you touch.** Everything below was true at handoff time; verify live state before acting.
@@ -249,14 +230,14 @@ benchmark. See `docs/STEP1_*`, `docs/STEP2_*`.
   - `reference/hg38.fa.gz`.
 - **Working directory:** `processed/round1/`.
 
-## 6. Current execution state (2026-10-18 10:22 EDT; verify live before any external action)
+## 6. Current execution state (2026-10-18 10:35 EDT; verify live before any external action)
 
 - **First-round inputs and previous Argos state:** inputs are downloaded and checksum/size verified. The previous HINT CLI preflight ended with `HINT_CLI_PREFLIGHT_FAIL`, without starting analysis. `pmafp` manifests were unchanged and the partial `pma_hint` must be preserved. Argos itself is available (72 CPUs, about 1 TiB RAM); the previous blocker was Docker socket/tool availability, not compute capacity.
-- **PR #4:** merged into `step4b-atac-footprinting` at `6c2e323fc80cc3e05f9de05282d1bbce49ba98fa` after the user explicitly said “合并 继续”.
-- **PR #5 gate:** OPEN on `task_20261018_argos_artifact_builder`, base `step4b-atac-footprinting`. GPT reviewed exact full HEAD `483c38bf40b258b2ee2d42a45086f13dcc26d0d9` and returned `REQUEST_CHANGES` F1–F7. Local same-PR repairs are in progress; they are not approved or pushed yet. No Argos download/build or analysis has run for PR #5.
-- **F1–F7 repairs in the local worktree:** mock accepts explicit `env`; reject channel credentials before writing any report and sanitize persistent URLs; EXIT trap captures pmafp before/after manifests even after toolchain preparation failure; compare Conda LINK dependency metadata to frozen repodata and preserve documented archive hotfix differences; force PATH to the audited Conda and compare resolved executables; validate wheel `Requires-Python`, WHEEL tags, purelib claim, and native payload; bind caller DATA path to canonical `PMA_DATA/atac_footprint` configured by this checkout.
-- **Validation:** `python3 -m unittest tests/test_hint_bundle_build_contract.py` passes 25 tests, including positive/negative behavior checks for URL handling, repodata hotfix provenance, simulated preparation failure integrity capture, wheel metadata/native payload, and incorrect DATA root. Python compilation, wrapper `bash -n`, and `git diff --check` pass. Real Conda channel/repodata behavior, bundle generation and Argos offline preflight remain unverified.
-- **Next:** finish code review and audit-file updates, explicitly commit/push only PR #5 files, synchronize PR description to the new full SHA, and ask the persistent GPT reviewer for exact-head review. Do not contact Argos before GPT explicitly approves that full SHA. After approval, perform only external bundle construction and the already authorized offline preflight; installation, HINT CLI, smoke/full analysis, and merge need later gates/authorization.
+- **PR #4:** merged into `step4b-atac-footprinting` at `6c2e323fc80cc3e05f9de05282d1bbce49ba98fa` after the user's explicit “合并 继续”.
+- **PR #5 gate:** OPEN on `task_20261018_argos_artifact_builder`; last pushed HEAD `45b785b2a4699571c13eb817271615d063588490`, base `6c2e323fc80cc3e05f9de05282d1bbce49ba98fa`. GPT returned `REQUEST_CHANGES` on that exact SHA. Local fixes for F2/F4/F7/F8/F9 are complete but not yet pushed or approved. No Argos download/build or analysis has run for PR #5.
+- **Current same-PR fixes:** run and redact builder output incrementally while preserving child exit status; retain before/after raw repodata JSON snapshots plus sidecars recording snapshot id, subdir, sanitized URL, filename, and hash; protect canonical `BIO_DATA` and `PMA_DATA` roots as well as the footprint subtree; set pip cache/temp paths inside the external workspace; refresh live status in the dated handoff and this summary. A newly exposed missing `shutil` import in the host provenance snippet is also fixed and covered by the wrapper failure-path fixture.
+- **Validation:** `python3 -m unittest tests/test_hint_bundle_build_contract.py` passes 27 tests. Python compilation, wrapper `bash -n`, and `git diff --check` pass. Coverage includes redaction under child exit 23, persistent raw repodata hash verification, PMA_DATA output rejection, pip cache/TMPDIR confinement at tool preparation, and integrity capture after simulated preparation failure. Real Conda channel/repodata behavior, bundle generation, and Argos offline preflight remain unverified.
+- **Next:** finish diff/audit checks, commit and push only PR #5 task files, synchronize the PR body to the full new SHA, and request exact-head GPT review. Do not contact Argos before an explicit APPROVE for that full SHA. Even after approval, only external bundle construction and the already authorized offline preflight are in scope; installation, HINT CLI, smoke/full analysis, and merge need later gates/authorization.
 
 ## 7. Next steps (in order)
 

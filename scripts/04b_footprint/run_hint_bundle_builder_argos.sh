@@ -53,12 +53,13 @@ TOOLCHAIN_REPORT="$TOOLCHAIN/host-toolchain.json"
 [[ -x "$PYTHON" && -x "$CONDA" ]] || { echo "ARGOS_PYTHON_OR_CONDA_MISSING" >&2; exit 2; }
 python3 "$HERE/validate_argos_data_root.py" "$DATA_ROOT" "$PMA_DATA"
 
-python3 - "$REPO" "$PMAFP" "$CONDA" "$DATA_ROOT" "$WORK" "$BUNDLE" "$EVIDENCE" <<'PY'
+python3 - "$REPO" "$PMAFP" "$CONDA" "$DATA_ROOT" "$WORK" "$BUNDLE" "$EVIDENCE" "$BIO_DATA" "$PMA_DATA" <<'PY'
 import json, os, subprocess, sys
 import shutil
-repo, pmafp, conda, data_root, work, bundle, evidence = map(os.path.realpath, sys.argv[1:])
+repo, pmafp, conda, data_root, work, bundle, evidence, bio_data, pma_data = map(os.path.realpath, sys.argv[1:])
 protected = [repo, pmafp, os.path.dirname(pmafp), os.path.dirname(os.path.dirname(pmafp)),
-             data_root, os.path.join(data_root, "raw"), os.path.join(data_root, "processed", "round1")]
+             bio_data, pma_data, data_root, os.path.join(data_root, "raw"),
+             os.path.join(data_root, "processed", "round1")]
 envs = subprocess.run([conda, "env", "list", "--json"], check=True, text=True,
                       stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 for prefix in json.loads(envs.stdout).get("envs", []):
@@ -85,6 +86,10 @@ for path in "$BUNDLE" "$EVIDENCE" "$WORK"; do
   fi
 done
 mkdir -p "$BUNDLE" "$EVIDENCE" "$TOOLCHAIN" "$PACKAGE_CACHE"
+export PIP_NO_CACHE_DIR=1
+export PIP_CACHE_DIR="$WORK/pip-cache"
+export TMPDIR="$WORK/tmp"
+mkdir -p "$PIP_CACHE_DIR" "$TMPDIR"
 
 CONDA_BEFORE="$EVIDENCE/pmafp-conda-before.txt"
 PIP_BEFORE="$EVIDENCE/pmafp-pip-before.txt"
@@ -150,7 +155,7 @@ env -u PYTHONPATH PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 \
 
 python3 - "$TOOLCHAIN/toolchain-wheels.json" "$TOOLCHAIN/host-toolchain.json" \
   "$PYTHON" "$CONDA" "$PMAFP" "$REPO" "$CHANNEL" "$CONDA_BEFORE" "$PIP_BEFORE" <<'PY'
-import hashlib, json, os, platform, subprocess, sys
+import hashlib, json, os, platform, subprocess, sys, shutil
 source_report, output, python, conda, pmafp, repo, channel, conda_before, pip_before = sys.argv[1:]
 def sha(path):
     h=hashlib.sha256()
@@ -190,22 +195,14 @@ export PYTHONDONTWRITEBYTECODE=1
 ulimit -v 48000000 || { echo "MEMORY_LIMIT_UNAVAILABLE" >&2; exit 125; }
 
 # The builder requires a fresh evidence directory; wrapper integrity manifests live in the parent.
-"$PYTHON" "$HERE/build_hint_bundle.py" "$BUNDLE" --evidence-dir "$EVIDENCE/builder" \
-  > "$EVIDENCE/argos-builder.stdout.log" 2>&1
-python3 - "$EVIDENCE/argos-builder.stdout.log" <<'PY'
-import re, sys
-from urllib.parse import urlsplit, urlunsplit
-path = sys.argv[1]
-def clean(match):
-    parsed = urlsplit(match.group(0))
-    host = parsed.hostname or ""
-    if parsed.port:
-        host += f":{parsed.port}"
-    return urlunsplit((parsed.scheme, host, parsed.path, "", ""))
-with open(path, encoding="utf-8", errors="replace") as stream:
-    content = stream.read()
-with open(path, "w", encoding="utf-8") as stream:
-    stream.write(re.sub(r'''https?://[^\s"'<>]+''', clean, content))
-PY
+set +e
+python3 "$HERE/run_redacted_command.py" "$EVIDENCE/argos-builder.stdout.log" -- \
+  "$PYTHON" "$HERE/build_hint_bundle.py" "$BUNDLE" --evidence-dir "$EVIDENCE/builder"
+BUILD_STATUS=$?
+set -e
+if [[ "$BUILD_STATUS" -ne 0 ]]; then
+  echo "ARGOS_BUNDLE_BUILD_FAILED; preserve $EVIDENCE" >&2
+  exit "$BUILD_STATUS"
+fi
 
 echo "ARGOS_BUNDLE_BUILD_OK bundle=$BUNDLE evidence=$EVIDENCE"

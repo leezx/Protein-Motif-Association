@@ -539,3 +539,17 @@ The PR-specific Worklog, CODEX_HANDOFF, and dated handoff synchronization was co
 验证：`python3 -m unittest tests/test_hint_bundle_build_contract.py`（25 pass）、修改 Python 文件 `py_compile`、Argos wrapper `bash -n` 与 `git diff --check` 均通过。测试失败后修正了 DATA root helper 的 argparse destination、规范化临时目录符号路径，以及旧 repodata fixture 中缺失的归档 dependency 字段。以上为本地合同/mock 验证，真实 Argos Conda repodata/外部 bundle 行为仍未验证。
 
 更新本 handoff 和 CODEX_HANDOFF 当前状态。当前修订尚未提交或推送；下一步完成 diff 复核，显式暂存相关文件，提交并推送同一 PR #5，更新 PR body 到精确 HEAD，再请求 GPT 复审。取得该 HEAD 明确 APPROVE 前，不得在 Argos 下载或构建。仍不安装环境、不跑 HINT CLI/smoke/full analysis、不合并。
+
+## 2026-10-18 10:34 EDT — GPT 对 45b785b 复审 REQUEST_CHANGES；补齐 F2/F4/F7/F8/F9
+
+持久 PMA GPT 会话实际核对 PR #5 当前完整 HEAD `45b785b2a4699571c13eb817271615d063588490`、base `6c2e323fc80cc3e05f9de05282d1bbce49ba98fa`，确认 PR OPEN、4 commits ahead、body 已同步。结论 `REQUEST_CHANGES`：F1/F3/F5/F6 关闭；剩余 F2 builder 失败路径日志脱敏被 `set -e` 跳过，F4 上游 repodata snapshot 临时文件被删除，F7 protected roots 缺少 BIO_DATA/PMA_DATA，F8 pip cache/TMPDIR 未约束，F9 当前状态文本与已推送 SHA/25 项测试矛盾。GPT 确认 PR 范围仍限于 artifact-only preparation/offline-preflight 合同，没有环境安装或分析授权。本轮未联系 Argos。
+
+在同一 PR 本地按 finding 修订：新增 `run_redacted_command.py`，将 builder 合并输出逐行脱敏到 evidence 后写入，同时返回子进程原始 exit status；新增模拟 URL credential 和 exit 23 的行为测试。fetch repodata 前后快照分别保存在 external evidence/work，并将 after snapshot 文件名、URL 和原始 hash 与 LINK provenance 关联。输出保护现在包含规范化 BIO_DATA、PMA_DATA。工具下载前设置 `PIP_NO_CACHE_DIR=1`，PIP_CACHE_DIR/TMPDIR 放在 external workspace。刷新 handoff 的 live-status，保留旧 Worklog 作为历史记录。集成 wrapper 测试发现 host-toolchain provenance snippet 缺 `import shutil`，一并修复。
+
+验证：`python3 -m unittest tests/test_hint_bundle_build_contract.py`（27 pass）、相关 Python `py_compile`、wrapper `bash -n`、`git diff --check` 均通过。测试开发中先暴露 snapshot mock 未提供 evidence_file、测试路径符号链接规范化、host report 缺 import shutil；均已修复。Argos 上真实 repodata/solver、wheel build/ABI audit、bundle 和 preflight 仍 UNVERIFIED；Argos 未执行任何命令。
+
+当前修订尚未提交/推送；下一步复核全 diff，显式暂存相关文件，提交并推送同一 PR #5，更新 PR body 到新完整 SHA，然后请求持久 GPT 精确复审。未获得新 HEAD APPROVE 前不进行 Argos 下载或构建。仍不安装环境、不跑 HINT CLI/smoke/full analysis、不合并。
+
+## 2026-10-18 10:35 EDT — 保留 upstream repodata snapshot provenance sidecar
+
+在 F4 修订中，为每个 `linux-64/noarch`、before/after 原始 repodata 快照新增 sidecar，明确记录快照 ID、subdir、文件名、脱敏 URL 与原始 SHA-256；测试检查原始字节 hash 和 sidecar 元数据。当前完整本地验证为 27 项合同测试通过、Python 编译通过、Argos wrapper `bash -n` 通过、`git diff --check` 通过。另修复 wrapper 的 host provenance 片段缺少 `shutil` 导入。PR #5 当前远端仍是 `45b785b2a4699571c13eb817271615d063588490`，对该 SHA 的 GPT verdict 为 `REQUEST_CHANGES`；这些修订尚未提交推送。没有调用 Argos、下载或构建 bundle、改环境/数据、执行 HINT/分析或合并。

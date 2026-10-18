@@ -18,7 +18,8 @@
 ## 当前状态与门禁
 
 - 最后实时核验的远端 PR HEAD 为 `b76da4d9f2bb8a32126cc83b55537e1325f6e060`，PR #4 OPEN、未合并；GPT 已 APPROVE 该完整头。
-- 在任何 Argos 命令之前，先将拟执行动作及停止条件加入同一 PR 的 Worklog、handoff 和 PR 描述，推送后获取对精确 audit-only HEAD 的 GPT 审核。通过后，才能在既有 §6 授权范围内执行：在仓库外准备并审计 Linux CPython 3.11/glibc ≤2.23 bundle；Argos preflight 全通过才可创建全新 `pma_hint_v2`；缺包/哈希/closure/platform 任何失败都在创建前停止，不回退联网；安装失败保留 partial prefix、日志与源 `pmafp`，不写 READY、不启动 caller；安装成功且审计通过后才验证真实 CLI/reference、small-BED/smoke。所有数据和结果留在仓库外；smoke 每个 caller 通过后才进入 12 个全量 jobs；合并仍须用户单独确认。
+- 拟执行动作及停止条件已记录于 audit commit `5825fff`，并推送到同一 PR。该 commit 之后的当前状态同步正在提交；PR 描述将更新至最终 tip。GPT 对这个精确完整审计 HEAD 的复审通过前，仍不访问 Argos。
+- 通过审计门禁后，才在既有 §6 授权范围内执行：在仓库外准备并审计 Linux CPython 3.11/glibc ≤2.23 bundle；Argos preflight 全通过才可创建全新 `pma_hint_v2`；缺包/哈希/closure/platform 任何失败都在创建前停止，不回退联网；安装失败保留 partial prefix、日志与源 `pmafp`，不写 READY、不启动 caller；安装成功且审计通过后才验证真实 CLI/reference、small-BED/smoke。所有数据和结果留在仓库外；smoke 每个 caller 通过后才进入 12 个全量 jobs；合并仍须用户单独确认。
 - 此前最后一次 Argos 操作是离线 `pma_hint` clone 失败。部分 `pma_hint` 与源 `pmafp` 必须保留；无 HINT CLI/small-BED/smoke/round-1 结果；不合并。
 - GPT 已批准代码 HEAD `b76da4d9f2bb8a32126cc83b55537e1325f6e060`。在 Argos 前仍须将计划中的外部动作和停止条件记入同一 PR 并获得对 audit-only 新 HEAD 的 GPT approval；只有该审计门禁通过后，才按用户此前 §6 授权执行。先在仓库外准备/审核 Linux 离线包，再依序执行 Argos preflight、安装到新前缀、确认源环境完整性、验证真实 HINT CLI/small-BED、smoke；所有 smoke caller 通过且输出检查合格后才可运行 12 个 round-1 jobs。
 

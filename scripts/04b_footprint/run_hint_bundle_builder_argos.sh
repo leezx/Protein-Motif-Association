@@ -6,29 +6,33 @@ usage() {
   exit 64
 }
 [[ $# -eq 5 ]] || usage
+PMAFP=${PMA_HINT_SOURCE_PREFIX:-/home/zz950/softwares/miniforge3/envs/pmafp}
+PYTHON="$PMAFP/bin/python"
+[[ -x "$PYTHON" ]] || { echo "ARGOS_PYTHON_MISSING:$PYTHON" >&2; exit 2; }
+"$PYTHON" -c 'import sys; sys.exit(0 if sys.version_info[:2] == (3, 11) else "ARGOS_PYTHON_MUST_BE_3_11")'
 
-DATA_ROOT=$(python3 - "$1" <<'PY'
+DATA_ROOT=$("$PYTHON" - "$1" <<'PY'
 import os, sys
 print(os.path.realpath(os.path.abspath(sys.argv[1])))
 PY
 )
-WORK=$(python3 - "$2" <<'PY'
+WORK=$("$PYTHON" - "$2" <<'PY'
 import os, sys
 print(os.path.realpath(os.path.abspath(sys.argv[1])))
 PY
 )
-BUNDLE=$(python3 - "$3" <<'PY'
+BUNDLE=$("$PYTHON" - "$3" <<'PY'
 import os, sys
 print(os.path.realpath(os.path.abspath(sys.argv[1])))
 PY
 )
-EVIDENCE=$(python3 - "$4" <<'PY'
+EVIDENCE=$("$PYTHON" - "$4" <<'PY'
 import os, sys
 print(os.path.realpath(os.path.abspath(sys.argv[1])))
 PY
 )
 CHANNEL=$5
-python3 - "$CHANNEL" <<'PY'
+"$PYTHON" - "$CHANNEL" <<'PY'
 import sys
 from urllib.parse import urlsplit
 value = urlsplit(sys.argv[1])
@@ -40,9 +44,7 @@ HERE=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 REPO=$(git -C "$HERE/../.." rev-parse --show-toplevel)
 # Resolve the repository's configured PMA data root before accepting caller paths.
 source "$REPO/config/pma_env.sh"
-PMAFP=${PMA_HINT_SOURCE_PREFIX:-/home/zz950/softwares/miniforge3/envs/pmafp}
 CONDA=${PMA_HINT_CONDA:-/home/zz950/softwares/miniforge3/bin/conda}
-PYTHON="$PMAFP/bin/python"
 TOOLCHAIN="$WORK/toolchain"
 PACKAGE_CACHE="$WORK/conda-pkgs"
 DOWNLOADS="$TOOLCHAIN/downloads"
@@ -51,9 +53,9 @@ TOOLCHAIN_REPORT="$TOOLCHAIN/host-toolchain.json"
 
 [[ "$CHANNEL" == https://* ]] || { echo "ARGOS_CONDA_CHANNEL_MUST_BE_EXPLICIT_HTTPS_URL" >&2; exit 2; }
 [[ -x "$PYTHON" && -x "$CONDA" ]] || { echo "ARGOS_PYTHON_OR_CONDA_MISSING" >&2; exit 2; }
-python3 "$HERE/validate_argos_data_root.py" "$DATA_ROOT" "$PMA_DATA"
+"$PYTHON" "$HERE/validate_argos_data_root.py" "$DATA_ROOT" "$PMA_DATA"
 
-python3 - "$REPO" "$PMAFP" "$CONDA" "$DATA_ROOT" "$WORK" "$BUNDLE" "$EVIDENCE" "$BIO_DATA" "$PMA_DATA" <<'PY'
+"$PYTHON" - "$REPO" "$PMAFP" "$CONDA" "$DATA_ROOT" "$WORK" "$BUNDLE" "$EVIDENCE" "$BIO_DATA" "$PMA_DATA" <<'PY'
 import json, os, subprocess, sys
 import shutil
 repo, pmafp, conda, data_root, work, bundle, evidence, bio_data, pma_data = map(os.path.realpath, sys.argv[1:])
@@ -96,7 +98,7 @@ PIP_BEFORE="$EVIDENCE/pmafp-pip-before.txt"
 CONDA_AFTER="$EVIDENCE/pmafp-conda-after.txt"
 PIP_AFTER="$EVIDENCE/pmafp-pip-after.txt"
 sanitize_manifest() {
-  python3 - "$1" <<'PY'
+  "$PYTHON" - "$1" <<'PY'
 import re, sys
 from urllib.parse import urlsplit, urlunsplit
 path = sys.argv[1]
@@ -130,7 +132,7 @@ capture_pmafp_integrity() {
   [[ ! -f "$CONDA_AFTER" ]] || sanitize_manifest "$CONDA_AFTER" || integrity_status=1
   [[ ! -f "$PIP_AFTER" ]] || sanitize_manifest "$PIP_AFTER" || integrity_status=1
   if [[ "$integrity_status" -eq 0 ]] && cmp -s "$CONDA_BEFORE" "$CONDA_AFTER" && cmp -s "$PIP_BEFORE" "$PIP_AFTER"; then
-    python3 - "$CONDA_BEFORE" "$PIP_BEFORE" > "$EVIDENCE/pmafp-integrity.json" <<'PY'
+    "$PYTHON" - "$CONDA_BEFORE" "$PIP_BEFORE" > "$EVIDENCE/pmafp-integrity.json" <<'PY'
 import hashlib,json,sys
 def sha(p): return hashlib.sha256(open(p,"rb").read()).hexdigest()
 print(json.dumps({"status":"PMAFP_INTEGRITY_OK","conda_explicit_sha256":sha(sys.argv[1]),
@@ -153,7 +155,7 @@ env -u PYTHONPATH PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 \
     --downloads "$DOWNLOADS" --python-root "$PYTHON_ROOT" \
     --report "$TOOLCHAIN/toolchain-wheels.json"
 
-python3 - "$TOOLCHAIN/toolchain-wheels.json" "$TOOLCHAIN/host-toolchain.json" \
+"$PYTHON" - "$TOOLCHAIN/toolchain-wheels.json" "$TOOLCHAIN/host-toolchain.json" \
   "$PYTHON" "$CONDA" "$PMAFP" "$REPO" "$CHANNEL" "$CONDA_BEFORE" "$PIP_BEFORE" <<'PY'
 import hashlib, json, os, platform, subprocess, sys, shutil
 source_report, output, python, conda, pmafp, repo, channel, conda_before, pip_before = sys.argv[1:]
@@ -197,7 +199,7 @@ ulimit -v 48000000 || { echo "MEMORY_LIMIT_UNAVAILABLE" >&2; exit 125; }
 
 # The builder requires a fresh evidence directory; wrapper integrity manifests live in the parent.
 set +e
-python3 "$HERE/run_redacted_command.py" "$EVIDENCE/argos-builder.stdout.log" -- \
+"$PYTHON" "$HERE/run_redacted_command.py" "$EVIDENCE/argos-builder.stdout.log" -- \
   env PYTHONPATH="$HERE:$PYTHON_ROOT" \
   PMA_HINT_EXTERNAL_TOOLCHAIN_PYTHON_ROOT="$PYTHON_ROOT" \
   "$PYTHON" "$HERE/build_hint_bundle.py" "$BUNDLE" --evidence-dir "$EVIDENCE/builder"

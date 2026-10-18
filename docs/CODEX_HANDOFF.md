@@ -1,5 +1,13 @@
 # PMA — handoff to Codex (2026-10-17, written by Claude Code)
 
+## Live status update — 2026-10-18 12:00 EDT — PR #5 repair awaiting review
+
+PI 的两个验收目标：human hg38 ChIP-Atlas 全部 ChIP-seq 的坐标唯一 BED6（多 experiment 可追溯），以及 Argos 上四个 motif-free footprint 工具的准确度/全基因组速度比较和后续 motif 整合。15 分钟 heartbeat 已恢复 ACTIVE，持续跟踪两项直到 QC/审计真实完成。既有原始 ChIP-Atlas archive 可复用；现有 443,029,514 行 BED6+18 不是目标 BED6。
+
+PR #5 仍 OPEN，当前已推送 HEAD `46f973278e5801b25b85e7b1a1d6b98c4c1c9ae1` 获持久 PMA GPT **audit-only APPROVE**，并未放行失败的 Argos 合同测试重跑。针对 40 项中 3 个失败，同一 PR 工作区已有尚未提交的定向修复：明确使用 pmafp Python 3.11；从 import path 排除 Conda host site-packages，同时使用 setuptools 80.9.0 已 hash 锁定 wheel 中自带的 vendored jaraco；修复 canonical PYTHONPATH fixture，增加 host/路径顺序负例。官方 wheel 静态检查显示 setuptools 会将 `_vendor` 追加到 `sys.path` 尾部，解释了 host jaraco 被先选中的风险。`git diff --check` 通过；按 PI 要求未在 Mac mini 跑测试/构建/分析，未向 Argos 发新命令。
+
+下一步仅为静态复核、同步 Worklog/dated handoff、显式暂存并提交推送同一 PR，随后请求 **新完整 HEAD** 的 GPT APPROVE。获批后先在 Argos 独立 external workspace 跑全部合同测试和真实 pip-wheel 子进程，全部通过才可执行已批准范围内的 artifact-only G2/offline preflight。HINT 环境安装、CLI、smoke/full benchmark 要按后续阶段门逐项进入；不改 pmafp/partial pma_hint，不合并 PR #5。失败日志仍在 `/home/zz950/PMA_fetch/pma_pr5_g2_tests_6ec6fc2/contract-tests-discovery.log`。
+
 ## Live status update — 2026-10-18 11:48 EDT — PI north star and current blockers
 
 The PI's two outcome targets now govern every task review and PR review:

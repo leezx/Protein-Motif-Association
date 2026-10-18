@@ -159,7 +159,7 @@ def require_builder() -> tuple[str, str]:
             raise RuntimeError("ARGOS_EXTERNAL_TOOLCHAIN_STARTUP_ROOT_MISMATCH")
         pythonpath = os.environ.get("PYTHONPATH", "").split(os.pathsep)
         script_root = str(Path(__file__).resolve().parent)
-        if len(pythonpath) < 2 or pythonpath[0] != script_root or pythonpath[1] != str(python_root.resolve()):
+        if len(pythonpath) != 2 or pythonpath[0] != script_root or pythonpath[1] != str(python_root.resolve()):
             raise RuntimeError("ARGOS_EXTERNAL_TOOLCHAIN_STARTUP_PATH_MISMATCH")
         package_cache = Path(os.environ.get("CONDA_PKGS_DIRS", ""))
         if not package_cache.is_absolute():

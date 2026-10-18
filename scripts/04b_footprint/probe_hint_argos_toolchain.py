@@ -62,10 +62,40 @@ def require_no_host_site_packages(root: pathlib.Path) -> None:
                 )
 
 
+def isolate_import_path(root: pathlib.Path) -> None:
+    """Use the hash-locked setuptools vendor tree without Conda's host packages."""
+    root = root.resolve()
+    # Fail if a startup hook has already loaded a host module; never repair a
+    # contaminated process by removing its sys.modules entries.
+    require_no_host_site_packages(root)
+    site_parts = {"site-packages", "dist-packages"}
+    explicit_paths = [pathlib.Path(item).resolve() for item in
+                      os.environ.get("PYTHONPATH", "").split(os.pathsep) if item]
+    if any(site_parts.intersection(path.parts) and root not in path.parents
+           for path in explicit_paths):
+        raise RuntimeError("ARGOS_TOOLCHAIN_UNAPPROVED_PYTHONPATH_SITE_PACKAGES")
+    sys.path[:] = [item for item in sys.path if not item or not (
+        site_parts.intersection(pathlib.Path(item).resolve().parts)
+        and root not in pathlib.Path(item).resolve().parents)]
+    vendor = root / "setuptools" / "_vendor"
+    if not vendor.is_dir():
+        raise RuntimeError(f"ARGOS_TOOLCHAIN_SETUPTOOLS_VENDOR_MISSING:{vendor}")
+    sys.path[:] = [item for item in sys.path if not item or pathlib.Path(item).resolve() != vendor]
+    try:
+        root_index = next(index for index, item in enumerate(sys.path)
+                          if item and pathlib.Path(item).resolve() == root)
+    except StopIteration as exc:
+        raise RuntimeError("ARGOS_TOOLCHAIN_EXTERNAL_ROOT_NOT_ON_PATH") from exc
+    # External top-level lock wins over vendored copies (notably packaging),
+    # while setuptools' vendored jaraco is found before any unapproved path.
+    sys.path.insert(root_index + 1, str(vendor))
+
+
 def probe_startup(root: pathlib.Path) -> None:
     root = root.resolve()
     if os.environ.get("SETUPTOOLS_USE_DISTUTILS") != "local":
         raise RuntimeError("ARGOS_TOOLCHAIN_DISTUTILS_POLICY_MISMATCH")
+    isolate_import_path(root)
 
     # Import setuptools before pip. Its distutils finder intentionally handles
     # pip imports by clearing local distutils and disabling itself, so avoid

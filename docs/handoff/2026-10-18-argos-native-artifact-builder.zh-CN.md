@@ -1,5 +1,13 @@
 # Step 4b-1 Argos 原生 bundle builder 交接
 
+## 2026-10-18 12:00 EDT — 三项 Argos 合同失败的同 PR 修复待审核
+
+本 PR 对 PI 的第二项目标只提供 HINT runtime 前置条件，尚未产生 footprint benchmark；下一科学验收为 PRINT、TraceBIND、HINT、TOBIAS 四工具同输入 smoke。第一项目标的 21 GB raw hg38 archive 已在 Argos，现有 443,029,514 行、24 列处理文件不符合“全部 human ChIP-seq、坐标唯一 BED6”，需另行定稿聚合语义并在 Argos 生成。
+
+持久 PMA GPT 对当前已推送 HEAD `46f973278e5801b25b85e7b1a1d6b98c4c1c9ae1` 给 audit-only APPROVE；Argos 上此前 40 项合同测试 3 个失败仍是阻断门禁。按 GPT 的定向意见，本地同 PR 修复尚未提交：wrapper 在首个 Python 调用前固定 pmafp/bin/python 并核验 3.11；startup probe 先拒绝已加载宿主模块，再删除 Conda host site-packages 搜索路径，把已锁定 setuptools wheel 自带的 `_vendor` 放在 external 顶层包路径之后；builder 只接受审计过的两段 PYTHONPATH。测试 fixture 使用 canonical root 和明确解释器，并覆盖 vendor/locked 优先级、宿主模块拒绝、反转或额外路径。未削弱 origin fail-closed。
+
+静态 `git diff --check` 通过；未在 Mac mini 运行测试或分析，未向 Argos 发新命令，没有环境改动/构建/CLI/smoke/full-run。下一步提交推送、同步 PR body、请求新完整 HEAD GPT 复审；只有明确 APPROVE 才在 Argos 跑合同测试，通过后才进入 artifact-only G2/offline preflight。失败证据和所有旧 external workspace 保留；PR #5 OPEN，禁止未经用户单独确认合并。15 分钟 heartbeat 已改为持续监控两项最终目标。
+
 ## 2026-10-18 11:48 EDT — 目标对照与实时状态
 
 **PI 两项最终产出：** (1) human-only ChIP-Atlas 的坐标唯一标准 BED6，允许一个 region 对应多个 ChIP-seq experiment；(2) 对比全部 motif-free footprint callers 的 genome-wide 无偏检测、准确度和运行速度，再与冻结 motif reference 整合。后续每次 PR/GPT review 都要列出对其中哪项的推进、可验证产物和下一验收条件。

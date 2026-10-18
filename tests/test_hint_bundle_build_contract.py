@@ -67,6 +67,7 @@ def add_shim():
 """
         (root / "_distutils_hack.py").write_text(hack_source, encoding="utf-8")
         (root / "setuptools" / "_distutils").mkdir(parents=True)
+        (root / "setuptools" / "_vendor").mkdir()
         (root / "setuptools" / "__init__.py").write_text("__version__ = '80.9.0'\n", encoding="utf-8")
         (root / "setuptools" / "_distutils" / "__init__.py").write_text("\n", encoding="utf-8")
         (root / "setuptools" / "_distutils" / "core.py").write_text("\n", encoding="utf-8")
@@ -211,8 +212,42 @@ def add_shim():
             result = subprocess.run([sys.executable, "-c", "print('must-not-run')"],
                                     env=env, capture_output=True, text=True)
             self.assertEqual(result.returncode, 78)
-            self.assertIn("ARGOS_TOOLCHAIN_HOST_SITE_PACKAGES_MODULE:hosthelper", result.stderr)
+            self.assertIn("ARGOS_TOOLCHAIN_UNAPPROVED_PYTHONPATH_SITE_PACKAGES", result.stderr)
             self.assertNotIn("must-not-run", result.stdout)
+
+    def test_external_vendor_follows_locked_root_and_excludes_host_site_packages(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "toolchain"
+            vendor = root / "setuptools" / "_vendor"
+            host = Path(tmp) / "host" / "site-packages"
+            (root / "packaging").mkdir(parents=True)
+            vendor.mkdir(parents=True)
+            (vendor / "packaging").mkdir()
+            (host / "jaraco").mkdir(parents=True)
+            (root / "packaging" / "__init__.py").write_text("origin = 'locked'\n")
+            (vendor / "packaging" / "__init__.py").write_text("origin = 'vendor'\n")
+            (host / "jaraco" / "__init__.py").write_text("origin = 'host'\n")
+            script = (
+                "import pathlib, sys\n"
+                "from probe_hint_argos_toolchain import isolate_import_path\n"
+                "root, host = map(pathlib.Path, sys.argv[1:])\n"
+                "sys.path.insert(0, str(host))\n"
+                "isolate_import_path(root)\n"
+                "import packaging\n"
+                "assert packaging.origin == 'locked'\n"
+                "paths = [pathlib.Path(p).resolve() for p in sys.path if p]\n"
+                "assert host.resolve() not in paths\n"
+                "assert paths.index(root.resolve()) < paths.index((root / 'setuptools' / '_vendor').resolve())\n"
+            )
+            env = dict(os.environ, PYTHONPATH=os.pathsep.join((str(SITECUSTOMIZE_DIR), str(root))))
+            result = subprocess.run([sys.executable, "-S", "-c", script, str(root), str(host)],
+                                    env=env, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            contaminated = script.replace("isolate_import_path(root)\n", "import jaraco\nisolate_import_path(root)\n")
+            rejected = subprocess.run([sys.executable, "-S", "-c", contaminated, str(root), str(host)],
+                                      env=env, capture_output=True, text=True)
+            self.assertNotEqual(rejected.returncode, 0)
+            self.assertIn("ARGOS_TOOLCHAIN_HOST_SITE_PACKAGES_MODULE:jaraco", rejected.stderr)
 
     def test_argos_builder_runs_import_origin_probe_before_conda_discovery(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -231,7 +266,7 @@ def add_shim():
                 "PMA_HINT_CONDA_EXECUTABLE": str(conda),
                 "SETUPTOOLS_USE_DISTUTILS": "local",
                 "PMA_HINT_EXTERNAL_TOOLCHAIN_PYTHON_ROOT": str(toolchain / "python"),
-                "PYTHONPATH": os.pathsep.join((str(SITECUSTOMIZE_DIR), str(toolchain / "python"))),
+                "PYTHONPATH": os.pathsep.join((str(SITECUSTOMIZE_DIR), str((toolchain / "python").resolve()))),
             }
             with mock.patch.dict(BUILDER.os.environ, env, clear=True), \
                     mock.patch.object(BUILDER.platform, "system", return_value="Linux"), \
@@ -243,6 +278,15 @@ def add_shim():
                     mock.patch.object(BUILDER, "verify_argos_toolchain_in_process") as verify:
                 result = BUILDER.require_builder()
             self.assertEqual(result, (str(conda), "2.23"))
+            for bad_path in (os.pathsep.join((str(toolchain / "python"), str(SITECUSTOMIZE_DIR))),
+                             env["PYTHONPATH"] + os.pathsep + str(root / "injected")):
+                with mock.patch.dict(BUILDER.os.environ, {**env, "PYTHONPATH": bad_path}, clear=True), \
+                        mock.patch.object(BUILDER.platform, "system", return_value="Linux"), \
+                        mock.patch.object(BUILDER.platform, "machine", return_value="x86_64"), \
+                        mock.patch.object(BUILDER.sys, "version_info", (3, 11, 17)), \
+                        mock.patch.object(BUILDER.platform, "libc_ver", return_value=("glibc", "2.23")):
+                    with self.assertRaisesRegex(RuntimeError, "ARGOS_EXTERNAL_TOOLCHAIN_STARTUP_PATH_MISMATCH"):
+                        BUILDER.require_builder()
             verify.assert_called_once_with(toolchain / "python")
 
     def _write_toolchain_wheel(self, path: Path, *, requires_python=">=3.11", declared_tag="py3-none-any",
@@ -361,6 +405,11 @@ def add_shim():
             (prefix / "bin").mkdir(parents=True)
             python = prefix / "bin" / "python"
             python.write_text("""#!/bin/sh
+if [ "$1" = "-" ] || [ "$1" = "-c" ] || \
+   [ "$(basename "$1")" = "validate_argos_data_root.py" ] || \
+   [ "$(basename "$1")" = "run_redacted_command.py" ]; then
+  exec "$WRAPPER_SCRIPT_PYTHON" "$@"
+fi
 if [ "$1" = "-m" ] && [ "$2" = "pip" ]; then
   echo fake==1.0
   exit 0
@@ -416,6 +465,7 @@ fi
             env = dict(os.environ, BIO_DATA=str(bio_data), BIO_SOFTWARES=str(root / "software"),
                        BIOWORKSPACE_ROOT=str(root), PMA_HINT_SOURCE_PREFIX=str(prefix),
                        PMA_HINT_CONDA=str(conda), PREP_ENV_REPORT=str(prep_report),
+                       WRAPPER_SCRIPT_PYTHON=sys.executable,
                        BASH_ENV=str(bash_env),
                        PATH=str(root) + os.pathsep + os.environ.get("PATH", ""))
 

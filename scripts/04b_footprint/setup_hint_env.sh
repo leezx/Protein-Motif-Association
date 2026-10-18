@@ -185,7 +185,7 @@ PY
     echo "CONDA_EXPLICIT_LOCK_GENERATION_FAIL" >&2
     return 1
   fi
-  if ! run_bounded env PIP_NO_CACHE_DIR=1 "$PMAFP/bin/python" -m pip install --dry-run --no-deps --no-index \
+  if ! run_bounded env PIP_NO_CACHE_DIR=1 "$PMAFP/bin/python" -m pip install --dry-run --ignore-installed --no-deps --no-index \
       --find-links "$BUNDLE/wheels" --only-binary=:all: --require-hashes -r "$PIP_LOCK" \
       > "$AUDIT/pip-dry-run.log" 2>&1; then
     echo "PIP_PREFLIGHT_FAIL: missing/incompatible locked wheel; see $AUDIT/pip-dry-run.log" >&2

@@ -488,3 +488,10 @@ GPT reviewed exact PR #4 HEAD `18c12617ff2cdfd04bcd906a9fe9d9d4132904b8` against
 按 GPT 对 `18c12617ff2cdfd04bcd906a9fe9d9d4132904b8` 的唯一 blocker F3 修复同一 PR。新增共享 `audit_native_wheel_elf()`，应用于 pip native wheels 与 RGT native wheel；它要求 readelf 证据完整、ELF machine 为 x86_64、所有 DT_NEEDED 可在锁定 Conda/wheel ELF 清单或系统运行库 allowlist 中解析、GLIBC ≤2.23，且 GLIBCXX/CXXABI needs 被 Conda ABI audit 提取的 `libstdc++` version definitions 覆盖。Conda ABI report 现在暴露 provider version inventory；pip/RGT wheel audit report 保存逐 wheel ELF 结果。
 
 新增两个行为级负向测试，实际调用 `audit_pip_wheels()`：wheel 要求 GLIBCXX_3.4.35 而 Conda provider 仅提供 GLIBCXX_3.4.30 时失败；wheel DT_NEEDED 引用 `libmissing.so` 时失败。运行 `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest tests/test_hint_bundle_build_contract.py`（13 pass）、`tests/test_hint_bundle_builder_wrapper.sh`、`tests/test_hint_env_builder.sh`、`tests/test_step4b_runner_contract.sh`、shell syntax、Python AST parse 和 `git diff --check` 均通过。负向测试打印预期错误，但 suite 退出码均为 0。无 Docker/Linux build、bundle、Argos 命令、环境/数据修改、分析或 merge。修复尚未推送；需同 PR 精确 HEAD GPT 复审后才可考虑外部构建。
+
+
+## 2026-10-18 06:17 EDT — F3 修复提交 ba26845 已推送
+
+显式暂存并提交 F3 修复及本轮 Worklog/CODEX_HANDOFF/stage handoff 为 `ba26845f57dcdb3a7ea6585f70a7897c03c484e7`，推送至同一 PR #4 分支。GitHub 当前确认 PR OPEN，远端 HEAD 与完整提交一致。此时 PR body 尚未同步新的 HEAD；下一步更新 PR body，再请求 GPT 审核新完整 tip。保留未跟踪 `design/protein_binding_resources.md`，未加入提交。
+
+F3 新增 native wheel readelf 检查及两个行为失败 fixture；本地 13 项 builder contract、wrapper、既有 HINT builder/runner 测试、shell syntax、AST parse 和 diff whitespace 均通过。无 Docker/Linux build、bundle、Argos 命令、环境/数据更改、分析或 merge。GPT 对 `18c1261` 的 REQUEST_CHANGES 仍为当前最新 verdict；仅新 HEAD review 可解除代码 gate。

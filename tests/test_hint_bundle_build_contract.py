@@ -9,6 +9,7 @@ import sys
 import tarfile
 import tempfile
 import unittest
+import warnings
 import zipfile
 from io import BytesIO
 from pathlib import Path
@@ -59,6 +60,66 @@ class HintBundleBuildContract(unittest.TestCase):
             wheel = Path(tmp) / "example-1.2.3-py3-none-any.whl"
             self._write_toolchain_wheel(wheel, payload=bytes((0x7f,)) + b"ELFfixture")
             with self.assertRaisesRegex(RuntimeError, "PURE_WHEEL_HAS_NATIVE_PAYLOAD"):
+                PREP.validate_py3_none_any_wheel(wheel, "3.11.17")
+
+    def test_toolchain_wheel_accepts_nested_vendored_dist_info(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            wheel = Path(tmp) / "example-1.2.3-py3-none-any.whl"
+            self._write_toolchain_wheel(wheel)
+            with zipfile.ZipFile(wheel, "a") as archive:
+                archive.writestr("example/_vendor/vendor_pkg-4.5.dist-info/METADATA",
+                                 "Name: vendor-pkg\nVersion: 4.5\n\n")
+                archive.writestr("example/_vendor/vendor_pkg-4.5.dist-info/WHEEL",
+                                 "Wheel-Version: 1.0\nRoot-Is-Purelib: true\nTag: py3-none-any\n")
+            package, version, _metadata = PREP.validate_py3_none_any_wheel(wheel, "3.11.17")
+            self.assertEqual((package, version), ("example", "1.2.3"))
+
+    def test_toolchain_wheel_rejects_extra_root_dist_info(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            wheel = Path(tmp) / "example-1.2.3-py3-none-any.whl"
+            self._write_toolchain_wheel(wheel)
+            with zipfile.ZipFile(wheel, "a") as archive:
+                archive.writestr("unexpected-9.9.dist-info/METADATA",
+                                 "Name: unexpected\nVersion: 9.9\n\n")
+            with self.assertRaisesRegex(RuntimeError, "WHEEL_METADATA_INVALID"):
+                PREP.validate_py3_none_any_wheel(wheel, "3.11.17")
+
+    def test_toolchain_wheel_rejects_duplicate_root_metadata_member(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            wheel = Path(tmp) / "example-1.2.3-py3-none-any.whl"
+            self._write_toolchain_wheel(wheel)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", UserWarning)
+                with zipfile.ZipFile(wheel, "a") as archive:
+                    archive.writestr("example-1.2.3.dist-info/METADATA",
+                                     "Name: example\nVersion: 1.2.3\n\n")
+            with self.assertRaisesRegex(RuntimeError, "WHEEL_METADATA_INVALID"):
+                PREP.validate_py3_none_any_wheel(wheel, "3.11.17")
+
+    def test_toolchain_wheel_requires_canonical_root_metadata_even_with_vendored_metadata(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            wheel = Path(tmp) / "example-1.2.3-py3-none-any.whl"
+            with zipfile.ZipFile(wheel, "w") as archive:
+                archive.writestr("example/__init__.py", "value = 1\n")
+                archive.writestr("example-1.2.3.dist-info/WHEEL",
+                                 "Wheel-Version: 1.0\nRoot-Is-Purelib: true\nTag: py3-none-any\n")
+                archive.writestr("example/_vendor/vendor_pkg-4.5.dist-info/METADATA",
+                                 "Name: vendor-pkg\nVersion: 4.5\n\n")
+                archive.writestr("example/_vendor/vendor_pkg-4.5.dist-info/WHEEL",
+                                 "Wheel-Version: 1.0\nRoot-Is-Purelib: true\nTag: py3-none-any\n")
+            with self.assertRaisesRegex(RuntimeError, "WHEEL_METADATA_INVALID"):
+                PREP.validate_py3_none_any_wheel(wheel, "3.11.17")
+
+    def test_toolchain_wheel_rejects_root_dist_info_not_matching_filename(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            wheel = Path(tmp) / "example-1.2.3-py3-none-any.whl"
+            with zipfile.ZipFile(wheel, "w") as archive:
+                archive.writestr("example/__init__.py", "value = 1\n")
+                archive.writestr("different-1.2.3.dist-info/METADATA",
+                                 "Name: example\nVersion: 1.2.3\n\n")
+                archive.writestr("different-1.2.3.dist-info/WHEEL",
+                                 "Wheel-Version: 1.0\nRoot-Is-Purelib: true\nTag: py3-none-any\n")
+            with self.assertRaisesRegex(RuntimeError, "WHEEL_METADATA_INVALID"):
                 PREP.validate_py3_none_any_wheel(wheel, "3.11.17")
 
     def test_argos_data_root_must_match_repository_configured_root(self):

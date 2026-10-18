@@ -13,7 +13,7 @@ from email.parser import Parser
 from pathlib import Path, PurePosixPath
 from pip._vendor.packaging.specifiers import SpecifierSet
 from pip._vendor.packaging.tags import Tag, parse_tag
-from pip._vendor.packaging.utils import parse_wheel_filename
+from pip._vendor.packaging.utils import canonicalize_name, parse_wheel_filename
 from pip._vendor.packaging.version import Version
 
 
@@ -68,12 +68,20 @@ def validate_py3_none_any_wheel(wheel: Path, python_version: str) -> tuple[str, 
         raise RuntimeError(f"ARGOS_TOOLCHAIN_WHEEL_NOT_PURE_PY3:{wheel.name}")
     with zipfile.ZipFile(wheel) as archive:
         members = archive.namelist()
-        metadata_paths = [item for item in members if item.endswith(".dist-info/METADATA")]
-        wheel_paths = [item for item in members if item.endswith(".dist-info/WHEEL")]
-        if len(metadata_paths) != 1 or len(wheel_paths) != 1:
+        root_dist_infos = {
+            PurePosixPath(item).parts[0]
+            for item in members
+            if PurePosixPath(item).parts
+            and PurePosixPath(item).parts[0].endswith(".dist-info")
+        }
+        expected_dist_info = f"{canonicalize_name(str(name)).replace('-', '_')}-{version}.dist-info"
+        metadata_path = f"{expected_dist_info}/METADATA"
+        wheel_path = f"{expected_dist_info}/WHEEL"
+        if (root_dist_infos != {expected_dist_info} or members.count(metadata_path) != 1 or
+                members.count(wheel_path) != 1):
             raise RuntimeError(f"ARGOS_TOOLCHAIN_WHEEL_METADATA_INVALID:{wheel.name}")
-        metadata = Parser().parsestr(archive.read(metadata_paths[0]).decode("utf-8"))
-        wheel_metadata = Parser().parsestr(archive.read(wheel_paths[0]).decode("utf-8"))
+        metadata = Parser().parsestr(archive.read(metadata_path).decode("utf-8"))
+        wheel_metadata = Parser().parsestr(archive.read(wheel_path).decode("utf-8"))
         declared_tags = set()
         for value in wheel_metadata.get_all("Tag", []):
             declared_tags.update(parse_tag(value))

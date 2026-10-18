@@ -559,3 +559,18 @@ The PR-specific Worklog, CODEX_HANDOFF, and dated handoff synchronization was co
 持久 PMA GPT 会话已完成对 PR #5 精确 HEAD `222a82690ee8e41beab407c6e18c0a41de2b0071` 的复审：F1–F8 实现项通过，无新增代码 blocker；唯一剩余 finding F9 是 CODEX_HANDOFF、dated handoff 和 Worklog 的当前状态摘要没有反映 222a826 已推送，且 PR 仍 OPEN。按 finding 仅更新当前状态摘要，保留此前时间戳记录作为历史，不改 builder/wrapper/test。
 
 复核 Argos 接入事实：此前只读 SSH 入口为 `ssh -o BatchMode=yes zz950@rcapps3.dfci.harvard.edu`；主机有计算资源，Docker socket 权限限制的是旧 Docker 构建路线。交接记录要求保留 `pmafp` 和部分 `pma_hint`。尚未对 Argos 发起本轮构建；G2 仍等待 F9 修订后的精确 PR HEAD 获 GPT APPROVE。范围仍限 artifact-only 构建及既有 offline preflight，不创建/安装环境、不运行 HINT CLI/smoke/full analysis、不合并。
+
+## 2026-10-18 10:52 EDT — Argos G2 首次运行定位 wheel metadata 误报；同 PR 修复待复审
+
+用户要求接手 Argos 资源并继续执行。复核 PR #5 为 OPEN、未合并，base `6c2e323fc80cc3e05f9de05282d1bbce49ba98fa`，HEAD `ede0f811e14c3d1e133b120c6afafaf433f91cd6`；持久 PMA GPT 会话已对该 exact HEAD 给出 APPROVE，允许 external artifact build 与既有 offline preflight。读取 `docs/CODEX_HANDOFF.md` 和 PR-specific handoff 后，通过 SSH 到 `rcGPUs.dfci.harvard.edu`；只读核对数据根 `/home/zz950/DATA/2.PROJECTS/PMA/atac_footprint` 的 raw/processed/round1 结构、输出工作区路径和剩余空间。创建独立代码 checkout `/home/zz950/PMA_fetch/pma_pr5_code_ede0f81` 并验证完整 SHA；未改动原 `/home/zz950/PMA_code_4b`。
+
+首次直接执行 wrapper 因仓库文件 mode 664 不可执行而退出（exit 1，未建 workdir）。改用 `bash` 调用后发现宿主默认 `/usr/bin/python3` 为 3.5.2，无法解析审查代码的 f-string；该次在创建输出前退出。只读核对既有 `/home/zz950/softwares/miniforge3/envs/pmafp/bin/python` 为 3.11.17 后，以该 prefix 的 bin 目录优先设置 PATH，调用同一已审核 wrapper；未创建或修改 Conda prefix。6 个 hash-locked wheels 下载成功并被解包至 `/home/zz950/PMA_fetch/pma_pr5_g2_ede0f81/toolchain/`，但 `prepare_hint_argos_toolchain.py` 因 `setuptools-80.9.0` 合法嵌套 vendored `.dist-info` 被误计为多个 wheel 主元数据而 fail closed。没有运行 Conda 在线/离线求解、bundle/ABI audit、offline preflight、环境安装、HINT CLI、smoke 或分析。所有部分产物及日志保留在外部工作区。EXIT trap 报告 `PMAFP_INTEGRITY_OK`；Conda explicit 与 pip freeze 前后 manifest 字节一致。没有命令修改 `pmafp` 或 `pma_hint`。
+
+只读检查真实 Argos 下载的 setuptools wheel，确认主元数据为根级 `setuptools-80.9.0.dist-info/{METADATA,WHEEL}`，同时含多个 `setuptools/_vendor/<package>.dist-info/{METADATA,WHEEL}`。wheel SHA-256 `062d34222ad13e0cc312a4c02d73f059e86a4acbfbdea8f8f76b28c99f306922`，符合 lock。持久 PMA GPT 会话独立确认这是合法 wheel 的 false rejection；建议由 filename 定位唯一根级 canonical `.dist-info`，拒绝缺失/重复/额外主元数据，并继续检查所有嵌套成员的路径和 native payload。GPT 判定该修复方案可接受，但新代码未复审前不批准 G2 重试。
+
+
+## 2026-10-18 10:55 EDT — G2-F1 最小修复与环境状态复核
+
+按 GPT 对 wheel 规范的独立诊断修复同一 PR #5：只接受与 wheel filename 相符的唯一根级 canonical `.dist-info`，并要求根级 `METADATA`/`WHEEL` ZIP member 各唯一；嵌套 vendor metadata 仍整体执行路径与 native payload 检查。正向测试覆盖 setuptools 式嵌套 vendored metadata；负向测试覆盖额外/不匹配根目录、vendored metadata 不能替代缺失根级 `METADATA`、重复根级 ZIP member。实际 Argos 下载的 setuptools wheel 按 lock SHA-256 `062d34222ad13e0cc312a4c02d73f059e86a4acbfbdea8f8f76b28c99f306922` 在本地通过修复后 validator。
+
+最终本地验证：`python3 -m unittest tests/test_hint_bundle_build_contract.py`（32 PASS）、相关 `py_compile`、wrapper `bash -n`、`git diff --check` 均 PASS。GPT 认为修复方案可接受，但明确要求新代码提交并获得 exact-HEAD review 后才可重试 G2，因此没有再次连接 Argos 运行 builder。只读环境清点显示 Conda 正式登记的 `argos-codex`（history 最近为 2026-07-15）、`pmafp`（2026-10-18）存在；`pma_hint` 目录于 2026-10-18 04:07 创建但无 `conda-meta/history`，不在 Conda 登记列表，当前是残留 prefix 而非完整可用环境。没有改动这些 prefix；失败 G2 workspace 与日志保持在 `/home/zz950/PMA_fetch/pma_pr5_g2_ede0f81/`。新修订及审计已写入 Worklog/CODEX_HANDOFF/dated handoff，仍未提交或复审。

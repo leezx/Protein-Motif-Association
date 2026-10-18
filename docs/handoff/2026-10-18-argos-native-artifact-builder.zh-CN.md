@@ -8,6 +8,18 @@ PR：[#5](https://github.com/leezx/Protein-Motif-Association/pull/5)
 
 ## 状态与边界
 
+### 2026-10-18 10:55 EDT 实时状态
+
+PR #5 仍 OPEN、未合并；GPT 已明确 APPROVE 精确 HEAD `ede0f811e14c3d1e133b120c6afafaf433f91cd6`，允许 G2 外部 bundle 构建和既有 offline preflight。Argos SSH 可用。为避免更改运行中的 `/home/zz950/PMA_code_4b`，已在 `/home/zz950/PMA_fetch/pma_pr5_code_ede0f81` 创建独立 checkout，并核对其完整 SHA 与批准值一致。
+
+G2 首次直接执行 wrapper 因脚本文件模式为 664（不可执行）退出，未创建工作目录。第二次使用 `bash` 执行时，宿主默认 Python 3.5.2 无法解析仓库的 f-string 校验器，也在写入前退出。随后仅将既有 `pmafp/bin` 放到 `PATH` 前端，使 `python3` 指向已有 Python 3.11.17；未修改任何 Conda prefix。此调用下载并按 lock 校验了 6 个工具 wheels，接着因 `setuptools-80.9.0` 含多个合法的嵌套 vendored `.dist-info` 被验证器误报而停止：`ARGOS_TOOLCHAIN_WHEEL_METADATA_INVALID`。原始 wheel 的 SHA-256 为 `062d34222ad13e0cc312a4c02d73f059e86a4acbfbdea8f8f76b28c99f306922`。wrapper EXIT 审计生成 `PMAFP_INTEGRITY_OK`；Conda explicit 与 pip freeze 前后清单逐字节一致。没有进行 Conda 在线/离线求解、bundle 生成、offline preflight、环境安装、HINT CLI 或分析。失败工作区及已下载证据保留在 `/home/zz950/PMA_fetch/pma_pr5_g2_ede0f81/`。
+
+只读 Conda 清点确认 `pmafp`、`argos-codex` 是登记的环境；`pma_hint` 仅是 2026-10-18 04:07 创建的部分目录，无 `conda-meta/history`，也不在 Conda 登记列表，故不能称为已完成环境。三者均未修改。失败 G2 工作区和下载证据保存在 `/home/zz950/PMA_fetch/pma_pr5_g2_ede0f81/`。
+
+同一 PR 的本地修复已将 wheel 元数据识别收紧到由 wheel filename 推导的唯一根级 canonical `.dist-info/METADATA` 与 `WHEEL`，同时仍扫描全部成员路径及 native payload；正向 fixture 覆盖合法嵌套 vendored metadata，负向 fixture 拒绝额外/不匹配根级 `.dist-info`、缺失 canonical `METADATA`（即便 vendored metadata 存在）和重复根级 `METADATA`。GPT 独立诊断确认根因，认为该最小修复方案可接受，但要求代码提交并经 exact-HEAD review 后才允许重试 G2。目前 32 项合同测试、`py_compile`、wrapper `bash -n`、`git diff --check` 均通过，且 Argos 下载的真实 setuptools wheel 在本地验证通过。该修订尚未提交、推送或审核；新的 exact HEAD 获 GPT APPROVE 前不重试 G2。现有 `pmafp` 与残留 `pma_hint` 均保留，不合并 PR #5。
+
+科研软件 Quick review：L1 本地合同测试/语法/差异检查 PASS；L2 真实 Conda 求解、bundle ABI 审计和离线 solver preflight 尚未通过，故 G2 未完成；L3 人类接受待定。
+
 PR #5 当前 OPEN，base 为 `step4b-atac-footprinting@6c2e323fc80cc3e05f9de05282d1bbce49ba98fa`，已推送 HEAD 为 `222a82690ee8e41beab407c6e18c0a41de2b0071`。GPT 对该 exact HEAD 的结论是 `REQUEST_CHANGES`，唯一剩余项 F9：当前状态摘要与已推送 HEAD 不一致。F1–F8 的实现审核通过。当前只做 Worklog、CODEX_HANDOFF、dated handoff 与 PR body 的审计状态同步；新 HEAD 获得明确 APPROVE 前，不在 Argos 下载或构建。
 
 Argos 接入路径已由交接指南和此前只读 SSH 核对确认：`ssh -o BatchMode=yes zz950@rcapps3.dfci.harvard.edu`。Argos 主机有计算资源；旧 Docker 路线受限于账号无 Docker socket 权限，不代表 Argos 不可用。记录中的 `pmafp` Python 3.11.17 环境和部分 `pma_hint` 必须原样保留。新 PR HEAD 获得明确 APPROVE 后，按 G2 授权先核对 Cloud Code 建立的环境与现存 prefix，再执行 artifact-only 构建和离线预检。

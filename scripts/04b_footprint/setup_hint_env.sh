@@ -3,6 +3,25 @@
 # usage: setup_hint_env.sh <conda_executable> <pmafp_prefix> <pma_hint_prefix>
 set -euo pipefail
 CONDA=$1; PMAFP=$2; HINT_ENV=$3
+PMAFP_CONDA_BEFORE=${HINT_ENV}.pmafp-conda-before.txt
+PMAFP_PIP_BEFORE=${HINT_ENV}.pmafp-pip-before.txt
+PMAFP_CONDA_AFTER=${HINT_ENV}.pmafp-conda-after.txt
+PMAFP_PIP_AFTER=${HINT_ENV}.pmafp-pip-after.txt
+
+audit_pmafp_after_exit() {
+  local original_status=$1 audit_failed=0
+  if ! "$CONDA" list --explicit --prefix "$PMAFP" > "$PMAFP_CONDA_AFTER"; then audit_failed=1; fi
+  if ! "$PMAFP/bin/python" -m pip freeze --all > "$PMAFP_PIP_AFTER"; then audit_failed=1; fi
+  if [ ! -s "$PMAFP_CONDA_BEFORE" ] || ! cmp -s "$PMAFP_CONDA_BEFORE" "$PMAFP_CONDA_AFTER"; then audit_failed=1; fi
+  if [ ! -s "$PMAFP_PIP_BEFORE" ] || ! cmp -s "$PMAFP_PIP_BEFORE" "$PMAFP_PIP_AFTER"; then audit_failed=1; fi
+  if [ "$audit_failed" -eq 1 ]; then
+    echo "PMAFP_INTEGRITY_FAIL: source environment manifests unavailable or changed" >&2
+    [ "$original_status" -ne 0 ] || original_status=1
+  else
+    echo "PMAFP_INTEGRITY_OK"
+  fi
+  exit "$original_status"
+}
 
 if [ -e "$HINT_ENV" ]; then
   if [ ! -x "$HINT_ENV/bin/python" ]; then
@@ -13,8 +32,9 @@ if [ -e "$HINT_ENV" ]; then
   exit 2
 fi
 
-"$CONDA" list --explicit --prefix "$PMAFP" > "${HINT_ENV}.pmafp-conda-before.txt"
-"$PMAFP/bin/python" -m pip freeze --all > "${HINT_ENV}.pmafp-pip-before.txt"
+trap 'status=$?; trap - EXIT; audit_pmafp_after_exit "$status"' EXIT
+"$CONDA" list --explicit --prefix "$PMAFP" > "$PMAFP_CONDA_BEFORE"
+"$PMAFP/bin/python" -m pip freeze --all > "$PMAFP_PIP_BEFORE"
 "$CONDA" create --offline --use-local --yes --prefix "$HINT_ENV" --clone "$PMAFP"
 if "$HINT_ENV/bin/python" -m pip show TOBIAS >/dev/null 2>&1; then
   "$HINT_ENV/bin/python" -m pip uninstall --yes TOBIAS
@@ -22,10 +42,6 @@ fi
 "$CONDA" install --offline --use-local --yes --prefix "$HINT_ENV" numpy=1.26.4 setuptools=80.9.0
 
 "$HINT_ENV/bin/python" -m pip check
-"$CONDA" list --explicit --prefix "$PMAFP" > "${HINT_ENV}.pmafp-conda-after.txt"
-"$PMAFP/bin/python" -m pip freeze --all > "${HINT_ENV}.pmafp-pip-after.txt"
-cmp "${HINT_ENV}.pmafp-conda-before.txt" "${HINT_ENV}.pmafp-conda-after.txt"
-cmp "${HINT_ENV}.pmafp-pip-before.txt" "${HINT_ENV}.pmafp-pip-after.txt"
 "$CONDA" list --explicit --prefix "$HINT_ENV" > "${HINT_ENV}.conda-explicit.txt"
 "$HINT_ENV/bin/python" -m pip freeze --all > "${HINT_ENV}.pip-freeze.txt"
 "$HINT_ENV/bin/python" - <<'PY'

@@ -818,18 +818,35 @@ Version definition section '.gnu.version_d' contains 1 entry:
         with tempfile.TemporaryDirectory() as tmp:
             prefix = Path(tmp) / "must-remain-absent"
             observed = []
+            dirty = {
+                "PYTHONPATH": "/locked/builder/python",
+                "PMA_HINT_EXTERNAL_TOOLCHAIN_PYTHON_ROOT": "/locked/builder/python",
+                "PMA_HINT_ALLOWED_WORKSPACE": "/external/work",
+            }
 
             def fake_run(argv, *, capture, env=None):
-                observed.extend(argv)
+                observed.append(argv)
                 self.assertIsNotNone(env)
                 self.assertEqual(env.get("CONDA_PKGS_DIRS"), str((prefix.parent / "cache").resolve()))
+                for key in BUILDER.CONDA_ISOLATED_ENV_VARS:
+                    self.assertNotIn(key, env)
                 return "{}"
 
-            with mock.patch.object(BUILDER, "run", side_effect=fake_run):
+            with mock.patch.dict(BUILDER.os.environ, dirty), \
+                    mock.patch.object(BUILDER, "run", side_effect=fake_run):
                 cache = prefix.parent / "cache"
                 self.assertEqual(BUILDER.conda_dry_run("conda", prefix, ["--offline"],
                                                         ("python=3.11",), package_cache=cache), "{}")
-            self.assertIn("--dry-run", observed)
+                self.assertEqual(BUILDER.conda_dry_run("conda", prefix,
+                                                        ["--override-channels", "-c", "https://example.org/channel"],
+                                                        ("python=3.11",), package_cache=cache), "{}")
+                for key, value in dirty.items():
+                    self.assertEqual(BUILDER.os.environ[key], value)
+            self.assertEqual(len(observed), 2)
+            for command in observed:
+                self.assertEqual(command[1:4], ["create", "--dry-run", "--json"])
+            self.assertIn("--offline", observed[0])
+            self.assertIn("https://example.org/channel", observed[1])
             self.assertFalse(prefix.exists())
 
             def violating_run(argv, *, capture, env=None):
@@ -840,6 +857,36 @@ Version definition section '.gnu.version_d' contains 1 entry:
                 with self.assertRaisesRegex(RuntimeError, "CONDA_DRY_RUN_CREATED_PREFIX"):
                     BUILDER.conda_dry_run("conda", prefix, [], ("python=3.11",))
             self.assertTrue(prefix.exists())
+
+    def test_conda_cli_calls_isolate_builder_python_without_changing_other_commands(self):
+        dirty = {
+            "PYTHONPATH": "/locked/builder/python",
+            "PMA_HINT_EXTERNAL_TOOLCHAIN_PYTHON_ROOT": "/locked/builder/python",
+            "PMA_HINT_ALLOWED_WORKSPACE": "/external/work",
+            "CONDA_PKGS_DIRS": "/external/work/conda-pkgs",
+        }
+        calls = []
+
+        def fake_run(argv, *, capture=False, env=None):
+            calls.append((argv, capture, env))
+            return "ok"
+
+        with mock.patch.dict(BUILDER.os.environ, dirty), \
+                mock.patch.object(BUILDER, "run", side_effect=fake_run):
+            for argv in (["/audited/conda", "--version"],
+                         ["/audited/conda", "list", "conda-index"],
+                         ["/audited/conda", "index", "/external/work/bundle/conda"],
+                         ["/audited/conda", "create", "--dry-run"]):
+                self.assertEqual(BUILDER.run_conda(argv, capture=True), "ok")
+            for key, value in dirty.items():
+                self.assertEqual(BUILDER.os.environ[key], value)
+        self.assertEqual(len(calls), 4)
+        for argv, capture, env in calls:
+            self.assertEqual(argv[0], "/audited/conda")
+            self.assertTrue(capture)
+            self.assertEqual(env["CONDA_PKGS_DIRS"], dirty["CONDA_PKGS_DIRS"])
+            for key in BUILDER.CONDA_ISOLATED_ENV_VARS:
+                self.assertNotIn(key, env)
 
     def test_mock_bundle_build_helpers_pass_repository_validator(self):
         with tempfile.TemporaryDirectory() as tmp:

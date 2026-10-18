@@ -117,3 +117,17 @@ PR #5 仍 OPEN、未合并；base 为 `6c2e323fc80cc3e05f9de05282d1bbce49ba98fa`
 只读 Argos 重现确认 pmafp `.pth` 加载的 external `_distutils_hack` 与 external setuptools 在 pip 查询前能正确解析到 `setuptools/_distutils`；导入完整 probe 模块本身没有预加载 distutils。原 `probe_startup()` 在 setuptools 初始化后执行 `importlib.util.find_spec("pip")`，触发 setuptools 80.9.0 finder 的 pip 特例，清理 local distutils 并禁用 finder。生产修复已改为直接核验 external `root/pip/__init__.py` 与 distribution metadata。GPT 对当前 HEAD `e8d8b51afc4ab0af98651a14401635bb1186c028` 给出 `REQUEST_CHANGES`，唯一 finding G2-F3-T1：fake finder 被放在共用 fixture，导致正常 `python -m pip` 正向测试也会触发清理；真实 `pip wheel` 测试还须断言 build backend 使用的 `distutils.core` 来自 external `setuptools/_distutils`。当前按 finding 的最小修订在本地进行，未跑测试。
 
 下一步：把 fake finder 限定到专门的 regression fixture，并在真实 `pip wheel` 的临时 setup.py 中断言 `distutils.core.__file__` 来源；更新 Worklog/PR 描述，提交并推送同一 PR #5，再请 GPT 审核新的完整 HEAD。必须取得新的 exact-head APPROVE 才能在 Argos 继续。随后先跑合同套件和真实 `pip wheel` 子进程测试，通过后才在新的 external workspace 续跑 artifact-only G2 与既有 offline preflight。两个失败工作区保持不动；`pmafp` 与部分 `pma_hint` 不改；不运行 HINT CLI/smoke/full analysis，不合并 PR #5。
+
+## 2026-10-18 14:25 EDT — G2 配置重试进行中
+
+PR #5 仍 OPEN，精确 HEAD `0aaf8a00c52000490782d95bf1efe5508f4d1a1a`。Argos 独立 checkout `/home/zz950/PMA_fetch/pma_pr5_code_0aaf8a0` 的合同测试 41/41 PASS，含真实 pip-wheel backend；日志 `/home/zz950/PMA_fetch/pma_pr5_g2_tests_0aaf8a0/contract-tests-discovery.log`。Python 编译、wrapper shell 语法与 `pmafp` Conda/pip 前后清单检查通过；pip 后清单须清理继承的测试启动环境变量才与前清单一致。
+
+首次 G2 在 `config/pma_env.sh` 因缺少 `/home/zz950/setup_env.sh` 退出，未运行 solver/builder；日志 `/home/zz950/PMA_fetch/pma_pr5_g2_0aaf8a0.runner.log`。持久 PMA GPT 明确批准同一完整 HEAD 的配置式 G2 重试：传入 `BIO_DATA=/home/zz950/DATA`、`BIO_SOFTWARES=/home/zz950/softwares`，使用新外部 WORK `/home/zz950/PMA_fetch/pma_pr5_g2_0aaf8a0_env_retry`，保留失败证据，沿用已审查的 HTTPS channel。重试已在 Argos 后台运行，日志 `/home/zz950/PMA_fetch/pma_pr5_g2_0aaf8a0_env_retry.runner.log`。当前只推进 PI 目标 2 的 HINT 前置项；PI 目标 1 的 unique BED6 和目标 2 的 benchmark/motif 整合尚未产出。待 G2 真实结果、ABI、offline preflight 和 `pmafp` 完整性审计后再更新本记录；不安装环境、不运行分析、不合并 PR #5。`HUMAN DECISION: PENDING`。
+
+## 2026-10-18 14:57 EDT — G2 失败后的当前状态
+
+上述配置重试已停止。它保存了 `linux-64`、`noarch` 的 before repodata，随后首次调用已审计 Conda CLI 的 `create --dry-run --json` 返回 1：`from conda.cli import main` 报 `ModuleNotFoundError: No module named 'conda'`。完整失败证据在新 WORK 的 `evidence/builder/commands.log`、`evidence/argos-builder.stdout.log`、`evidence/builder/build-failure.txt` 和 WORK 旁的 runner log。`pmafp-integrity.json` 为 `PMAFP_INTEGRITY_OK`，Conda/pip 清单前后逐字节相同。没有 bundle、ABI 或离线预检，没有环境安装、HINT 或分析。初步定位是 builder 的 external `PYTHONPATH` 传给 Conda 子进程，已向持久 PMA GPT 请教最小修复；不凭此猜测直接重试。下一步是同一 PR 的定向修复、合同验证和新完整 HEAD 审核，再按门禁决定是否重跑 G2。两项 PI 科学目标仍未完成。`HUMAN DECISION: PENDING`。
+
+## 2026-10-18 15:01 EDT — 最小修订待 exact-head 复审
+
+持久 PMA GPT 已确认 Conda CLI 的导入路径污染根因，建议专用 `run_conda()` 只清除 Conda 子进程的三项 builder Python 启动变量，保留 `CONDA_PKGS_DIRS`、审计的 Conda 路径、通用日志脱敏和 pip 来源检查。当前本地未提交修订已覆盖五处 Conda CLI 调用和针对 online/offline dry-run、version/list/index/create 的合同检查；原真实 pip-wheel backend 测试保留。`git diff --check` PASS；未在 Mac mini 跑测试/构建/分析，未向 Argos 下发新代码。下一步提交推送同一 PR #5，更新 PR body，请 GPT 审核新完整 HEAD；仅在明确 APPROVE 后于 Argos 跑合同测试，全过才以新外部 WORK 重跑 G2。两项目标均未完成，不合并 PR。`HUMAN DECISION: PENDING`。

@@ -1,5 +1,21 @@
 # PMA — handoff to Codex (2026-10-17, written by Claude Code)
 
+## Live status update — 2026-10-18 15:01 EDT — Conda child environment patch awaiting review
+
+Persistent PMA GPT independently confirmed the G2 failure as builder-only `PYTHONPATH` leaking into the audited Conda CLI, before any solver work. It recommended a same-PR `run_conda()` that clears only `PYTHONPATH`, `PMA_HINT_EXTERNAL_TOOLCHAIN_PYTHON_ROOT`, and `PMA_HINT_ALLOWED_WORKSPACE` for Conda children while preserving package cache, executable identity, builder/pip provenance and command logging. Local uncommitted patch replaces all five direct Conda call sites and adds focused contract coverage for online/offline dry-runs, version/list/index/create commands and unchanged parent environment. Existing real pip-wheel backend test remains. `git diff --check` passes; no Mac mini tests/build/analysis or new Argos run. Next: explicit commit/push to OPEN PR #5, exact-full-HEAD GPT review, then only approved Argos contract tests and, on all pass, a fresh artifact-only G2. Both PI scientific outcomes remain pending; do not merge PR #5.
+
+## Live status update — 2026-10-18 14:57 EDT — G2 stopped at Conda CLI import
+
+PR #5 remains OPEN at exact HEAD `0aaf8a00c52000490782d95bf1efe5508f4d1a1a`; the prior 41/41 Argos contract suite and real pip-wheel backend passed. The approved config-only G2 retry used an independent external WORK `/home/zz950/PMA_fetch/pma_pr5_g2_0aaf8a0_env_retry` and preserved both upstream before repodata files. It stopped at the first Conda `create --dry-run --json`: `ModuleNotFoundError: No module named 'conda'` in the Conda launcher. Builder `PYTHONPATH` appears to have leaked into the Conda child. Raw evidence: `evidence/builder/commands.log`, `evidence/argos-builder.stdout.log`, `evidence/builder/build-failure.txt`, and `.runner.log` beside WORK. `pmafp-integrity.json` says `PMAFP_INTEGRITY_OK`; Conda explicit and pip freeze match before/after byte-for-byte. No bundle, ABI audit, offline preflight, environment change, HINT CLI, smoke, or benchmark. Persistent PMA GPT has been asked for the minimum technical correction; no new Argos run until a corrected same-PR full HEAD receives explicit approval. Both PI outcomes remain incomplete: unique human ChIP-Atlas BED6 and four-caller motif-free accuracy/speed plus motif integration.
+
+## Live status update — 2026-10-18 14:25 EDT — PR #5 G2 retry running
+
+PI 的验收仍是 (1) human ChIP-Atlas 坐标唯一、可追溯多实验的 BED6 reference 及 QC，(2) Argos 上四个无 motif footprint 工具的准确度和全基因组速度比较，经 B1–B4 选工具后整合冻结 motif reference。两项科学产物均未完成；当前 G2 只是 HINT 运行环境的前置 artifact。
+
+PR #5 OPEN，当前精确 HEAD `0aaf8a00c52000490782d95bf1efe5508f4d1a1a`。持久 PMA GPT 已批准此完整 HEAD 的 Argos 合同测试，继而在全部通过时执行限定的 artifact-only G2/offline preflight。新 Argos checkout `/home/zz950/PMA_fetch/pma_pr5_code_0aaf8a0` 中，41/41 合同测试通过（含真实 pip-wheel backend），Python 编译与 wrapper shell 语法检查通过；日志在 `/home/zz950/PMA_fetch/pma_pr5_g2_tests_0aaf8a0/contract-tests-discovery.log`。运行前后 `pmafp` Conda explicit 相同；清理继承测试环境变量后，pip freeze 也与运行前清单逐字节相同。
+
+首次 G2 调用在读取 `config/pma_env.sh` 时因 Argos 缺少 `/home/zz950/setup_env.sh` 立即退出，未进入 bundle/solver，失败日志保留于 `/home/zz950/PMA_fetch/pma_pr5_g2_0aaf8a0.runner.log`。GPT 明确 `APPROVE — CONFIG-ONLY G2 RETRY, SAME EXACT HEAD`：以 `BIO_DATA=/home/zz950/DATA`、`BIO_SOFTWARES=/home/zz950/softwares` 跳过缺失的 setup 脚本，用新的外部 WORK 和同一 HTTPS Conda channel 重试，不改代码或环境。按此范围已启动 `/home/zz950/PMA_fetch/pma_pr5_g2_0aaf8a0_env_retry`，PID 文件与 runner log 同前缀，Argos 进程仍在运行。尚未确认 G2 成功；以最终 bundle manifest、ABI/离线预检及 `pmafp` 完整性证据为准。不得在本运行期间提交新 HEAD 并把旧批准当作新批准；不安装环境、不运行 HINT CLI/footprint 分析、不合并 PR #5。
+
 ## Live status update — 2026-10-18 12:00 EDT — PR #5 repair awaiting review
 
 PI 的两个验收目标：human hg38 ChIP-Atlas 全部 ChIP-seq 的坐标唯一 BED6（多 experiment 可追溯），以及 Argos 上四个 motif-free footprint 工具的准确度/全基因组速度比较和后续 motif 整合。15 分钟 heartbeat 已恢复 ACTIVE，持续跟踪两项直到 QC/审计真实完成。既有原始 ChIP-Atlas archive 可复用；现有 443,029,514 行 BED6+18 不是目标 BED6。

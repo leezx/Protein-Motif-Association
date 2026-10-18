@@ -37,6 +37,9 @@ SYSTEM_RUNTIME_LIBS = {
     "libgcc_s.so.1", "linux-vdso.so.1",
 }
 RUN_LOG: Path | None = None
+CONDA_ISOLATED_ENV_VARS = (
+    "PYTHONPATH", "PMA_HINT_EXTERNAL_TOOLCHAIN_PYTHON_ROOT", "PMA_HINT_ALLOWED_WORKSPACE",
+)
 
 
 def sha256(path: Path) -> str:
@@ -100,6 +103,15 @@ def run(argv: list[str], *, capture: bool = False, env: dict[str, str] | None = 
     return output
 
 
+def run_conda(argv: list[str], *, capture: bool = False,
+              env: dict[str, str] | None = None) -> str:
+    """Keep the builder's locked Python startup path out of the Conda CLI."""
+    child_env = dict(os.environ if env is None else env)
+    for key in CONDA_ISOLATED_ENV_VARS:
+        child_env.pop(key, None)
+    return run(argv, capture=capture, env=child_env)
+
+
 def verify_argos_toolchain_in_process(python_root: Path) -> None:
     """Check the builder's already-loaded third-party modules in this process."""
     probe_path = Path(__file__).with_name("probe_hint_argos_toolchain.py")
@@ -121,7 +133,7 @@ def conda_dry_run(conda: str, prefix: Path, options: list[str], specs: tuple[str
     if package_cache is not None:
         package_cache.mkdir(parents=True, exist_ok=True)
         env["CONDA_PKGS_DIRS"] = str(package_cache.resolve())
-    output = run(command, capture=True, env=env)
+    output = run_conda(command, capture=True, env=env)
     if prefix.exists():
         raise RuntimeError(f"CONDA_DRY_RUN_CREATED_PREFIX:{prefix}")
     return output
@@ -759,7 +771,7 @@ def main() -> int:
         if builder_mode == "argos-native":
             write_local_repodata(conda_records, bundle / "conda")
         else:
-            run([conda, "index", str(bundle / "conda")])
+            run_conda([conda, "index", str(bundle / "conda")])
         abi = audit_conda_elf(conda_records, bundle, work)
         offline_prefix = work / "offline-solve-prefix"
         offline_options = ["--offline", "--no-default-packages", "--override-channels", "-c",
@@ -807,9 +819,9 @@ def main() -> int:
             "builder_mode": builder_mode, "builder_identity": builder_id,
             "architecture": platform.machine(),
             "python": platform.python_version(), "glibc": platform.libc_ver(),
-            "conda": run([conda, "--version"], capture=True).strip(),
+            "conda": run_conda([conda, "--version"], capture=True).strip(),
             "pip": run([str(build_python), "-m", "pip", "--version"], capture=True).strip(),
-            "conda_index_packages": (run([conda, "list", "conda-index"], capture=True).strip()
+            "conda_index_packages": (run_conda([conda, "list", "conda-index"], capture=True).strip()
                                      if builder_mode == "docker-image" else None),
             "repodata_generation": ("conda-index" if builder_mode == "docker-image" else
                                     "pma-local-standard-records-v1"),
@@ -843,7 +855,7 @@ def main() -> int:
                     "builder_mode": builder_mode,
                     "host_toolchain_report_sha256": (sha256(Path(os.environ["PMA_HINT_HOST_TOOLCHAIN_REPORT"]))
                                                       if builder_mode == "argos-native" else None),
-                    "conda_version": run([conda, "--version"], capture=True).strip(),
+                    "conda_version": run_conda([conda, "--version"], capture=True).strip(),
             "conda_toolchain_explicit_sha256": (sha256(evidence / "build-toolchain-conda-explicit.txt")
                                                  if builder_mode == "docker-image" else None),
             "pip_toolchain_inventory_sha256": (sha256(evidence / "build-toolchain-pip.json")

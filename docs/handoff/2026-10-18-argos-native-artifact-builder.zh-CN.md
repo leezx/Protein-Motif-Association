@@ -3,7 +3,8 @@
 时间：2026-10-18 10:05 EDT  
 仓库：`Protein-Motif-Association`  
 基线：PR #4 merge commit `6c2e323fc80cc3e05f9de05282d1bbce49ba98fa`，目标分支 `step4b-atac-footprinting`  
-当前分支：`task_20261018_argos_artifact_builder`（实现尚未提交；等待同一分支新 PR 审核）
+当前分支：`task_20261018_argos_artifact_builder`  
+PR：[#5](https://github.com/leezx/Protein-Motif-Association/pull/5)，当前代码提交 `f692499ff9bbdd38c36940cf35ea2c68bb994c13`；GPT 精确 HEAD 审核待提交。
 
 ## 目标与范围
 
@@ -35,8 +36,7 @@ PR #4 已按用户指示合并。为了继续使用 Argos 完成 HINT bundle 准
 
 ## 下一步
 
-1. 完成代码审阅与静态合同自检，按项目规则先检查 `git status --short`，仅显式暂存本任务文件。
-2. 提交并推送本分支，创建从 `step4b-atac-footprinting` 指向该分支的新 PR；更新 Worklog、`docs/CODEX_HANDOFF.md` 和本 handoff。
-3. 将 PR 完整 HEAD 提交到持久 PMA GPT 对话，等精确 SHA 的 `APPROVE`。`REQUEST_CHANGES` 时仅按当前 findings 在同一 PR 最小修复，再完整复审。
-4. 获批后，才在 Argos 的 external workspace 准备工具轮子和 bundle；之后执行既有离线 preflight。收集主机 provenance、wheel/Conda 哈希、solver/offline solver 结果和完整失败日志供下一轮审阅。
-5. 不安装、不运行 HINT CLI 或 smoke/正式分析，除非后续 stage gate 与用户授权明确放行。
+1. 完成 PR #5 的 handoff/worklog 审计同步并推送，确认 GitHub 当前完整 HEAD。
+2. 将 PR 完整 HEAD 提交到持久 PMA GPT 对话，等精确 SHA 的 `APPROVE`。`REQUEST_CHANGES` 时仅按当前 findings 在同一 PR 最小修复，再完整复审。
+3. 获批后，才在 Argos 的 external workspace 准备工具轮子和 bundle；之后执行既有离线 preflight。收集主机 provenance、wheel/Conda 哈希、solver/offline solver 结果和完整失败日志供下一轮审阅。
+4. 不安装、不运行 HINT CLI 或 smoke/正式分析，除非后续 stage gate 与用户授权明确放行。

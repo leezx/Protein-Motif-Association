@@ -5,8 +5,9 @@
 This update supersedes conflicting status statements in the historical handoff below. PR #4 was merged at
 `2026-10-18T13:13:02Z` as merge commit `6c2e323fc80cc3e05f9de05282d1bbce49ba98fa` into
 `step4b-atac-footprinting`. The current task branch is `task_20261018_argos_artifact_builder`, based on that merge.
-It adds an Argos-native, external-only HINT bundle builder; the code and contract changes are in progress and have
-not yet been committed or reviewed. No bundle build, environment change, HINT CLI, smoke gate, or analysis has run.
+Its code commit `f692499ff9bbdd38c36940cf35ea2c68bb994c13` is in open PR #5 against
+`step4b-atac-footprinting`. The PR has not yet received GPT review. No bundle build, environment change, HINT CLI,
+smoke gate, or analysis has run.
 
 Argos itself is available. Read-only SSH confirmed the host `rcGPUs.dfci.harvard.edu` has 72 CPUs and about 1 TiB
 RAM. The Docker CLI exists, but the account cannot access `/var/run/docker.sock`; `/usr/games/singularity` is a
@@ -24,8 +25,9 @@ installing a new prefix, HINT CLI/smoke, and full analysis remain behind their o
 PR without a separate user instruction.
 
 Current code checks performed: Python compilation, wrapper `bash -n`, and `git diff --check` pass. The contract test
-file has new fixtures but the test suite has not been run in this task. Real Conda repodata/solver behavior and
-external wheel/ELF audit remain unverified.
+file has new fixtures but the test suite has not been run in this task. PR #5 needs exact full-HEAD GPT approval
+before external artifact preparation. Real Conda repodata/solver behavior and external wheel/ELF audit remain
+unverified.
 
 **Read this first, then `docs/PROJECT_CHARTER.md`, the workspace `AGENTS.md` and `HANDOFF.md`, and the step design
 doc for whatever you touch.** Everything below was true at handoff time; verify live state before acting.

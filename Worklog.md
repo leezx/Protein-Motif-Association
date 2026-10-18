@@ -522,3 +522,5 @@ Next acceptance: complete the dated handoff and static diff check, push a design
 ## 2026-10-18 17:22 EDT — Design PR #6 opened; exact-head review pending
 
 Completed the design-only PR #6, https://github.com/leezx/Protein-Motif-Association/pull/6, from `task_20261018_chipatlas_unique_bed6_design`. Initial commit `49621ade482fb8fa1b73de8392dd8d65da4c782d` is pushed; PR is against `step4b-atac-footprinting`. This PR contains no builder implementation and authorizes no Argos access or data processing. Current full-HEAD review remains pending; after this audit synchronization commit, submit the resulting exact SHA to the persistent PMA GPT conversation.
+
+Post-push static review of PR #6 caught Markdown hard-break spaces in the new handoff when `git diff --check` was run against the full PR diff. Removed those trailing spaces; no content or scope changed. Will rerun the diff check, commit the correction and synchronized audit, then verify the new remote HEAD before GPT review. No tests or Argos activity.

@@ -1,5 +1,13 @@
 # Step 4b-1 Argos 原生 bundle builder 交接
 
+## 2026-10-18 12:15 EDT — 当前门禁：fd35a31 的 F4/F5 修复待提交和复审
+
+PR #5 仍 OPEN，base 为 `6c2e323fc80cc3e05f9de05282d1bbce49ba98fa`，远端 HEAD 为 `fd35a31b087e9472006d8315863722e1e74448c3`。持久 PMA GPT 对这个完整 HEAD 给出 `REQUEST_CHANGES`：F4 要求检查真实 `sys.path` 的完整 allowlist，拒绝任意 `.pth` 注入的 `other_python_libs` 之类路径；F5 要求真实 `pip wheel` build backend 证明 `packaging` 来自锁定 external root、`jaraco` 来自锁定 setuptools `_vendor`，且无宿主 site-packages 模块。已认可前一轮 Python 3.11 选择、vendor 优先级方向和 canonical fixture。
+
+同一 PR 的本地最小修复：startup probe 检查所有实际搜索路径，只准仓库脚本/根目录、Python 标准库、锁定 external root，以及 protected external workspace 内的**当前工作目录**；宿主 site-packages 路径继续删除，预先加载的宿主模块继续 fail closed。Wrapper 显式传递 protected workspace，builder 核对其与 toolchain 父目录一致。测试增加任意非 site-packages 路径负例、真实 pip wheel 后端的 packaging/jaraco/distutils/已加载模块来源断言。用户指定计算只在 Argos，故 Mac mini 未运行测试、构建或分析；新代码也尚未向 Argos 下发命令。需先提交/推送并取得新完整 HEAD 的 GPT `APPROVE`，然后仅在 Argos 执行合同测试；通过后才可继续 artifact-only G2/offline preflight。失败日志与旧 external workspace 保留，不修改 Conda 环境，不运行 HINT CLI/smoke/full analysis，不合并 PR #5。
+
+本 PR 只推进 PI 目标二的 HINT runtime 前置条件，尚未形成四工具 benchmark；目标一的 raw human hg38 archive 已在 Argos，但唯一坐标 BED6 尚未设计和构建。下一次科学验收仍是四工具同输入 smoke 与 BED6 契约/产物 QC。`HUMAN DECISION: PENDING`。
+
 ## 2026-10-18 12:00 EDT — 三项 Argos 合同失败的同 PR 修复待审核
 
 本 PR 对 PI 的第二项目标只提供 HINT runtime 前置条件，尚未产生 footprint benchmark；下一科学验收为 PRINT、TraceBIND、HINT、TOBIAS 四工具同输入 smoke。第一项目标的 21 GB raw hg38 archive 已在 Argos，现有 443,029,514 行、24 列处理文件不符合“全部 human ChIP-seq、坐标唯一 BED6”，需另行定稿聚合语义并在 Argos 生成。

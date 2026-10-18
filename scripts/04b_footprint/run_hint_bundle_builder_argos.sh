@@ -91,6 +91,7 @@ mkdir -p "$BUNDLE" "$EVIDENCE" "$TOOLCHAIN" "$PACKAGE_CACHE"
 export PIP_NO_CACHE_DIR=1
 export PIP_CACHE_DIR="$WORK/pip-cache"
 export TMPDIR="$WORK/tmp"
+export PMA_HINT_ALLOWED_WORKSPACE="$WORK"
 mkdir -p "$PIP_CACHE_DIR" "$TMPDIR"
 
 CONDA_BEFORE="$EVIDENCE/pmafp-conda-before.txt"

@@ -44,6 +44,12 @@ def require_no_host_site_packages(root: pathlib.Path) -> None:
         if key in {"stdlib", "platstdlib"} and value
     }
     allowed_roots = {root.resolve(), pathlib.Path(__file__).resolve().parent, *standard_roots}
+    workspace_value = os.environ.get("PMA_HINT_ALLOWED_WORKSPACE")
+    if workspace_value:
+        workspace = pathlib.Path(workspace_value)
+        if not workspace.is_absolute() or workspace.resolve() == pathlib.Path("/"):
+            raise RuntimeError("ARGOS_TOOLCHAIN_ALLOWED_WORKSPACE_INVALID")
+        allowed_roots.add(workspace.resolve())
     for module_name, module in tuple(sys.modules.items()):
         paths = []
         module_file = getattr(module, "__file__", None)
@@ -63,7 +69,7 @@ def require_no_host_site_packages(root: pathlib.Path) -> None:
 
 
 def isolate_import_path(root: pathlib.Path) -> None:
-    """Use the hash-locked setuptools vendor tree without Conda's host packages."""
+    """Allow only audited source, runtime, toolchain and external work paths."""
     root = root.resolve()
     # Fail if a startup hook has already loaded a host module; never repair a
     # contaminated process by removing its sys.modules entries.
@@ -74,13 +80,40 @@ def isolate_import_path(root: pathlib.Path) -> None:
     if any(site_parts.intersection(path.parts) and root not in path.parents
            for path in explicit_paths):
         raise RuntimeError("ARGOS_TOOLCHAIN_UNAPPROVED_PYTHONPATH_SITE_PACKAGES")
-    sys.path[:] = [item for item in sys.path if not item or not (
-        site_parts.intersection(pathlib.Path(item).resolve().parts)
-        and root not in pathlib.Path(item).resolve().parents)]
     vendor = root / "setuptools" / "_vendor"
     if not vendor.is_dir():
         raise RuntimeError(f"ARGOS_TOOLCHAIN_SETUPTOOLS_VENDOR_MISSING:{vendor}")
-    sys.path[:] = [item for item in sys.path if not item or pathlib.Path(item).resolve() != vendor]
+    script_root = pathlib.Path(__file__).resolve().parent
+    repo_root = script_root.parents[1]
+    standard_roots = {
+        pathlib.Path(value).resolve() for key, value in sysconfig.get_paths().items()
+        if key in {"stdlib", "platstdlib"} and value
+    }
+    standard_zip = {path.parent / f"python{sys.version_info.major}{sys.version_info.minor}.zip"
+                    for path in standard_roots}
+    allowed_exact = {script_root, repo_root, *standard_zip}
+    allowed_roots = {root, *standard_roots}
+    workspace_value = os.environ.get("PMA_HINT_ALLOWED_WORKSPACE")
+    if workspace_value:
+        workspace = pathlib.Path(workspace_value)
+        if not workspace.is_absolute() or workspace.resolve() == pathlib.Path("/"):
+            raise RuntimeError("ARGOS_TOOLCHAIN_ALLOWED_WORKSPACE_INVALID")
+        work_root = workspace.resolve()
+        current_dir = pathlib.Path.cwd().resolve()
+        if current_dir == work_root or work_root in current_dir.parents:
+            allowed_exact.add(current_dir)
+    filtered = []
+    for item in sys.path:
+        path = pathlib.Path(item or os.curdir).resolve()
+        if site_parts.intersection(path.parts) and root not in path.parents:
+            continue
+        if path == vendor:
+            continue
+        if path not in allowed_exact and not any(
+                path == allowed or allowed in path.parents for allowed in allowed_roots):
+            raise RuntimeError(f"ARGOS_TOOLCHAIN_IMPORT_PATH_UNAPPROVED:{path}")
+        filtered.append(item)
+    sys.path[:] = filtered
     try:
         root_index = next(index for index, item in enumerate(sys.path)
                           if item and pathlib.Path(item).resolve() == root)

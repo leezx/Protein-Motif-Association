@@ -111,6 +111,7 @@ def add_shim():
             self._write_import_probe_fixture(root, metadata_root=host)
             env = PREP.toolchain_probe_environment(root, {"PATH": os.environ["PATH"]})
             env["PYTHONPATH"] = str(root) + os.pathsep + str(host)
+            env["PMA_HINT_ALLOWED_WORKSPACE"] = str(Path(tmp))
             result = subprocess.run([sys.executable, str(PROBE_SCRIPT), str(root)],
                                     env=env, capture_output=True, text=True)
             self.assertNotEqual(result.returncode, 0)
@@ -127,6 +128,7 @@ def add_shim():
             (host / "distutils" / "core.py").write_text("\n", encoding="utf-8")
             env = PREP.toolchain_probe_environment(root, {"PATH": os.environ["PATH"]})
             env["PYTHONPATH"] = str(root) + os.pathsep + str(host)
+            env["PMA_HINT_ALLOWED_WORKSPACE"] = str(Path(tmp))
             result = subprocess.run([sys.executable, str(PROBE_SCRIPT), str(root)],
                                     env=env, capture_output=True, text=True)
             self.assertNotEqual(result.returncode, 0)
@@ -169,12 +171,19 @@ def add_shim():
             source.mkdir()
             (source / "setup.py").write_text(
                 "from setuptools import setup\n"
-                "import distutils.core, os\n"
+                "import distutils.core, os, packaging, jaraco, jaraco.functools\n"
                 "from pathlib import Path\n"
+                "from probe_hint_argos_toolchain import require_no_host_site_packages\n"
                 "root = Path(os.environ['PMA_HINT_EXTERNAL_TOOLCHAIN_PYTHON_ROOT']).resolve()\n"
                 "origin = Path(distutils.core.__file__).resolve()\n"
                 "assert root in origin.parents, origin\n"
                 "assert '_distutils' in origin.parts, origin\n"
+                "assert root in Path(packaging.__file__).resolve().parents\n"
+                "vendor = root / 'setuptools' / '_vendor'\n"
+                "assert vendor in Path(jaraco.functools.__file__).resolve().parents\n"
+                "assert all(vendor == Path(p).resolve() or vendor in Path(p).resolve().parents "
+                "for p in jaraco.__path__)\n"
+                "require_no_host_site_packages(root)\n"
                 "setup(name='pma-startup-probe-fixture', version='0.0.1', py_modules=['fixture'])\n",
                 encoding="utf-8")
             (source / "fixture.py").write_text("value = 1\n", encoding="utf-8")
@@ -190,6 +199,7 @@ def add_shim():
             env["PIP_NO_CACHE_DIR"] = "1"
             env["PIP_CACHE_DIR"] = str(cache_dir)
             env["TMPDIR"] = str(temp_dir)
+            env["PMA_HINT_ALLOWED_WORKSPACE"] = str(workspace)
             command = [sys.executable, "-m", "pip", "wheel", "--no-index", "--no-deps",
                        "--no-build-isolation", "--wheel-dir", str(wheels), str(source)]
             result = subprocess.run(command, cwd=workspace, env=env,
@@ -227,6 +237,8 @@ def add_shim():
             (root / "packaging" / "__init__.py").write_text("origin = 'locked'\n")
             (vendor / "packaging" / "__init__.py").write_text("origin = 'vendor'\n")
             (host / "jaraco" / "__init__.py").write_text("origin = 'host'\n")
+            rogue = Path(tmp) / "other_python_libs"
+            rogue.mkdir()
             script = (
                 "import pathlib, sys\n"
                 "from probe_hint_argos_toolchain import isolate_import_path\n"
@@ -240,6 +252,7 @@ def add_shim():
                 "assert paths.index(root.resolve()) < paths.index((root / 'setuptools' / '_vendor').resolve())\n"
             )
             env = dict(os.environ, PYTHONPATH=os.pathsep.join((str(SITECUSTOMIZE_DIR), str(root))))
+            env.pop("PMA_HINT_ALLOWED_WORKSPACE", None)
             result = subprocess.run([sys.executable, "-S", "-c", script, str(root), str(host)],
                                     env=env, capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -248,6 +261,13 @@ def add_shim():
                                       env=env, capture_output=True, text=True)
             self.assertNotEqual(rejected.returncode, 0)
             self.assertIn("ARGOS_TOOLCHAIN_HOST_SITE_PACKAGES_MODULE:jaraco", rejected.stderr)
+            unapproved = script.replace("isolate_import_path(root)\n",
+                                        "sys.path.insert(0, sys.argv[3])\nisolate_import_path(root)\n")
+            rejected_path = subprocess.run([sys.executable, "-S", "-c", unapproved,
+                                            str(root), str(host), str(rogue)],
+                                           env=env, capture_output=True, text=True)
+            self.assertNotEqual(rejected_path.returncode, 0)
+            self.assertIn("ARGOS_TOOLCHAIN_IMPORT_PATH_UNAPPROVED", rejected_path.stderr)
 
     def test_argos_builder_runs_import_origin_probe_before_conda_discovery(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -266,6 +286,7 @@ def add_shim():
                 "PMA_HINT_CONDA_EXECUTABLE": str(conda),
                 "SETUPTOOLS_USE_DISTUTILS": "local",
                 "PMA_HINT_EXTERNAL_TOOLCHAIN_PYTHON_ROOT": str(toolchain / "python"),
+                "PMA_HINT_ALLOWED_WORKSPACE": str(root),
                 "PYTHONPATH": os.pathsep.join((str(SITECUSTOMIZE_DIR), str((toolchain / "python").resolve()))),
             }
             with mock.patch.dict(BUILDER.os.environ, env, clear=True), \
@@ -278,6 +299,14 @@ def add_shim():
                     mock.patch.object(BUILDER, "verify_argos_toolchain_in_process") as verify:
                 result = BUILDER.require_builder()
             self.assertEqual(result, (str(conda), "2.23"))
+            with mock.patch.dict(BUILDER.os.environ,
+                                 {**env, "PMA_HINT_ALLOWED_WORKSPACE": str(root / "other")}, clear=True), \
+                    mock.patch.object(BUILDER.platform, "system", return_value="Linux"), \
+                    mock.patch.object(BUILDER.platform, "machine", return_value="x86_64"), \
+                    mock.patch.object(BUILDER.sys, "version_info", (3, 11, 17)), \
+                    mock.patch.object(BUILDER.platform, "libc_ver", return_value=("glibc", "2.23")):
+                with self.assertRaisesRegex(RuntimeError, "ARGOS_EXTERNAL_TOOLCHAIN_WORKSPACE_MISMATCH"):
+                    BUILDER.require_builder()
             for bad_path in (os.pathsep.join((str(toolchain / "python"), str(SITECUSTOMIZE_DIR))),
                              env["PYTHONPATH"] + os.pathsep + str(root / "injected")):
                 with mock.patch.dict(BUILDER.os.environ, {**env, "PYTHONPATH": bad_path}, clear=True), \

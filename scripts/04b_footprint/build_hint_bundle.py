@@ -154,6 +154,10 @@ def require_builder() -> tuple[str, str]:
         python_root = toolchain / "python"
         if not python_root.is_dir():
             raise RuntimeError("ARGOS_EXTERNAL_TOOLCHAIN_PYTHON_ROOT_MISSING")
+        allowed_workspace = Path(os.environ.get("PMA_HINT_ALLOWED_WORKSPACE", ""))
+        if (not allowed_workspace.is_absolute() or
+                allowed_workspace.resolve() != python_root.resolve().parent.parent):
+            raise RuntimeError("ARGOS_EXTERNAL_TOOLCHAIN_WORKSPACE_MISMATCH")
         configured_root = Path(os.environ.get("PMA_HINT_EXTERNAL_TOOLCHAIN_PYTHON_ROOT", ""))
         if not configured_root.is_absolute() or configured_root.resolve() != python_root.resolve():
             raise RuntimeError("ARGOS_EXTERNAL_TOOLCHAIN_STARTUP_ROOT_MISMATCH")

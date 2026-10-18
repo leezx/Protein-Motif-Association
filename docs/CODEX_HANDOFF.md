@@ -5,9 +5,9 @@
 This update supersedes conflicting status statements in the historical handoff below. PR #4 was merged at
 `2026-10-18T13:13:02Z` as merge commit `6c2e323fc80cc3e05f9de05282d1bbce49ba98fa` into
 `step4b-atac-footprinting`. The current task branch is `task_20261018_argos_artifact_builder`, based on that merge.
-Its code commit `f692499ff9bbdd38c36940cf35ea2c68bb994c13` is in open PR #5 against
-`step4b-atac-footprinting`. The PR has not yet received GPT review. No bundle build, environment change, HINT CLI,
-smoke gate, or analysis has run.
+Its code commit `f692499ff9bbdd38c36940cf35ea2c68bb994c13` and audit-sync commit
+`dbbed77953702da3b83806ddb638da3ff862caec` are in open PR #5 against `step4b-atac-footprinting`. The PR has not
+yet received GPT review. No bundle build, environment change, HINT CLI, smoke gate, or analysis has run.
 
 Argos itself is available. Read-only SSH confirmed the host `rcGPUs.dfci.harvard.edu` has 72 CPUs and about 1 TiB
 RAM. The Docker CLI exists, but the account cannot access `/var/run/docker.sock`; `/usr/games/singularity` is a

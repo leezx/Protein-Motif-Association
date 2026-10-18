@@ -1,6 +1,21 @@
-Dedicated Argos HINT runtime (do not install these pins into pmafp):
-Python 3.11 (cloned from the validated pmafp environment)
-RGT==1.0.2
-setuptools==80.9.0
-numpy==1.26.4
-TOBIAS must not be installed in this environment; TOBIAS 0.17.5 requires NumPy >=2 and remains in pmafp.
+Dedicated Argos HINT runtime contract (keep pmafp unchanged).
+
+The previous whole-environment clone was rejected because Argos did not have all 288 package artifacts cached. Do not retry that clone. Preserve the partial pma_hint directory as failure evidence; the recovery target is a new pma_hint_v2 prefix.
+
+The builder accepts an external, pre-audited offline bundle with this layout:
+
+- conda-explicit-linux-64.lock: tab-separated rows of subdir, package name, version, build, filename, SHA-256. Supported subdirs are linux-64 and noarch.
+- conda/<subdir>/<filename>: exact Conda archives referenced by the lock; the lock must contain the complete Python 3.11 / NumPy 1.26.4 / setuptools 80.9.0 environment and dependency closure.
+- pip-requirements.lock: fully pinned pip requirements with hashes, including a validated RGT 1.0.2 wheel and all pip-managed dependencies.
+- wheels/<filename>.whl: CPython 3.11-compatible or pure-Python wheels only; no source distributions.
+- artifacts.sha256: SHA-256 inventory for every Conda archive and wheel, relative to the bundle root.
+- bundle-manifest.json: schema_version=1, target_platform=linux-64, python_abi=cp311, glibc_max<=2.23, builder identity, RGT source-distribution SHA-256, and SHA-256 values for both lock files and artifacts.sha256.
+
+The bundle is prepared outside the Git repository. It must target linux-64, CPython 3.11, and glibc 2.23 or older; record artifact source, versions/builds, and hashes. PyPI RGT 1.0.2 is a source distribution, so a compatible wheel must be built and validated in a controlled Linux builder before transfer. Do not assume a Bioconda Python 3.7 build is compatible with Python 3.11.
+
+Run the builder in two stages:
+
+1. `setup_hint_env.sh preflight <conda> <pmafp> <pma_hint_v2> <bundle> <audit_dir>` validates all hashes and performs offline Conda and pip dry-runs. It must not create the target prefix.
+2. Only after preflight passes, `setup_hint_env.sh install ...` repeats the checks, installs at the final new prefix, runs pip check/import/CLI checks, and compares pmafp conda/pip manifests. Failed installs retain the partial target and never publish READY. The legacy partial pma_hint and pmafp are never modified.
+
+`HINT_ENV_READY.json` is published only after the full package lock, imports, CLI, and pmafp integrity audit pass. The driver verifies its code commit, prefix, exact package versions, and lock digest. This marker confirms environment readiness only; it does not certify real HINT small-BED execution or smoke success. Keep package installation serial and monitor peak RSS (<50 GB) and disk/inode availability.

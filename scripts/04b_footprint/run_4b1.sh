@@ -8,8 +8,34 @@ until [ -f $RAW/download.done ] && [ -f $RAW/refs.done ] && [ -f $RAW/reference/
       && grep -q ENV_DONE $ENVLOG; do sleep 60; done
 grep -q tracebind_OK $ENVLOG || { echo "TRACEBIND_NOT_INSTALLED"; }
 # HINT's RGT 1.0.2 needs NumPy 1.x; keep TOBIAS and the other callers in pmafp's NumPy 2.x runtime.
-"$HINT_ENV/bin/python" -c 'from importlib.metadata import version; import numpy, pkg_resources, rgt; from numpy import mat; assert version("RGT") == "1.0.2"; assert version("setuptools") == "80.9.0"; assert numpy.__version__ == "1.26.4"' \
-  || { echo "HINT_ENV_FAIL: require isolated RGT==1.0.2, setuptools==80.9.0, numpy==1.26.4"; exit 1; }
+CODE_ROOT=$(cd "$HERE/../.." && pwd)
+CODE_COMMIT=$(git -C "$CODE_ROOT" rev-parse HEAD) || { echo "CODE_COMMIT_UNAVAILABLE"; exit 1; }
+if ! "$HINT_ENV/bin/python" - "$HINT_ENV/HINT_ENV_READY.json" "$HINT_ENV" "$CODE_COMMIT" <<'PY'
+import json, os, sys
+from importlib.metadata import PackageNotFoundError, version
+import numpy, pkg_resources, rgt
+from numpy import mat
+ready_file, prefix, commit = sys.argv[1:]
+with open(ready_file, encoding="utf-8") as handle:
+    ready = json.load(handle)
+assert ready["status"] == "HINT_ENV_READY"
+assert os.path.realpath(ready["prefix"]) == os.path.realpath(prefix)
+assert ready["code_commit"] == commit
+assert ready["bundle_lock_sha256"]
+assert version("RGT") == "1.0.2"
+assert version("setuptools") == "80.9.0"
+assert numpy.__version__ == "1.26.4"
+try:
+    version("TOBIAS")
+except PackageNotFoundError:
+    pass
+else:
+    raise SystemExit("TOBIAS must stay isolated in pmafp")
+PY
+then
+  echo "HINT_ENV_FAIL: READY manifest or required HINT runtime validation failed"
+  exit 1
+fi
 "$HINT_ENV/bin/python" -m pip check || { echo "HINT_DEPENDENCY_CHECK_FAIL"; exit 1; }
 "$HINT_ENV/bin/rgt-hint" --help >/dev/null 2>&1 || { echo "HINT_CLI_PREFLIGHT_FAIL"; exit 1; }
 "$HINT_ENV/bin/rgt-hint" footprinting --help >/dev/null 2>&1 || { echo "HINT_FOOTPRINTING_PREFLIGHT_FAIL"; exit 1; }

@@ -58,3 +58,9 @@ GPT 对 PR #4 HEAD `c63bc91` 明确给出 `APPROVE`：FASTA/FAI/marker 完成状
 GPT 对 PR #4 HEAD `a549dcf` 给出 `REQUEST_CHANGES`：现有 75-byte `.tbi` 会使默认 `tabix` 不覆盖索引；只读首条记录也无法发现后半段 BGZF 截断。GPT 确认 sort 临时盘、`pipefail` 和 `check=True` 修复正确；审计记录通过，scope-control finding 仍解决。GitHub review 再次 HTTP 403。本次复审后没有 Argos 访问。
 
 当前同一 PR 修复把 BGZF 写入唯一临时路径并用 `tabix -f` 建索引；完整 gzip 流读到 EOF、tabix 打开并读到记录后，才归档旧缓存并发布 BGZF/索引，SHA256 marker 最后写入。无效旧缓存归档到外部 `processed/round1/cache_interrupted/`。新增本地测试覆盖 stale 空索引的归档重建，以及首部可读、尾部截断的 gzip 拒绝。两项通过；原四项 reference setup fixture、Python bytecode 编译和 `git diff --check` 也通过。新 HEAD 仍需 GPT 明确批准后才能再访问 Argos。
+
+## 2026-10-18 02:27 EDT — GPT 批准 cc2eba5；重试前审计门禁
+
+GPT 对 PR #4 HEAD `cc2eba5` 明确给出 `APPROVE`，确认 F1/F2 已解决、审计记录通过、scope-control finding 仍解决。它提醒本地测试使用 mock pysam，不是真实 tabix 集成测试；重试时应在 Argos 验证真实 pysam/tabix 产物。GitHub review 仍返回 HTTP 403，结论只记录在持久审核对话。
+
+此 approval 覆盖当前 prep 修复、此前 setup 修复、tests 和审计记录，不构成新的执行授权。第一轮 benchmark 的执行授权仍来自用户此前对 §6 的明确指示。现先将 approval 和计划中的 retry 写入 Worklog/handoff，并对这个 audit-only commit 请求 GPT 复审；在该复审前不向 Argos 发命令。复审通过后，只按既有 datasets、methods 和 thresholds 重启原 driver，不扩展范围、不合并。

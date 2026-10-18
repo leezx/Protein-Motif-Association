@@ -171,3 +171,11 @@ table; F17 experiment count is not cluster size.
 **Change**: commit `8e33a35` (`Step 4b-1: avoid SIGPIPE in setup resource listing`) on `task_20261018_step4b_setup_fix`. The PR is [#4](https://github.com/leezx/Protein-Motif-Association/pull/4), based on `step4b-atac-footprinting` so its diff stays limited to the setup fix and its audit records.
 
 **Review gate**: PR #4 is pending ChatGPT review. No merge, remote code update, setup rerun, smoke test, or round-1 analysis is authorized before explicit `APPROVE`. PR handoff: `docs/handoff/2026-10-18-step4b-setup-fix.zh-CN.md`.
+
+## 2026-10-18 01:37 EDT — PR #4 review feedback and scope clarification
+
+**Review result**: GPT reviewed both PR commits and all four changed files. The one blocking finding is that `docs/CODEX_HANDOFF.md` implied PR approval alone would authorize restarting `run_4b1.sh`, although that driver continues through input preparation, smoke tests, and 12 round-1 jobs. The setup fix itself was judged correct. GPT's verdict is `REQUEST_CHANGES`; its attempt to submit the GitHub review failed with HTTP 403, so the verdict is in the persistent RA-Xiaolu / PMA项目 conversation.
+
+**Correction**: Clarified in the handoff that PR approval covers only the code repair; setup-only verification must call `00_setup.sh` directly; full-driver execution requires user authorization separate from PR review. The user previously directed Codex to launch the first-round benchmark per §6 after the review gate, which remains the execution scope. No Argos command was run in response to this finding.
+
+**Gate**: Request GPT review again on this same PR. Do not sync code or start external execution until explicit PR `APPROVE`. Do not merge without separate user confirmation.

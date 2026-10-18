@@ -1,5 +1,13 @@
 # Step 4b-1 Argos 原生 bundle builder 交接
 
+## 2026-10-18 12:21 EDT — e293deba 复审反馈与当前最小修复
+
+PR #5 远端 HEAD `e293deba9d906b32cc3026adb5b1d2c18fb5bb3c`、base `6c2e323fc80cc3e05f9de05282d1bbce49ba98fa`、状态 OPEN。GPT 对完整 HEAD 给 `REQUEST_CHANGES`：F4-R1 指出生产 wrapper 未把 builder 和继承的 pip 子进程 CWD 固定在 protected external workspace，且模块 allowlist 对整个 workspace 的信任应与当前 CWD 路径规则一致；F5-R1 指出 `root in packaging.__file__.parents` 也会接受 setuptools vendored packaging，必须精确要求锁定的顶层 `root/packaging`。其余任意路径注入负例、backend jaraco/distutils 检查和此前解释器选择修复方向已获认可。该 HEAD 未向 Argos 发命令。
+
+本地同 PR 最小修复尚未提交：wrapper 在启动 builder 前切换到经过保护检查的 `$WORK`，后续 pip 子进程继承该 CWD；startup 模块来源检查只允许 workspace 内的当前目录及其子目录，不再从任意 CWD 信任整个 workspace。真实 pip-wheel `setup.py` 断言 packaging 文件位于独立顶层 `root/packaging` 且不在 `_vendor`；wrapper 失败路径合同从 workspace 外启动，记录并核对 builder 实际 CWD。静态 `git diff --check` PASS。用户要求仅用 Argos 计算，Mac mini 未运行测试/构建/分析；新 HEAD 未获 GPT 明确 `APPROVE` 前不得向 Argos 发命令。获批后先跑完整合同与真实 pip-wheel backend，全部通过才继续 artifact-only G2/offline preflight。无环境修改、HINT CLI/smoke/full benchmark，PR #5 不合并。
+
+对 PI 目标二仍只是解除 HINT runtime 前置阻断，下一科学验收是四工具同输入 smoke；目标一的 human-only coordinate-unique ChIP-Atlas BED6 尚未构建，raw 数据仍可在 Argos 复用。`HUMAN DECISION: PENDING`。
+
 ## 2026-10-18 12:15 EDT — 当前门禁：fd35a31 的 F4/F5 修复待提交和复审
 
 PR #5 仍 OPEN，base 为 `6c2e323fc80cc3e05f9de05282d1bbce49ba98fa`，远端 HEAD 为 `fd35a31b087e9472006d8315863722e1e74448c3`。持久 PMA GPT 对这个完整 HEAD 给出 `REQUEST_CHANGES`：F4 要求检查真实 `sys.path` 的完整 allowlist，拒绝任意 `.pth` 注入的 `other_python_libs` 之类路径；F5 要求真实 `pip wheel` build backend 证明 `packaging` 来自锁定 external root、`jaraco` 来自锁定 setuptools `_vendor`，且无宿主 site-packages 模块。已认可前一轮 Python 3.11 选择、vendor 优先级方向和 canonical fixture。

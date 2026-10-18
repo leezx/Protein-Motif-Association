@@ -49,7 +49,10 @@ def require_no_host_site_packages(root: pathlib.Path) -> None:
         workspace = pathlib.Path(workspace_value)
         if not workspace.is_absolute() or workspace.resolve() == pathlib.Path("/"):
             raise RuntimeError("ARGOS_TOOLCHAIN_ALLOWED_WORKSPACE_INVALID")
-        allowed_roots.add(workspace.resolve())
+        work_root = workspace.resolve()
+        current_dir = pathlib.Path.cwd().resolve()
+        if current_dir == work_root or work_root in current_dir.parents:
+            allowed_roots.add(current_dir)
     for module_name, module in tuple(sys.modules.items()):
         paths = []
         module_file = getattr(module, "__file__", None)

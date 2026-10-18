@@ -199,6 +199,7 @@ export SETUPTOOLS_USE_DISTUTILS=local
 ulimit -v 48000000 || { echo "MEMORY_LIMIT_UNAVAILABLE" >&2; exit 125; }
 
 # The builder requires a fresh evidence directory; wrapper integrity manifests live in the parent.
+cd -- "$WORK"
 set +e
 "$PYTHON" "$HERE/run_redacted_command.py" "$EVIDENCE/argos-builder.stdout.log" -- \
   env PYTHONPATH="$HERE:$PYTHON_ROOT" \

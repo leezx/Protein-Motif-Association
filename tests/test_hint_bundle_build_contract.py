@@ -113,7 +113,7 @@ def add_shim():
             env["PYTHONPATH"] = str(root) + os.pathsep + str(host)
             env["PMA_HINT_ALLOWED_WORKSPACE"] = str(Path(tmp))
             result = subprocess.run([sys.executable, str(PROBE_SCRIPT), str(root)],
-                                    env=env, capture_output=True, text=True)
+                                    env=env, cwd=host, capture_output=True, text=True)
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("ARGOS_TOOLCHAIN_METADATA_ORIGIN_MISMATCH", result.stderr)
 
@@ -130,7 +130,7 @@ def add_shim():
             env["PYTHONPATH"] = str(root) + os.pathsep + str(host)
             env["PMA_HINT_ALLOWED_WORKSPACE"] = str(Path(tmp))
             result = subprocess.run([sys.executable, str(PROBE_SCRIPT), str(root)],
-                                    env=env, capture_output=True, text=True)
+                                    env=env, cwd=host, capture_output=True, text=True)
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("ARGOS_TOOLCHAIN_DISTUTILS_ORIGIN_MISMATCH", result.stderr)
 
@@ -178,7 +178,9 @@ def add_shim():
                 "origin = Path(distutils.core.__file__).resolve()\n"
                 "assert root in origin.parents, origin\n"
                 "assert '_distutils' in origin.parts, origin\n"
-                "assert root in Path(packaging.__file__).resolve().parents\n"
+                "packaging_origin = Path(packaging.__file__).resolve()\n"
+                "assert root / 'packaging' in packaging_origin.parents, packaging_origin\n"
+                "assert root / 'setuptools' / '_vendor' not in packaging_origin.parents\n"
                 "vendor = root / 'setuptools' / '_vendor'\n"
                 "assert vendor in Path(jaraco.functools.__file__).resolve().parents\n"
                 "assert all(vendor == Path(p).resolve() or vendor in Path(p).resolve().parents "
@@ -461,8 +463,9 @@ case "$(basename "$1")" in
     exit 0
     ;;
   build_hint_bundle.py)
-    printf '%s|%s|%s\n' "${SETUPTOOLS_USE_DISTUTILS:-}" \
-      "${PMA_HINT_EXTERNAL_TOOLCHAIN_PYTHON_ROOT:-}" "${PYTHONPATH:-}" > "$BUILDER_ENV_REPORT"
+    printf '%s|%s|%s|%s\n' "${SETUPTOOLS_USE_DISTUTILS:-}" \
+      "${PMA_HINT_EXTERNAL_TOOLCHAIN_PYTHON_ROOT:-}" "${PYTHONPATH:-}" "$PWD" > "$BUILDER_ENV_REPORT"
+    "$WRAPPER_SCRIPT_PYTHON" -c 'import os; print(os.getcwd())' > "$PIP_CHILD_CWD_REPORT"
     echo 'https://user:secret@example.org/pkg?token=secret' >&2
     exit 23
     ;;
@@ -527,12 +530,14 @@ fi
 
             builder_workspace = root / "builder-workspace"
             builder_env_report = root / "builder-env.txt"
-            builder_env = dict(env, BUILDER_ENV_REPORT=str(builder_env_report))
+            pip_child_cwd_report = root / "pip-child-cwd.txt"
+            builder_env = dict(env, BUILDER_ENV_REPORT=str(builder_env_report),
+                               PIP_CHILD_CWD_REPORT=str(pip_child_cwd_report))
             builder_failure = subprocess.run(["bash", str(wrapper), str(data), str(builder_workspace),
                                               str(builder_workspace / "bundle"),
                                               str(builder_workspace / "evidence"),
                                               "https://conda.example.org/conda-forge"],
-                                             capture_output=True, text=True, env=builder_env)
+                                             cwd=root, capture_output=True, text=True, env=builder_env)
             self.assertEqual(builder_failure.returncode, 23, builder_failure.stderr)
             builder_values = builder_env_report.read_text(encoding="utf-8").strip().split("|")
             self.assertEqual(builder_values[0], "local")
@@ -540,6 +545,9 @@ fi
                              (builder_workspace / "toolchain" / "python").resolve())
             self.assertEqual(builder_values[2].split(os.pathsep)[0], str(SITECUSTOMIZE_DIR))
             self.assertEqual(builder_values[2].split(os.pathsep)[1], builder_values[1])
+            self.assertEqual(Path(builder_values[3]).resolve(), builder_workspace.resolve())
+            self.assertEqual(Path(pip_child_cwd_report.read_text(encoding="utf-8").strip()).resolve(),
+                             builder_workspace.resolve())
 
 
     def test_redacted_command_sanitizes_logs_and_preserves_failure_status(self):

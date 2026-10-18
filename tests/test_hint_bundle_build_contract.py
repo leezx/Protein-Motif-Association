@@ -38,12 +38,25 @@ class HintBundleBuildContract(unittest.TestCase):
         metadata_root = metadata_root or root
         root.mkdir(parents=True, exist_ok=True)
         (root / "_distutils_hack.py").write_text("""import importlib, sys
+class DistutilsMetaFinder:
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname == 'pip':
+            sys.modules.pop('distutils', None)
+            sys.modules.pop('distutils.core', None)
+            try:
+                sys.meta_path.remove(self)
+            except ValueError:
+                pass
+        return None
+DISTUTILS_FINDER = DistutilsMetaFinder()
 def add_shim():
     package = importlib.import_module('setuptools._distutils')
     core = importlib.import_module('setuptools._distutils.core')
     package.__name__ = 'distutils'
     sys.modules['distutils'] = package
     sys.modules['distutils.core'] = core
+    if DISTUTILS_FINDER not in sys.meta_path:
+        sys.meta_path.insert(0, DISTUTILS_FINDER)
 """, encoding="utf-8")
         (root / "setuptools" / "_distutils").mkdir(parents=True)
         (root / "setuptools" / "__init__.py").write_text("__version__ = '80.9.0'\n", encoding="utf-8")

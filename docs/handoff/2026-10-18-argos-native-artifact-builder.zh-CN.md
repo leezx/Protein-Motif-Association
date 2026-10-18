@@ -60,6 +60,10 @@ PR #5 的阶段范围是外部 HINT bundle artifact 构建及既有 offline pref
 
 本地验证：`python3 -m unittest tests/test_hint_bundle_build_contract.py`（37 PASS）；相关 Python `py_compile`、wrapper `bash -n`、`git diff --check` PASS。新增修订目前尚未提交/推送或复审，因此不得在 Argos 重试。两个失败工作区都保留；`pmafp` 前后 Conda/pip manifest 相同、`PMAFP_INTEGRITY_OK`；未运行 solver、bundle、ABI audit 或 offline preflight，未创建/安装环境、未运行 HINT/分析。下一步是核对 diff、提交推送同一 PR #5、同步 PR 描述并请求新完整 HEAD 的 GPT exact-head review；APPROVE 后才可在第三个新工作区重试 artifact-only G2。
 
-### 最新门禁状态（2026-10-18 11:18 EDT）
+### 最新门禁状态（2026-10-18 11:30 EDT）
 
-前述 11:07 记录是 G2-F2 修复前的历史执行和本地测试结果。PR #5 HEAD `8d3e72d11ad82d4612f0ea4b61dc26b0c882b33b` 的 GPT 结论为 `REQUEST_CHANGES`（F2.1/F2.2）。其后修复已提交并推送为 `da8e9b464ead2acde39207ee1e3e69add06f9a39`；本轮未在 Mac mini 跑测试，未向 Argos 发命令。静态审阅和 `git diff --check` PASS；其余验证待 Argos 门禁许可。当前待对该 SHA 请求 GPT exact-head review；明确 APPROVE 后才在 Argos 运行合同测试及 G2。不得触碰两个已失败 workspace，不修改 Conda 环境，不运行 HINT/smoke/full analysis，不合并 PR #5。
+PR #5 仍 OPEN、未合并，当前远端 HEAD `e078a8d4df23bc446ed921e3ef2af245785c1513` 已获 GPT exact-head `APPROVE`，授权范围为 Argos 合同测试及既有 artifact-only G2/offline preflight。首个 Argos 启动测试在 Python `sitecustomize` 阶段 fail closed，exit 78：`ARGOS_TOOLCHAIN_DISTUTILS_ORIGIN_MISMATCH` 指向 `pmafp/lib/python3.11/distutils/core.py`；完整日志保留于 `/home/zz950/PMA_fetch/pma_pr5_g2_tests_e078a8d/toolchain-startup-test-failure.log`。测试未进入 unittest discovery；未运行 solver、bundle/ABI audit、offline preflight、HINT CLI、smoke 或分析，未改任何环境。
+
+只读 Argos 重现确认 pmafp `.pth` 加载的 external `_distutils_hack` 与 external setuptools 在 pip 查询前能正确解析到 `setuptools/_distutils`。GPT 源码诊断定位到 `probe_startup()` 在 setuptools 导入后调用 `importlib.util.find_spec("pip")`；该 spec 查询触发 setuptools finder 的 pip 特殊处理，清除 local distutils 并禁用 finder，导致随后的 origin check 命中 pmafp stdlib 副本。当前同 PR 本地修复以 `root/pip/__init__.py` 和 distribution metadata 校验 pip 来源，并在合同 fixture 模拟“pip spec 查询会清理 distutils”的行为。未在 Mac mini 跑测试；修订尚未提交或复审。
+
+下一步：更新 Worklog、提交并推送同一 PR #5、同步 PR body，再请 GPT 审核新的完整 HEAD。必须取得新的 exact-head APPROVE 才能在 Argos 继续。之后先跑合同套件和真实 `pip wheel` 子进程测试，通过后才在新的 external workspace 续跑 artifact-only G2 与既有 offline preflight。两个失败工作区保持不动；`pmafp` 与部分 `pma_hint` 不改；不运行 HINT CLI/smoke/full analysis，不合并 PR #5。

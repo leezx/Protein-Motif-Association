@@ -67,18 +67,19 @@ def probe_startup(root: pathlib.Path) -> None:
     if os.environ.get("SETUPTOOLS_USE_DISTUTILS") != "local":
         raise RuntimeError("ARGOS_TOOLCHAIN_DISTUTILS_POLICY_MISMATCH")
 
-    # Import setuptools before pip. pip's startup hook disables the distutils
-    # finder, which otherwise makes setuptools fall back to pmafp's stdlib copy.
+    # Import setuptools before pip. Its distutils finder intentionally handles
+    # pip imports by clearing local distutils and disabling itself, so avoid
+    # even a find_spec("pip") call until after this origin check.
     hack = importlib.import_module("_distutils_hack")
     require_origin("_distutils_hack", pathlib.Path(hack.__file__), root)
     hack.add_shim()
     setuptools = importlib.import_module("setuptools")
     require_origin("setuptools", pathlib.Path(setuptools.__file__), root)
     require_distribution_origin("setuptools", root)
-    pip_spec = importlib.util.find_spec("pip")
-    if pip_spec is None or pip_spec.origin is None:
-        raise RuntimeError("ARGOS_TOOLCHAIN_PIP_SPEC_MISSING")
-    require_origin("pip", pathlib.Path(pip_spec.origin), root)
+    pip_init = root / "pip" / "__init__.py"
+    if not pip_init.is_file():
+        raise RuntimeError("ARGOS_TOOLCHAIN_PIP_MODULE_MISSING")
+    require_origin("pip", pip_init, root)
     require_distribution_origin("pip", root)
     distutils_core = importlib.import_module("distutils.core")
     distutils_path = pathlib.Path(distutils_core.__file__).resolve()

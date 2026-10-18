@@ -596,3 +596,10 @@ The PR-specific Worklog, CODEX_HANDOFF, and dated handoff synchronization was co
 ## 2026-10-18 11:20 EDT — F2.1/F2.2 修复推送至 PR #5
 
 将 F2.1/F2.2 定向修复及测试、三份审计记录提交为 `da8e9b464ead2acde39207ee1e3e69add06f9a39` 并推送同一 PR #5 分支。GitHub PR #5 保持 OPEN、未合并；PR body 已更新到该精确 SHA，并说明当前提交未在 Mac mini 运行测试、待 GPT exact-head approval 后在 Argos 执行合同和 pip-wheel subprocess 测试。此 SHA 尚未请求/取得 GPT 决定；未向 Argos 下发命令。下一步请求 GPT 对该完整 diff 精确复审。
+## 2026-10-18 11:30 EDT — Argos startup gate 根因定位与同 PR 修复
+
+PR #5 远端完整 HEAD `e078a8d4df23bc446ed921e3ef2af245785c1513` 已获 GPT exact-head APPROVE，授权仅包括 Argos 合同测试及此前限定的 artifact-only G2/offline preflight。按门禁在 Argos 启动合同测试；Python startup probe exit 78，日志为 `/home/zz950/PMA_fetch/pma_pr5_g2_tests_e078a8d/toolchain-startup-test-failure.log`，错误 `ARGOS_TOOLCHAIN_DISTUTILS_ORIGIN_MISMATCH` 指向 pmafp stdlib distutils。该运行未进入 unittest discovery，也未启动 solver、bundle、ABI audit、offline preflight、环境修改、HINT CLI、smoke 或分析。失败日志已保留。
+
+只读 Argos 检查确认普通启动时没有预载 distutils；手动按 Python `.pth` 顺序加载 external `_distutils_hack` 后，external setuptools 将 distutils 解析到外部 `setuptools/_distutils`。GPT 源码诊断定位到 `probe_startup()` 在 setuptools 初始化后调用 `importlib.util.find_spec("pip")`；setuptools 80.9.0 的 finder 将该查询作为 pip 特例，清除 local distutils 并禁用 finder，导致随后 origin check 发现 pmafp stdlib 副本。保存了只读诊断日志 `/home/zz950/PMA_fetch/pma_pr5_g2_tests_e078a8d/distutils-order-diagnostic.log`、`distutils-order-diagnostic-corrected.log` 与 `distutils-import-side-effects.log`。
+
+在同一 PR 本地做最小修复：不通过 import machinery 查询 pip spec，改为核对 external `root/pip/__init__.py` 文件与其已验证 distribution metadata。合同 fixture 加入一个 pip spec 查询时模拟清空 distutils / 关闭 finder 的 meta finder，使现有 probe 合同可捕获该回归。更新 CODEX_HANDOFF 和本任务 handoff 的实时状态、失败证据与下一 gate。用户要求所有计算只在 Argos，故 Mac 未运行 tests/build/analysis；当前改动尚未提交、推送或复审。下一步完成 diff 检查后提交到同一 PR #5、同步 PR body 并请求 GPT 新完整 HEAD APPROVE；未获批准前不再向 Argos 发测试或构建命令。已有失败 workspace 保持原样，pmafp 与 partial pma_hint 未修改；不运行 HINT/smoke/full analysis，不合并 PR。

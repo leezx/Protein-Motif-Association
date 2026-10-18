@@ -46,3 +46,9 @@ GPT 建议 R conda activation 在局部 `set +u` 中执行，而非将 `GDAL_DAT
 **状态更正**：Argos `run_hint.sh` 记录的退出码是 1（chunk 失败后无可合并的 `fp.bed` 导致管道失败）；真正吞掉其失败状态的是父级 `run_round1.sh` 的无参数 `wait`，它仍输出 `ROUND1_DONE`。旧 smoke 最终由 PRINT/TraceBIND 缺失触发 `SMOKE_FAIL`。此前 GPT 诊断请求中关于 `run_hint.sh` 自身退出 0 的表述有误，现以 Argos 的 `hint.log` 为准。
 
 follow-up 尚未验证或推送，也没有代码 approval。仅完成 shell 语法和 diff 格式检查；没有在 Argos 更改环境或再次运行。下一步在同一 PR 完成此最小修订与对应验证，再请求 GPT 审查当前 HEAD；审核通过前不发 Argos 命令。GPT 明确指出还需覆盖 caller 失败/成功零 events、旧输出不被复用、smoke/full BAM 路径隔离等验证场景。
+
+## 03:22 EDT — Follow-up commit
+
+同一 PR #4 的修复已推送：`b811005` 增加 setuptools/HINT preflight 与失败传播，`147d778` 进一步加入 R 环境预检、局部 nounset 处理、caller PID/label 状态聚合、smoke/full BAM 缓存隔离以及旧 smoke output/cache 归档。PRINT score track 要求非空且 gzip 可读；事件 BED 允许合法的 0 行。当前 PR HEAD `147d778` 尚未获 GPT review/APPROVE。
+
+本次代码修改后 `bash -n scripts/04b_footprint/run_4b1.sh scripts/04b_footprint/run_round1.sh scripts/04b_footprint/run_hint.sh` 与 `git diff --check` 通过；没有添加/运行 tests。PR description 已更新为 smoke failure + runner fixes。Argos 自 `229ad96` 停止后未再访问，无环境安装或分析任务；full round 1 未启动，PR 未合并。任何后续 Argos 操作继续等待当前 HEAD 的明确 GPT `APPROVE`。

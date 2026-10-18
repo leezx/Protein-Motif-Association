@@ -138,6 +138,38 @@ def bam_to_frags(bams, out, name, sort_tmp):
     return dict(n)
 
 
+def count_gdna_coverage(tb, contig, start, end, available_contigs):
+    """Count naked-gDNA fragments overlapping the peak interval.
+
+    A missing contig is not an observed zero: callers must track that state
+    separately and exclude it from B1 tile eligibility.
+    """
+    if contig not in available_contigs:
+        return 0
+    return sum(
+        1
+        for rec in tb.fetch(contig, max(0, start - 1000), end + 1000)
+        if (lambda fields: start <= int(fields[1]) < end or start <= int(fields[2]) < end)(
+            rec.split("\t")
+        )
+    )
+
+
+def select_gdna_tiles(cov, limit=2000):
+    """Choose only callable peak regions with observed naked-gDNA coverage."""
+    eligible = [t for t in cov if t[0] > 0]
+    eligible.sort(key=lambda t: -t[0])
+    return sorted(eligible[:limit], key=lambda t: (t[1], t[2]))
+
+
+def missing_peak_contigs(peak_contigs, available_contigs):
+    missing = sorted(set(peak_contigs) - set(available_contigs))
+    unexpected = [contig for contig in missing if contig != "chrY"]
+    if unexpected:
+        raise RuntimeError(f"gDNA Tabix index is missing expected peak contigs: {unexpected}")
+    return missing
+
+
 def main(raw, work, blacklist):
     raw, work = Path(raw), Path(work)
     (work / "frags").mkdir(parents=True, exist_ok=True)
@@ -192,19 +224,28 @@ def main(raw, work, blacklist):
     sub = sorted(random.sample(keep, min(2000, len(keep))))
     (work / "regions" / "hct116_peaks_1kb.sub2000.bed").write_text(
         "".join(f"{c}\t{s}\t{e}\tS{i:05d}\n" for i, (c, s, e) in enumerate(sub)))
-    # naked-gDNA coverage in the same 1 kb regions (the callable space is identical; gDNA has no protein)
+    # Query naked-gDNA coverage over the HCT116 peak regions; missing contigs are tracked separately below.
     tb = pysam.TabixFile(str(g))
+    available_contigs = set(tb.contigs)
+    peak_contigs = {c for c, _, _ in keep}
+    missing_contigs = missing_peak_contigs(peak_contigs, available_contigs)
     cov = []
     for c, s, e in keep:
-        k = sum(1 for _ in tb.fetch(c, max(0, s - 1000), e + 1000)
-                if (lambda t: s <= int(t[1]) < e or s <= int(t[2]) < e)(_.split("\t")))
+        k = count_gdna_coverage(tb, c, s, e, available_contigs)
         cov.append((k, c, s, e))
-    cov.sort(key=lambda t: -t[0])
-    top = sorted(cov[:2000], key=lambda t: (t[1], t[2]))
+    # Missing contigs and queryable regions with observed zero inserts are
+    # both ineligible for B1; neither supplies evidence for false positives.
+    top = select_gdna_tiles(cov)
     (work / "regions" / "gdna_tiles_1kb.bed").write_text(
         "".join(f"{c}\t{s}\t{e}\tG{i:05d}\t{k}\n" for i, (k, c, s, e) in enumerate(top)))
+    absent_regions = sum(c not in available_contigs for _, c, _, _ in cov)
+    observed_zero_regions = sum(c in available_contigs and k == 0 for k, c, _, _ in cov)
     summ.update(regions=len(keep), sub=len(sub), gdna_tiles=len(top),
-                gdna_insertions_per_tile=dict(min=top and min(t[0] for t in top), median=sorted(t[0] for t in top)[len(top) // 2]))
+                gdna_missing_contigs=missing_contigs,
+                gdna_contig_absent_regions=absent_regions,
+                gdna_observed_zero_regions=observed_zero_regions,
+                gdna_insertions_per_tile=dict(min=min(t[0] for t in top) if top else None,
+                                              median=sorted(t[0] for t in top)[len(top) // 2] if top else None))
     (work / "inputs_summary.json").write_text(json.dumps(summ, indent=1) + "\n")
     print(json.dumps(summ, indent=1))
 

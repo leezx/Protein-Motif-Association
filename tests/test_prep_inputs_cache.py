@@ -76,6 +76,32 @@ class PrepInputCacheTests(unittest.TestCase):
             pathlib.Path(str(output) + ".tbi").write_bytes(b"apparently valid index")
             self.assertFalse(PREP.indexed_file_ok(output))
 
+    def test_absent_gdna_contig_is_zero_without_tabix_fetch(self):
+        class NoFetchTabix:
+            def fetch(self, *_args):
+                raise AssertionError("fetch must not be called for an absent contig")
+
+        self.assertEqual(PREP.count_gdna_coverage(NoFetchTabix(), "chrY", 100, 200, {"chr1"}), 0)
+
+    def test_present_gdna_contig_counts_overlapping_fragments(self):
+        class OneRecordTabix:
+            def fetch(self, contig, start, end):
+                self.assertions = (contig, start, end)
+                return iter(["chr1\t105\t110\tgDNA\t1", "chr1\t500\t510\tgDNA\t1"])
+
+        tb = OneRecordTabix()
+        self.assertEqual(PREP.count_gdna_coverage(tb, "chr1", 100, 200, {"chr1"}), 1)
+        self.assertEqual(tb.assertions, ("chr1", 0, 1200))
+
+    def test_gdna_tile_selection_excludes_zero_coverage_regions(self):
+        cov = [(0, "chrY", 100, 200), (0, "chr1", 300, 400), (3, "chr1", 100, 200)]
+        self.assertEqual(PREP.select_gdna_tiles(cov), [(3, "chr1", 100, 200)])
+
+    def test_only_chrY_may_be_absent_from_gdna_peak_contigs(self):
+        self.assertEqual(PREP.missing_peak_contigs({"chr1", "chrY"}, {"chr1"}), ["chrY"])
+        with self.assertRaisesRegex(RuntimeError, "chr2"):
+            PREP.missing_peak_contigs({"chr1", "chr2"}, {"chr1"})
+
 
 if __name__ == "__main__":
     unittest.main()

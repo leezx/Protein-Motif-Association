@@ -64,3 +64,13 @@ GPT 对 PR #4 HEAD `a549dcf` 给出 `REQUEST_CHANGES`：现有 75-byte `.tbi` �
 GPT 对 PR #4 HEAD `cc2eba5` 明确给出 `APPROVE`，确认 F1/F2 已解决、审计记录通过、scope-control finding 仍解决。它提醒本地测试使用 mock pysam，不是真实 tabix 集成测试；重试时应在 Argos 验证真实 pysam/tabix 产物。GitHub review 仍返回 HTTP 403，结论只记录在持久审核对话。
 
 此 approval 覆盖当前 prep 修复、此前 setup 修复、tests 和审计记录，不构成新的执行授权。第一轮 benchmark 的执行授权仍来自用户此前对 §6 的明确指示。现先将 approval 和计划中的 retry 写入 Worklog/handoff，并对这个 audit-only commit 请求 GPT 复审；在该复审前不向 Argos 发命令。复审通过后，只按既有 datasets、methods 和 thresholds 重启原 driver，不扩展范围、不合并。
+
+## 2026-10-18 02:57 EDT — 重试在 gDNA 缺失 chrY contig 处停止
+
+GPT 明确批准 PR #4 HEAD `aa54e51` 后，Argos checkout 从 `d5e2513` 快进到 `aa54e51`，干净状态已核对。按用户既有 §6 授权启动 `/home/zz950/PMA_fetch/pma_step4b1_launch_aa54e51.sh`，driver PID 14321，日志 `/home/zz950/PMA_fetch/fp_4b1_aa54e51_20261018.log`。setup 输出 `SETUP_OK`。真实 `pysam 0.24.1`/`tabix 1.24` 成功重建并完整验证 gDNA BGZF/index：文件 1,734,332,157 bytes，索引 1,002,972 bytes；旧 28-byte gzip/75-byte `.tbi` 已归档到 DATA 外部工作目录。HCT116 peak 文件生成 2,905 个区域，包含 chrY。
+
+prep 随后在查询 `chrY:18991433-18994432` 时因 gDNA Tabix 索引不含 chrY 而报 `ValueError: could not create iterator`，driver 以 `PREP_FAIL` 退出。gDNA 索引有 23 条 contig；没有生成 `inputs_summary.json`、B1 tile、smoke 输出或 caller 结果，也没有 raw 文件修改或残留 Step 4b 进程。
+
+已向 GPT 咨询，GPT 批准修复设计（但这不是新 HEAD 的 PR approval，也不是新增 Argos 授权）：区分 contig 缺失与可查询但零覆盖，只接受预期缺失 chrY，保留完整 HCT116 peak 集；只有 gDNA 覆盖 >0 的区域能进入 B1 tiles；若其他 peak contig 缺失则显式失败。禁止宽泛捕获 `ValueError` 并把索引错误吞掉。
+
+本地同 PR 新增 coverage/eligibility/contig-reconciliation helpers 与四项 fixture。Python 编译通过，prep cache 测试 6/6 通过，reference setup fixture 4/4 通过，`git diff --check` 通过。下一步把代码和本次外部运行记录加入同一 PR #4、更新描述并请求 GPT 审核新 HEAD；明确 `APPROVE` 之前不再访问 Argos。无需扩展 datasets、methods、thresholds，也不合并。

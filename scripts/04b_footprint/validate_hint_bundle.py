@@ -312,6 +312,12 @@ def main():
                     continue
                 if requirement.marker and not requirement.marker.evaluate(target_marker_environment):
                     continue
+                if requirement.extras:
+                    issues.append(
+                        f"UNSUPPORTED_PIP_EXTRAS:{key}:{raw_requirement}:"
+                        f"{','.join(sorted(requirement.extras))}"
+                    )
+                    continue
                 dependency = normalized(requirement.name)
                 if dependency not in installed:
                     issues.append(f"UNRESOLVED_WHEEL_DEPENDENCY:{key}:{raw_requirement}")

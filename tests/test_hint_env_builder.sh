@@ -208,6 +208,62 @@ grep -q HINT_OFFLINE_PREFLIGHT_OK "$TMP/preflight.log"
 grep -q HINT_PREFLIGHT_ONLY "$TMP/preflight.log"
 [[ ! -e "$MOCK_ROOT/pma_hint_v2" ]]
 
+# A -> B[foo] -> C must fail closed: this validator does not yet model extras
+# activation, so it must never claim the recursive pip closure is complete.
+EXTRAS_BUNDLE="$MOCK_ROOT/extras-bundle"
+cp -R "$BUNDLE" "$EXTRAS_BUNDLE"
+python3 - "$EXTRAS_BUNDLE" <<'EXTRAS_FIXTURE'
+import hashlib, json, sys, zipfile
+from pathlib import Path
+root = Path(sys.argv[1])
+rgt = root / "wheels/RGT-1.0.2-py3-none-any.whl"
+tmp = rgt.with_suffix(".tmp")
+with zipfile.ZipFile(rgt) as source, zipfile.ZipFile(tmp, "w") as target:
+    for item in source.infolist():
+        data = source.read(item.filename)
+        if item.filename.endswith(".dist-info/METADATA"):
+            data = data.replace(b"\n\n", b"\nRequires-Dist: B[foo]>=1\n\n", 1)
+        target.writestr(item, data)
+tmp.replace(rgt)
+b_wheel = root / "wheels/B-1.0-py3-none-any.whl"
+with zipfile.ZipFile(b_wheel, "w") as archive:
+    archive.writestr("B-1.0.dist-info/METADATA", "Name: B\nVersion: 1.0\nRequires-Dist: C>=2\n\n")
+    archive.writestr("B-1.0.dist-info/WHEEL", "Wheel-Version: 1.0\nGenerator: mock\nRoot-Is-Purelib: true\nTag: py3-none-any\n")
+digest = lambda path: hashlib.sha256(path.read_bytes()).hexdigest()
+rgt_sha, b_sha = digest(rgt), digest(b_wheel)
+(root / "pip-requirements.lock").write_text(
+    f"RGT==1.0.2 --hash=sha256:{rgt_sha}\nB==1.0 --hash=sha256:{b_sha}\n"
+)
+report_path = root / "reports/rgt-wheel-audit.json"
+report = json.loads(report_path.read_text())
+report["rgt_wheel_sha256"] = rgt_sha
+report_path.write_text(json.dumps(report))
+inventory = root / "artifacts.sha256"
+rows = []
+for line in inventory.read_text().splitlines():
+    _old, rel = line.split(None, 1)
+    if rel in {"wheels/RGT-1.0.2-py3-none-any.whl", "reports/rgt-wheel-audit.json"}:
+        continue
+    rows.append(line)
+rows.extend([f"{rgt_sha}  wheels/{rgt.name}", f"{b_sha}  wheels/{b_wheel.name}",
+             f"{digest(report_path)}  reports/rgt-wheel-audit.json"])
+inventory.write_text("\n".join(rows) + "\n")
+manifest_path = root / "bundle-manifest.json"
+manifest = json.loads(manifest_path.read_text())
+manifest["rgt_wheel_sha256"] = rgt_sha
+manifest["rgt_build_report_sha256"] = digest(report_path)
+manifest["pip_lock_sha256"] = digest(root / "pip-requirements.lock")
+manifest["artifacts_sha256"] = digest(inventory)
+manifest_path.write_text(json.dumps(manifest))
+EXTRAS_FIXTURE
+if MOCK_HINT_ROOT="$MOCK_ROOT" bash "$SETUP" preflight "$CONDA" "$PMAFP" "$MOCK_ROOT/pma_hint_extras" "$EXTRAS_BUNDLE" "$AUDIT/extras" \
+  > "$TMP/extras.log" 2>&1; then
+  echo "expected unsupported pip extras to fail closed" >&2; exit 1
+fi
+grep -q UNSUPPORTED_PIP_EXTRAS "$TMP/extras.log"
+grep -q UNRESOLVED_WHEEL_DEPENDENCY "$TMP/extras.log"
+[[ ! -e "$MOCK_ROOT/pma_hint_extras" ]]
+
 cp "$BUNDLE/bundle-manifest.json" "$TMP/bundle-manifest.valid.json"
 python3 - "$BUNDLE/bundle-manifest.json" <<'JSON'
 import json, sys

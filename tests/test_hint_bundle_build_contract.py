@@ -12,6 +12,7 @@ import tempfile
 import unittest
 import warnings
 import zipfile
+from contextlib import nullcontext
 from io import BytesIO
 from pathlib import Path
 from unittest import mock
@@ -954,7 +955,12 @@ fi
                         limits["MAX_EXTRACTED_PACKAGE_BYTES"] = 2
                     if name == "file-count-limit":
                         limits["MAX_EXTRACTED_PACKAGE_FILES"] = 2
-                    with mock.patch.multiple(BUILDER, **limits):
+                    patch_context = (
+                        mock.patch.multiple(BUILDER, **limits)
+                        if limits
+                        else nullcontext()
+                    )
+                    with patch_context:
                         with self.assertRaises(subprocess.CalledProcessError):
                             BUILDER.extract_conda_archive(
                                 python, archive, root / f"extract-{name}", root)

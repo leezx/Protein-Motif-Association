@@ -177,3 +177,9 @@ GPT 对精确 HEAD `299da84a747cbe37bd413de9f18ff01f5f0c5890` 返回 `REQUEST_CH
 ## 2026-10-18 16:36 EDT — F1–F3 本地修订静态检查完成
 
 raw 与 enriched solver evidence 已分开写入；validator 检查两份 LINK 记录的 identity/原字段关系，使用 enriched provenance 绑定 upstream snapshot/cache，并独立验证锁定 artifact identity。合同 fixture 现模拟真实 Conda JSON，经过 `load_solver_plan()` 与 builder 的 evidence writer，再交给 validator；增加双 SHA/MD5一致/冲突路径。Python 编译、wrapper `bash -n`、`git diff --check` PASS。按要求未运行合同测试或 Argos 任务。工作仍在同一 PR 本地修改，需提交/推送并重请完整 HEAD GPT 审核；Argos gate 尚不允许。
+
+## 2026-10-18 16:46 EDT — retry 2 失败；修复测试 harness 并停止 Argos 操作
+
+PR #5 当时为 OPEN，完整 HEAD `4b51e5c1d6488c96149681acae16d37f0b786133`，base `6c2e323fc80cc3e05f9de05282d1bbce49ba98fa`。持久 PMA GPT 对该精确 HEAD 曾批准一次完整合同测试重跑，使用正确的 `PMA_HINT_CONDA_EXECUTABLE`。Argos 上完整 `tests/test_hint_bundle_build_contract.py` 运行结果为 48 tests、5 errors、0 skips、exit 1。证据目录 `/home/zz950/PMA_fetch/pma_pr5_g2_tests_4b51e5c_retry2/`，完整日志 SHA-256 `21d0b1a838933accb650c73bfecf2a7694c4edd111d9a8367ba20ee7656f9151`。`PMAFP_INTEGRITY_OK`；Conda explicit before/after 清单 SHA-256 均为 `f3052debf2d3d399e59567588264e8ac7fceea4e50bb235a361becb99293fa55`；pip freeze before/after 均为 `3688808ddcc45e1f695dcbd0ba65a3db540edae7ad2e1fa6adff00d089760e5e`。
+
+GPT 确认 5 个错误均由 `limits={}` 时仍调用 `mock.patch.multiple(BUILDER, **limits)` 导致，错误发生在解包器与预期失败断言之前；因此五个恶意 archive 子用例尚未验证。按其最小建议，在同一 PR 的测试文件引入 `contextlib.nullcontext()`，空 `limits` 时使用 no-op context，两个 resource-limit 情形继续走原 `patch.multiple`；未改生产代码。该诊断没有授权再跑测试。接下来仅做静态语法编译和 `git diff --check`，更新记录后提交/推送同一 PR 并请求完整新 HEAD 的独立 GPT 审核。没有 G2、bundle build、HINT、分析或环境修改，也没有合并。ChIP-Atlas unique BED6 与四工具科学比较仍未完成。

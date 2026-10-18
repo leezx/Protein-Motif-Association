@@ -192,6 +192,7 @@ export PATH="$(dirname -- "$CONDA"):$PATH"
 export PYTHONPATH="$PYTHON_ROOT"
 export PYTHONNOUSERSITE=1
 export PYTHONDONTWRITEBYTECODE=1
+export SETUPTOOLS_USE_DISTUTILS=local
 ulimit -v 48000000 || { echo "MEMORY_LIMIT_UNAVAILABLE" >&2; exit 125; }
 
 # The builder requires a fresh evidence directory; wrapper integrity manifests live in the parent.

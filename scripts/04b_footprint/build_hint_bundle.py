@@ -9,7 +9,6 @@ Argos-native Linux environment.
 from __future__ import annotations
 
 import argparse
-import importlib.metadata
 import hashlib
 import json
 import os
@@ -140,24 +139,15 @@ def require_builder() -> tuple[str, str]:
         toolchain = Path(os.environ.get("PMA_HINT_EXTERNAL_TOOLCHAIN", ""))
         if not toolchain.is_dir():
             raise RuntimeError("ARGOS_EXTERNAL_TOOLCHAIN_MISSING")
+        python_root = toolchain / "python"
+        if not python_root.is_dir():
+            raise RuntimeError("ARGOS_EXTERNAL_TOOLCHAIN_PYTHON_ROOT_MISSING")
         package_cache = Path(os.environ.get("CONDA_PKGS_DIRS", ""))
         if not package_cache.is_absolute():
             raise RuntimeError("ARGOS_CONDA_PACKAGE_CACHE_MUST_BE_EXPLICIT_EXTERNAL_PATH")
-        try:
-            expected = {"pip": "25.2", "packaging": "25.0", "setuptools": "80.9.0",
-                        "wheel": "0.45.1", "auditwheel": "6.0.0", "pyelftools": "0.31"}
-            import packaging, pip, setuptools, wheel, auditwheel, elftools
-            modules = {"pip": pip, "packaging": packaging, "setuptools": setuptools,
-                       "wheel": wheel, "auditwheel": auditwheel, "pyelftools": elftools}
-            for name, module in modules.items():
-                module_path = Path(module.__file__).resolve()
-                if toolchain.resolve() not in module_path.parents:
-                    raise RuntimeError(f"ARGOS_TOOLCHAIN_IMPORT_OUTSIDE_EXTERNAL_DIRECTORY:{name}:{module_path}")
-                observed = importlib.metadata.version(name)
-                if observed != expected[name]:
-                    raise RuntimeError(f"ARGOS_TOOLCHAIN_VERSION_MISMATCH:{name}:{observed}:{expected[name]}")
-        except ImportError as exc:
-            raise RuntimeError(f"ARGOS_EXTERNAL_TOOLCHAIN_MODULE_MISSING:{exc.name}") from exc
+        probe = Path(__file__).with_name("probe_hint_argos_toolchain.py")
+        run([sys.executable, str(probe), str(python_root)], capture=True,
+            env=os.environ.copy())
     else:
         raise RuntimeError(f"BUILDER_MODE_UNSUPPORTED:{mode}")
     conda = shutil.which("conda")

@@ -25,6 +25,7 @@ PREP_SCRIPT = ROOT / "scripts/04b_footprint/prepare_hint_argos_toolchain.py"
 PREP_SPEC = importlib.util.spec_from_file_location("prepare_hint_argos_toolchain", PREP_SCRIPT)
 PREP = importlib.util.module_from_spec(PREP_SPEC)
 PREP_SPEC.loader.exec_module(PREP)
+PROBE_SCRIPT = ROOT / "scripts/04b_footprint/probe_hint_argos_toolchain.py"
 DATA_ROOT_SPEC = importlib.util.spec_from_file_location(
     "validate_argos_data_root", ROOT / "scripts/04b_footprint/validate_argos_data_root.py")
 DATA_ROOT_VALIDATOR = importlib.util.module_from_spec(DATA_ROOT_SPEC)
@@ -32,6 +33,126 @@ DATA_ROOT_SPEC.loader.exec_module(DATA_ROOT_VALIDATOR)
 
 
 class HintBundleBuildContract(unittest.TestCase):
+    def _write_import_probe_fixture(self, root: Path, *, metadata_root: Path | None = None):
+        metadata_root = metadata_root or root
+        root.mkdir(parents=True, exist_ok=True)
+        (root / "_distutils_hack.py").write_text("""import importlib, sys
+def add_shim():
+    package = importlib.import_module('setuptools._distutils')
+    core = importlib.import_module('setuptools._distutils.core')
+    package.__name__ = 'distutils'
+    sys.modules['distutils'] = package
+    sys.modules['distutils.core'] = core
+""", encoding="utf-8")
+        (root / "setuptools" / "_distutils").mkdir(parents=True)
+        (root / "setuptools" / "__init__.py").write_text("__version__ = '80.9.0'\n", encoding="utf-8")
+        (root / "setuptools" / "_distutils" / "__init__.py").write_text("\n", encoding="utf-8")
+        (root / "setuptools" / "_distutils" / "core.py").write_text("\n", encoding="utf-8")
+        packages = {"pip": ("pip", "25.2"), "packaging": ("packaging", "25.0"),
+                    "setuptools": ("setuptools", "80.9.0"), "wheel": ("wheel", "0.45.1"),
+                    "auditwheel": ("auditwheel", "6.0.0"), "pyelftools": ("elftools", "0.31")}
+        for dist, (module, version) in packages.items():
+            if dist != "setuptools":
+                (root / module).mkdir(exist_ok=True)
+                (root / module / "__init__.py").write_text("\n", encoding="utf-8")
+            info = metadata_root / f"{dist}-{version}.dist-info"
+            info.mkdir(parents=True, exist_ok=True)
+            (info / "METADATA").write_text(f"Name: {dist}\nVersion: {version}\n\n", encoding="utf-8")
+            (info / "RECORD").write_text(f"{dist}-{version}.dist-info/METADATA,,\n", encoding="utf-8")
+
+    def test_toolchain_probe_initializes_setuptools_before_pip_and_checks_origins(self):
+        source = PROBE_SCRIPT.read_text(encoding="utf-8")
+        self.assertLess(source.index('importlib.import_module("setuptools")'),
+                        source.index('importlib.import_module("pip")'))
+        self.assertIn("ARGOS_TOOLCHAIN_DISTUTILS_ORIGIN_MISMATCH", source)
+        self.assertIn("ARGOS_TOOLCHAIN_METADATA_ORIGIN_MISMATCH", source)
+        self.assertIn("ARGOS_TOOLCHAIN_MODULE_ORIGIN_MISMATCH", source)
+        self.assertIn("sys.modules.items()", source)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "toolchain"
+            self._write_import_probe_fixture(root)
+            env = PREP.toolchain_probe_environment(root, {"PATH": os.environ["PATH"]})
+            self.assertEqual(env["SETUPTOOLS_USE_DISTUTILS"], "local")
+            result = subprocess.run([sys.executable, str(PROBE_SCRIPT), str(root)], env=env,
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn("setuptools", result.stdout)
+            self.assertIn(str(root), result.stdout)
+            self.assertIn("setuptools-80.9.0.dist-info/METADATA", result.stdout)
+
+    def test_toolchain_probe_rejects_host_distribution_metadata(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "toolchain"
+            host = Path(tmp) / "host-site"
+            self._write_import_probe_fixture(root, metadata_root=host)
+            env = PREP.toolchain_probe_environment(root, {"PATH": os.environ["PATH"]})
+            env["PYTHONPATH"] = str(root) + os.pathsep + str(host)
+            result = subprocess.run([sys.executable, str(PROBE_SCRIPT), str(root)],
+                                    env=env, capture_output=True, text=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("ARGOS_TOOLCHAIN_METADATA_ORIGIN_MISMATCH", result.stderr)
+
+    def test_toolchain_probe_rejects_host_distutils_fallback(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "toolchain"
+            host = Path(tmp) / "host-site"
+            self._write_import_probe_fixture(root)
+            (root / "_distutils_hack.py").write_text("def add_shim(): pass\n", encoding="utf-8")
+            (host / "distutils").mkdir(parents=True)
+            (host / "distutils" / "__init__.py").write_text("\n", encoding="utf-8")
+            (host / "distutils" / "core.py").write_text("\n", encoding="utf-8")
+            env = PREP.toolchain_probe_environment(root, {"PATH": os.environ["PATH"]})
+            env["PYTHONPATH"] = str(root) + os.pathsep + str(host)
+            result = subprocess.run([sys.executable, str(PROBE_SCRIPT), str(root)],
+                                    env=env, capture_output=True, text=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("ARGOS_TOOLCHAIN_DISTUTILS_ORIGIN_MISMATCH", result.stderr)
+
+    def test_toolchain_probe_rejects_nonlocal_distutils_policy(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "toolchain"
+            self._write_import_probe_fixture(root)
+            env = PREP.toolchain_probe_environment(root, {"PATH": os.environ["PATH"]})
+            env["SETUPTOOLS_USE_DISTUTILS"] = "stdlib"
+            result = subprocess.run([sys.executable, str(PROBE_SCRIPT), str(root)],
+                                    env=env, capture_output=True, text=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("ARGOS_TOOLCHAIN_DISTUTILS_POLICY_MISMATCH", result.stderr)
+
+    def test_argos_builder_runs_import_origin_probe_before_conda_discovery(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            toolchain = root / "toolchain"
+            (toolchain / "python").mkdir(parents=True)
+            report = root / "host-toolchain.json"
+            report.write_text("{}\n", encoding="utf-8")
+            conda = root / "conda"
+            conda.touch()
+            env = {
+                "PMA_HINT_BUILDER_MODE": "argos-native",
+                "PMA_HINT_HOST_TOOLCHAIN_REPORT": str(report),
+                "PMA_HINT_EXTERNAL_TOOLCHAIN": str(toolchain),
+                "CONDA_PKGS_DIRS": str(root / "pkgs"),
+                "PMA_HINT_CONDA_EXECUTABLE": str(conda),
+                "SETUPTOOLS_USE_DISTUTILS": "local",
+            }
+            with mock.patch.dict(BUILDER.os.environ, env, clear=True), \
+                    mock.patch.object(BUILDER.platform, "system", return_value="Linux"), \
+                    mock.patch.object(BUILDER.platform, "machine", return_value="x86_64"), \
+                    mock.patch.object(BUILDER.platform, "libc_ver", return_value=("glibc", "2.23")), \
+                    mock.patch.object(BUILDER.sys, "version_info", (3, 11, 17)), \
+                    mock.patch.object(BUILDER.platform, "python_version", return_value="3.11.17"), \
+                    mock.patch.object(BUILDER.shutil, "which", side_effect=lambda name: str(conda) if name == "conda" else str(root / name)), \
+                    mock.patch.object(BUILDER, "run", return_value="probe-pass") as run:
+                result = BUILDER.require_builder()
+            self.assertEqual(result, (str(conda), "2.23"))
+            run.assert_called_once()
+            command = run.call_args.args[0]
+            self.assertEqual(command[1], str(PROBE_SCRIPT))
+            self.assertEqual(command[2], str(toolchain / "python"))
+            self.assertEqual(run.call_args.kwargs["env"]["SETUPTOOLS_USE_DISTUTILS"], "local")
+
     def _write_toolchain_wheel(self, path: Path, *, requires_python=">=3.11", declared_tag="py3-none-any",
                                root_is_purelib="true", payload=b"python source"):
         with zipfile.ZipFile(path, "w") as archive:
@@ -170,6 +291,7 @@ case "$(basename "$1")" in
     exit 0
     ;;
   build_hint_bundle.py)
+    printf '%s\n' "${SETUPTOOLS_USE_DISTUTILS:-}" > "$BUILDER_ENV_REPORT"
     echo 'https://user:secret@example.org/pkg?token=secret' >&2
     exit 23
     ;;
@@ -196,9 +318,12 @@ fi
                 tool_path.write_text(f"#!/bin/sh\nprintf '{tool} mock\\n'\n")
                 tool_path.chmod(0o755)
             prep_report = root / "toolchain-env.txt"
+            bash_env = root / "bash_env.sh"
+            bash_env.write_text("ulimit() { return 0; }\n", encoding="utf-8")
             env = dict(os.environ, BIO_DATA=str(bio_data), BIO_SOFTWARES=str(root / "software"),
                        BIOWORKSPACE_ROOT=str(root), PMA_HINT_SOURCE_PREFIX=str(prefix),
                        PMA_HINT_CONDA=str(conda), PREP_ENV_REPORT=str(prep_report),
+                       BASH_ENV=str(bash_env),
                        PATH=str(root) + os.pathsep + os.environ.get("PATH", ""))
 
             protected_work = pma_data / "artifact-builder-work"
@@ -227,6 +352,17 @@ fi
             self.assertEqual(prep_values[0], "1")
             self.assertEqual(Path(prep_values[1]).resolve(), (prep_workspace / "pip-cache").resolve())
             self.assertEqual(Path(prep_values[2]).resolve(), (prep_workspace / "tmp").resolve())
+
+            builder_workspace = root / "builder-workspace"
+            builder_env_report = root / "builder-env.txt"
+            builder_env = dict(env, BUILDER_ENV_REPORT=str(builder_env_report))
+            builder_failure = subprocess.run(["bash", str(wrapper), str(data), str(builder_workspace),
+                                              str(builder_workspace / "bundle"),
+                                              str(builder_workspace / "evidence"),
+                                              "https://conda.example.org/conda-forge"],
+                                             capture_output=True, text=True, env=builder_env)
+            self.assertEqual(builder_failure.returncode, 23, builder_failure.stderr)
+            self.assertEqual(builder_env_report.read_text(encoding="utf-8").strip(), "local")
 
 
     def test_redacted_command_sanitizes_logs_and_preserves_failure_status(self):

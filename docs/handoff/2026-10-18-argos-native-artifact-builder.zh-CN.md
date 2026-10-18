@@ -44,18 +44,10 @@ PR #5 的阶段范围是外部 HINT bundle artifact 构建及既有 offline pref
 
 ## 当前验证
 
-当前本地代码：
+## 2026-10-18 11:07 EDT — G2-F2 修复 setuptools/distutils 导入顺序冲突
 
-- `python3 -m unittest tests/test_hint_bundle_build_contract.py`：27 项通过；
-- 修改的 Python 文件 `py_compile`：通过；
-- `bash -n scripts/04b_footprint/run_hint_bundle_builder_argos.sh`：通过；
-- `git diff --check`：通过。
+在已获 GPT exact-head APPROVE 的 `1c600230918cf3a50a94b0abd0965c8d609e8240` 上，于全新外部工作区 `/home/zz950/PMA_fetch/pma_pr5_g2_1c60023/` 重跑 G2。六个锁定 wheel 下载、SHA-256 校验和解包通过；随后 `prepare_hint_argos_toolchain.py` 的 import probe 失败。完整 traceback 位于 `toolchain/toolchain-import-probe.log`：`setuptools._distutils_hack.ensure_local_distutils()` 看到 `pmafp/lib/python3.11/distutils/core.py` 而断言失败。只读重现确认，同一解释器、PYTHONPATH 和目录下先导入 pip 再导入 setuptools 会失败，先导入 setuptools可从 external `setuptools/_distutils` 加载。GPT 独立诊断建议显式固定 `SETUPTOOLS_USE_DISTUTILS=local`，先初始化锁定的 `_distutils_hack`/setuptools、再导入 pip，并验证 distutils、第三方模块及 distribution METADATA 来源；在 preparation 和 builder 入口重复该来源 probe。
 
-均为本地合同/mock 检查，未证明 Argos 上真实 Conda solver、上游 repodata、工具 wheel 下载、RGT wheel/native ABI audit、完整 bundle 或 offline preflight 成功。上述代码修复已在 `222a826` 推送；该 exact HEAD 的 GPT review 仅要求 F9 状态同步，修订后的新 SHA 尚待复审。
+按诊断在同一 PR 本地修复：新增 `probe_hint_argos_toolchain.py`，验证 distutils policy、`_distutils_hack` 来源、setuptools-first 导入、`distutils.core` 确实来自 external `setuptools/_distutils`、六个锁定模块版本与来源、六个 METADATA 来源及已加载第三方 `sys.modules` 路径。准备步骤和 builder 入口调用同一 probe；Argos wrapper 将 local 策略传给 builder/pip 子进程。测试覆盖外部导入通过、宿主 metadata/distutils 误选与 stdlib policy fail closed、builder 入口重验和 wrapper 环境传递。
 
-## 下一步
-
-1. 提交并推送 F9 审计状态同步，只包含本任务 Worklog、CODEX_HANDOFF 和本 handoff；更新 PR body 到新的完整 SHA。
-2. 在持久 PMA GPT 对话中请求 exact-head review；若有新 finding，在同 PR 最小修复并再次复审。
-3. 新 HEAD 获得明确 `APPROVE` 后，按授权范围在 Argos external workspace 做 bundle 构建和离线 preflight。
-4. 每个外部命令、退出码、日志目录、manifest、bundle hash 和失败原因写入 Worklog/handoff。数据、缓存、bundle 和结果不得进入仓库。preflight 失败则停下并保留完整证据，不修改 `pmafp` 或部分 `pma_hint`。
+本地验证：`python3 -m unittest tests/test_hint_bundle_build_contract.py`（37 PASS）；相关 Python `py_compile`、wrapper `bash -n`、`git diff --check` PASS。新增修订目前尚未提交/推送或复审，因此不得在 Argos 重试。两个失败工作区都保留；`pmafp` 前后 Conda/pip manifest 相同、`PMAFP_INTEGRITY_OK`；未运行 solver、bundle、ABI audit 或 offline preflight，未创建/安装环境、未运行 HINT/分析。下一步是核对 diff、提交推送同一 PR #5、同步 PR 描述并请求新完整 HEAD 的 GPT exact-head review；APPROVE 后才可在第三个新工作区重试 artifact-only G2。

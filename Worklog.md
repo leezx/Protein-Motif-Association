@@ -574,3 +574,13 @@ The PR-specific Worklog, CODEX_HANDOFF, and dated handoff synchronization was co
 按 GPT 对 wheel 规范的独立诊断修复同一 PR #5：只接受与 wheel filename 相符的唯一根级 canonical `.dist-info`，并要求根级 `METADATA`/`WHEEL` ZIP member 各唯一；嵌套 vendor metadata 仍整体执行路径与 native payload 检查。正向测试覆盖 setuptools 式嵌套 vendored metadata；负向测试覆盖额外/不匹配根目录、vendored metadata 不能替代缺失根级 `METADATA`、重复根级 ZIP member。实际 Argos 下载的 setuptools wheel 按 lock SHA-256 `062d34222ad13e0cc312a4c02d73f059e86a4acbfbdea8f8f76b28c99f306922` 在本地通过修复后 validator。
 
 最终本地验证：`python3 -m unittest tests/test_hint_bundle_build_contract.py`（32 PASS）、相关 `py_compile`、wrapper `bash -n`、`git diff --check` 均 PASS。GPT 认为修复方案可接受，但明确要求新代码提交并获得 exact-HEAD review 后才可重试 G2，因此没有再次连接 Argos 运行 builder。只读环境清点显示 Conda 正式登记的 `argos-codex`（history 最近为 2026-07-15）、`pmafp`（2026-10-18）存在；`pma_hint` 目录于 2026-10-18 04:07 创建但无 `conda-meta/history`，不在 Conda 登记列表，当前是残留 prefix 而非完整可用环境。没有改动这些 prefix；失败 G2 workspace 与日志保持在 `/home/zz950/PMA_fetch/pma_pr5_g2_ede0f81/`。新修订及审计已写入 Worklog/CODEX_HANDOFF/dated handoff，仍未提交或复审。
+
+## 2026-10-18 11:07 EDT — G2-F2 定位 setuptools/distutils 导入顺序冲突并修复
+
+在已获 GPT exact-head APPROVE 的 `1c600230918cf3a50a94b0abd0965c8d609e8240` 上，于新外部工作区 `/home/zz950/PMA_fetch/pma_pr5_g2_1c60023/` 重跑 G2。六个 hash-locked wheels 下载、SHA-256 校验与解包通过；`prepare_hint_argos_toolchain.py` import probe 失败，完整 traceback 在 `toolchain/toolchain-import-probe.log`：setuptools local-distutils 断言命中 `pmafp/lib/python3.11/distutils/core.py`。同一 interpreter/PYTHONPATH/cwd 的只读复现显示先导入 pip 再导入 setuptools 会失败，先初始化 external setuptools shim 再导入 pip 可从 `setuptools/_distutils` 加载。GPT 的 G2-F2 诊断要求显式 `SETUPTOOLS_USE_DISTUTILS=local`、按 setuptools-first 顺序初始化、核查模块与 distribution metadata 来源，并在 preparation 与 builder 入口重复来源 probe。
+
+同一 PR 本地修复：新增复用型 `scripts/04b_footprint/probe_hint_argos_toolchain.py`；prepare 与 builder 入口均调用该 probe，核验 policy、external `_distutils_hack`、setuptools/distutils 导入顺序、`distutils.core` 具体路径、六个锁定模块的版本/路径、distribution METADATA 来源和已加载第三方 `sys.modules` 路径。Argos wrapper 导出 local policy 给后续 pip/build 子进程。新增正负 probe 测试、builder 入口调用测试和 wrapper 环境传递测试。
+
+本地验证最终结果：`python3 -m unittest tests/test_hint_bundle_build_contract.py` 37 PASS；相关 Python `py_compile`、wrapper `bash -n`、`git diff --check` PASS。测试最初暴露本地宿主不允许 `ulimit -v 48000000`，通过 wrapper 测试 BASH_ENV mock 处理该宿主限制；生产 wrapper 行为和 48 GB 限额未变。两个失败 workspace 证据均保留；Argos `pmafp` Conda/pip before/after manifests 相同，`PMAFP_INTEGRITY_OK`；solver、bundle、ABI audit、offline preflight 均未运行。无环境创建/安装、HINT CLI/分析或 PR merge。
+
+当前修复仍为本地未提交变更；下一步复核完整 diff、显式暂存并提交推送同一 PR #5、更新 PR 描述到新完整 SHA，再请求持久 PMA GPT exact-head review。新 HEAD 明确 APPROVE 前不重试 Argos；获批后使用第三个新 external workspace 做 artifact-only G2，失败则停止并留证。

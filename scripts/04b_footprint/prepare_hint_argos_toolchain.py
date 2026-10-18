@@ -17,6 +17,13 @@ from pip._vendor.packaging.utils import canonicalize_name, parse_wheel_filename
 from pip._vendor.packaging.version import Version
 
 
+def toolchain_probe_environment(python_root: Path, base: dict[str, str] | None = None) -> dict[str, str]:
+    """Return a fail-closed environment for importing the external builder wheels."""
+    return {**(os.environ if base is None else base), "PYTHONPATH": str(python_root),
+            "PYTHONNOUSERSITE": "1", "PYTHONDONTWRITEBYTECODE": "1",
+            "SETUPTOOLS_USE_DISTUTILS": "local"}
+
+
 def digest(path: Path) -> str:
     value = hashlib.sha256()
     with path.open("rb") as handle:
@@ -202,22 +209,9 @@ def main() -> int:
                 raise RuntimeError(f"ARGOS_TOOLCHAIN_DEPENDENCY_NOT_LOCKED:{item['name']}:{dependency}")
             if requirement.specifier and not requirement.specifier.contains(Version(versions[dependency]), prereleases=True):
                 raise RuntimeError(f"ARGOS_TOOLCHAIN_DEPENDENCY_VERSION_MISMATCH:{item['name']}:{dependency}:{versions[dependency]}")
-    probe_env = {**os.environ, "PYTHONPATH": str(python_root), "PYTHONNOUSERSITE": "1",
-                 "PYTHONDONTWRITEBYTECODE": "1"}
-    probe_code = """import importlib.metadata as m, pathlib, sys
-root = pathlib.Path(sys.argv[1]).resolve()
-mods = {'pip': __import__('pip'), 'packaging': __import__('packaging'),
-        'setuptools': __import__('setuptools'), 'wheel': __import__('wheel'),
-        'auditwheel': __import__('auditwheel'), 'pyelftools': __import__('elftools')}
-expected = {'pip':'25.2', 'packaging':'25.0', 'setuptools':'80.9.0',
-            'wheel':'0.45.1', 'auditwheel':'6.0.0', 'pyelftools':'0.31'}
-for name, module in mods.items():
-    path = pathlib.Path(module.__file__).resolve()
-    print(name, m.version(name), path)
-    if m.version(name) != expected[name] or root not in path.parents:
-        raise SystemExit(3)
-"""
-    probe = subprocess.run([str(python), "-c", probe_code, str(python_root)], env=probe_env,
+    probe_env = toolchain_probe_environment(python_root)
+    probe_script = Path(__file__).with_name("probe_hint_argos_toolchain.py")
+    probe = subprocess.run([str(python), str(probe_script), str(python_root)], env=probe_env,
                            check=False, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     (report.parent / "toolchain-import-probe.log").write_text(probe.stdout, encoding="utf-8")
     if probe.returncode:

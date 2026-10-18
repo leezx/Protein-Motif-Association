@@ -1,6 +1,6 @@
 # Step 4b-1 Argos 原生 bundle builder 交接
 
-更新时间：2026-10-18 10:35 EDT
+更新时间：2026-10-18 10:43 EDT
 仓库：`Protein-Motif-Association`
 基线：PR #4 merge commit `6c2e323fc80cc3e05f9de05282d1bbce49ba98fa`，目标分支 `step4b-atac-footprinting`
 工作分支：`task_20261018_argos_artifact_builder`
@@ -8,7 +8,9 @@ PR：[#5](https://github.com/leezx/Protein-Motif-Association/pull/5)
 
 ## 状态与边界
 
-PR #5 当前 OPEN。最近推送的完整 HEAD 是 `45b785b2a4699571c13eb817271615d063588490`；GPT 对此 exact HEAD 返回 `REQUEST_CHANGES`。F1、F3、F5、F6 已解决；F2、F4、F7、F8、F9 尚有 blocker。最新一轮修订正在同一 PR 的本地工作树，尚未推送或复审。该 HEAD 没有获得 APPROVE；不得据此在 Argos 下载、构建或运行分析。
+PR #5 当前 OPEN，base 为 `step4b-atac-footprinting@6c2e323fc80cc3e05f9de05282d1bbce49ba98fa`，已推送 HEAD 为 `222a82690ee8e41beab407c6e18c0a41de2b0071`。GPT 对该 exact HEAD 的结论是 `REQUEST_CHANGES`，唯一剩余项 F9：当前状态摘要与已推送 HEAD 不一致。F1–F8 的实现审核通过。当前只做 Worklog、CODEX_HANDOFF、dated handoff 与 PR body 的审计状态同步；新 HEAD 获得明确 APPROVE 前，不在 Argos 下载或构建。
+
+Argos 接入路径已由交接指南和此前只读 SSH 核对确认：`ssh -o BatchMode=yes zz950@rcapps3.dfci.harvard.edu`。Argos 主机有计算资源；旧 Docker 路线受限于账号无 Docker socket 权限，不代表 Argos 不可用。记录中的 `pmafp` Python 3.11.17 环境和部分 `pma_hint` 必须原样保留。新 PR HEAD 获得明确 APPROVE 后，按 G2 授权先核对 Cloud Code 建立的环境与现存 prefix，再执行 artifact-only 构建和离线预检。
 
 Argos 资源可访问：此前只读检查显示 72 CPU、约 1 TiB RAM、约 923 GiB 可用内存及充足外部存储。此前受阻的是 `zz950` 无 Docker socket 权限且没有可用容器运行时；Argos 并非没有计算资源。PR #5 未改动 `pmafp`；部分 `pma_hint` 需要保留。此前 HINT CLI preflight 曾以 `HINT_CLI_PREFLIGHT_FAIL` 结束，没有启动分析。
 
@@ -37,11 +39,11 @@ PR #5 的阶段范围是外部 HINT bundle artifact 构建及既有 offline pref
 - `bash -n scripts/04b_footprint/run_hint_bundle_builder_argos.sh`：通过；
 - `git diff --check`：通过。
 
-均为本地合同/mock 检查，未证明 Argos 上真实 Conda solver、上游 repodata、工具 wheel 下载、RGT wheel/native ABI audit、完整 bundle 或 offline preflight 成功。最新修复当前尚未提交/推送；下一个完整 SHA 待生成。
+均为本地合同/mock 检查，未证明 Argos 上真实 Conda solver、上游 repodata、工具 wheel 下载、RGT wheel/native ABI audit、完整 bundle 或 offline preflight 成功。上述代码修复已在 `222a826` 推送；该 exact HEAD 的 GPT review 仅要求 F9 状态同步，修订后的新 SHA 尚待复审。
 
 ## 下一步
 
-1. 检查完整 diff 与状态；显式提交仅包含本任务代码、测试、`Worklog.md`、`docs/CODEX_HANDOFF.md` 和本 handoff 的文件。
-2. 推送同一 PR #5，更新 PR body 到新的完整 SHA，在持久 PMA GPT 对话中请求 exact-head review。
-3. 若 GPT 返回 `REQUEST_CHANGES`，在同 PR 按 finding 最小修复、复跑受影响测试并复审；若返回 `APPROVE`，再按授权范围在 Argos external workspace 做 bundle 构建和离线 preflight。
+1. 提交并推送 F9 审计状态同步，只包含本任务 Worklog、CODEX_HANDOFF 和本 handoff；更新 PR body 到新的完整 SHA。
+2. 在持久 PMA GPT 对话中请求 exact-head review；若有新 finding，在同 PR 最小修复并再次复审。
+3. 新 HEAD 获得明确 `APPROVE` 后，按授权范围在 Argos external workspace 做 bundle 构建和离线 preflight。
 4. 每个外部命令、退出码、日志目录、manifest、bundle hash 和失败原因写入 Worklog/handoff。数据、缓存、bundle 和结果不得进入仓库。preflight 失败则停下并保留完整证据，不修改 `pmafp` 或部分 `pma_hint`。

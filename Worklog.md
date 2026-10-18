@@ -553,3 +553,9 @@ The PR-specific Worklog, CODEX_HANDOFF, and dated handoff synchronization was co
 ## 2026-10-18 10:35 EDT — 保留 upstream repodata snapshot provenance sidecar
 
 在 F4 修订中，为每个 `linux-64/noarch`、before/after 原始 repodata 快照新增 sidecar，明确记录快照 ID、subdir、文件名、脱敏 URL 与原始 SHA-256；测试检查原始字节 hash 和 sidecar 元数据。当前完整本地验证为 27 项合同测试通过、Python 编译通过、Argos wrapper `bash -n` 通过、`git diff --check` 通过。另修复 wrapper 的 host provenance 片段缺少 `shutil` 导入。PR #5 当前远端仍是 `45b785b2a4699571c13eb817271615d063588490`，对该 SHA 的 GPT verdict 为 `REQUEST_CHANGES`；这些修订尚未提交推送。没有调用 Argos、下载或构建 bundle、改环境/数据、执行 HINT/分析或合并。
+
+## 2026-10-18 10:43 EDT — GPT 对 PR #5 HEAD 222a826 复审 REQUEST_CHANGES；同步 F9 当前状态
+
+持久 PMA GPT 会话已完成对 PR #5 精确 HEAD `222a82690ee8e41beab407c6e18c0a41de2b0071` 的复审：F1–F8 实现项通过，无新增代码 blocker；唯一剩余 finding F9 是 CODEX_HANDOFF、dated handoff 和 Worklog 的当前状态摘要没有反映 222a826 已推送，且 PR 仍 OPEN。按 finding 仅更新当前状态摘要，保留此前时间戳记录作为历史，不改 builder/wrapper/test。
+
+复核 Argos 接入事实：此前只读 SSH 入口为 `ssh -o BatchMode=yes zz950@rcapps3.dfci.harvard.edu`；主机有计算资源，Docker socket 权限限制的是旧 Docker 构建路线。交接记录要求保留 `pmafp` 和部分 `pma_hint`。尚未对 Argos 发起本轮构建；G2 仍等待 F9 修订后的精确 PR HEAD 获 GPT APPROVE。范围仍限 artifact-only 构建及既有 offline preflight，不创建/安装环境、不运行 HINT CLI/smoke/full analysis、不合并。

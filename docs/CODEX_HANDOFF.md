@@ -1,8 +1,8 @@
 # PMA — handoff to Codex (2026-10-17, written by Claude Code)
 
-## Live status update — 2026-10-18 10:35 EDT
+## Live status update — 2026-10-18 10:43 EDT
 
-PR #4 was merged at `2026-10-18T13:13:02Z` as merge commit `6c2e323fc80cc3e05f9de05282d1bbce49ba98fa` into `step4b-atac-footprinting`. The current branch is `task_20261018_argos_artifact_builder`; PR #5 is OPEN against that base. Latest pushed HEAD `45b785b2a4699571c13eb817271615d063588490` received GPT `REQUEST_CHANGES`. The follow-up local changes cover F2/F4/F7/F8/F9, including retained raw repodata snapshots with provenance sidecars; they remain uncommitted pending exact-head review. No PR #5 Argos download/build or analysis has run.
+PR #4 was merged at `2026-10-18T13:13:02Z` as merge commit `6c2e323fc80cc3e05f9de05282d1bbce49ba98fa` into `step4b-atac-footprinting`. PR #5 is OPEN on `task_20261018_argos_artifact_builder`, base `6c2e323fc80cc3e05f9de05282d1bbce49ba98fa`, at pushed HEAD `222a82690ee8e41beab407c6e18c0a41de2b0071`. GPT reviewed that exact HEAD: F1–F8 passed; the verdict is `REQUEST_CHANGES` solely for F9, because this handoff/worklog live status still described already-pushed fixes as uncommitted. The F9 audit-only synchronization is the next change. No PR #5 Argos artifact build or analysis has run.
 
 Argos is available. Read-only SSH confirmed the host `rcGPUs.dfci.harvard.edu` has 72 CPUs and about 1 TiB RAM. The Docker CLI exists, but the account cannot access `/var/run/docker.sock`; `/usr/games/singularity` is a Debian game launcher rather than a container runtime. The `pmafp` prefix remains unmodified by PR #5; preserve the partial `pma_hint`. These findings block the old Docker-image route, not access to Argos compute.
 
@@ -230,14 +230,14 @@ benchmark. See `docs/STEP1_*`, `docs/STEP2_*`.
   - `reference/hg38.fa.gz`.
 - **Working directory:** `processed/round1/`.
 
-## 6. Current execution state (2026-10-18 10:35 EDT; verify live before any external action)
+## 6. Current execution state (2026-10-18 10:43 EDT; verify live before any external action)
 
 - **First-round inputs and previous Argos state:** inputs are downloaded and checksum/size verified. The previous HINT CLI preflight ended with `HINT_CLI_PREFLIGHT_FAIL`, without starting analysis. `pmafp` manifests were unchanged and the partial `pma_hint` must be preserved. Argos itself is available (72 CPUs, about 1 TiB RAM); the previous blocker was Docker socket/tool availability, not compute capacity.
 - **PR #4:** merged into `step4b-atac-footprinting` at `6c2e323fc80cc3e05f9de05282d1bbce49ba98fa` after the user's explicit “合并 继续”.
-- **PR #5 gate:** OPEN on `task_20261018_argos_artifact_builder`; last pushed HEAD `45b785b2a4699571c13eb817271615d063588490`, base `6c2e323fc80cc3e05f9de05282d1bbce49ba98fa`. GPT returned `REQUEST_CHANGES` on that exact SHA. Local fixes for F2/F4/F7/F8/F9 are complete but not yet pushed or approved. No Argos download/build or analysis has run for PR #5.
-- **Current same-PR fixes:** run and redact builder output incrementally while preserving child exit status; retain before/after raw repodata JSON snapshots plus sidecars recording snapshot id, subdir, sanitized URL, filename, and hash; protect canonical `BIO_DATA` and `PMA_DATA` roots as well as the footprint subtree; set pip cache/temp paths inside the external workspace; refresh live status in the dated handoff and this summary. A newly exposed missing `shutil` import in the host provenance snippet is also fixed and covered by the wrapper failure-path fixture.
+- **PR #5 gate:** OPEN on `task_20261018_argos_artifact_builder`; pushed HEAD `222a82690ee8e41beab407c6e18c0a41de2b0071`, base `6c2e323fc80cc3e05f9de05282d1bbce49ba98fa`. GPT reviewed this exact SHA and returned `REQUEST_CHANGES` only for F9: current live-status summaries disagree with the pushed HEAD. F1–F8 implementation findings passed. This commit synchronizes the audit status; it must be pushed and reviewed at its exact new HEAD before Argos artifact build. No PR #5 Argos download/build or analysis has run.
+- **Current implementation status:** F2 failure-path log redaction, F4 retained raw repodata snapshots and provenance, F7 protected canonical DATA roots, and F8 external pip cache/TMPDIR are already pushed in `222a826`; F1/F3/F5/F6 remain resolved. The missing `shutil` import is fixed and covered by the wrapper failure-path fixture. The current task is audit-only F9 synchronization.
 - **Validation:** `python3 -m unittest tests/test_hint_bundle_build_contract.py` passes 27 tests. Python compilation, wrapper `bash -n`, and `git diff --check` pass. Coverage includes redaction under child exit 23, persistent raw repodata hash verification, PMA_DATA output rejection, pip cache/TMPDIR confinement at tool preparation, and integrity capture after simulated preparation failure. Real Conda channel/repodata behavior, bundle generation, and Argos offline preflight remain unverified.
-- **Next:** finish diff/audit checks, commit and push only PR #5 task files, synchronize the PR body to the full new SHA, and request exact-head GPT review. Do not contact Argos before an explicit APPROVE for that full SHA. Even after approval, only external bundle construction and the already authorized offline preflight are in scope; installation, HINT CLI, smoke/full analysis, and merge need later gates/authorization.
+- **Next:** commit and push the F9 audit synchronization in the same PR, update the PR body to the exact new HEAD, and request exact-head GPT review. Do not contact Argos for G2 before an explicit APPROVE for that full SHA. After approval, the already authorized scope is external artifact collection/build plus the existing offline preflight; installation, HINT CLI, smoke/full analysis, and merge remain outside this stage.
 
 ## 7. Next steps (in order)
 

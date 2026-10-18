@@ -29,3 +29,4 @@ MCPV ST	non_gene_target	.	.	.	viral protein (MCPyV small T)
 VSV-G	non_gene_target	.	.	.	viral glycoprotein
 Cas9	non_gene_target	.	.	.	exogenous bacterial protein
 Cpf1	non_gene_target	.	.	.	exogenous bacterial protein
+PAD2	manual_curated	PADI2	.	.	peptidyl arginine deiminase 2 (PAD2 = PADI2)

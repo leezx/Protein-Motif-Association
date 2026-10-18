@@ -113,12 +113,16 @@ VENDORS = [  # (normalised name, pattern on the text)
     ("EpiCypher", r"epicypher"),
     ("PTM Biolabs", r"PTM[\s\-]*bio"),
     ("ENCODE", r"\bENCAB\d{3}[A-Z]{3}\b"),
+    ("Covance", r"covance|\bMMS-\d{3}[A-Z]?\b|\bPRB-\d{3}[A-Z]?\b"),
 ]
 VENDOR_RE = [(n, re.compile(p, re.I)) for n, p in VENDORS]
 CATALOG = [  # vendor -> catalog regex (vendor-implying patterns listed first)
+    ("RRID", re.compile(r"\bRRID\s*:?\s*(AB_\d{5,8})\b", re.I)),
     ("ENCODE", re.compile(r"\b(ENCAB\d{3}[A-Z]{3})\b")),
+    ("Covance", re.compile(r"\b(MMS-\d{3}[A-Z]?|PRB-\d{3}[A-Z]?)\b")),
     ("Abcam", re.compile(r"\b(ab\d{2,6})\b", re.I)),
-    ("Santa Cruz", re.compile(r"\b(sc[\s\-]?\d{2,6}(?:-?X)?)\b", re.I)),
+    ("Santa Cruz", re.compile(r"\b(?:sc|scbt)[\s\-]?(\d{2,6}(?:-?X)?)\b", re.I)),
+    ("Santa Cruz", re.compile(r"\b([A-Z]{1,2}-\d{2,3})\b")),  # legacy product names (N-20, C-20, HC-20, H-300)
     ("Bethyl", re.compile(r"\b(A30\d-\d{3}A)\b")),
     ("Proteintech", re.compile(r"\b(\d{4,6}-\d-AP)\b")),
     ("Atlas Antibodies", re.compile(r"\b(HPA\d{6})\b")),
@@ -130,8 +134,11 @@ CATALOG = [  # vendor -> catalog regex (vendor-implying patterns listed first)
     ("Cell Signaling Technology", re.compile(r"(?:#|cat\.?\s*(?:no\.?|#)?\s*|\b)(\d{4,5}S?)\b")),
     ("Thermo Fisher", re.compile(r"\b(PA\d-\d{3,6}|MA\d-\d{3,6})\b")),
     ("Novus", re.compile(r"\b(NB\d{2,3}-\d{3,6})\b")),
+    ("Roche", re.compile(r"\b(\d{11})\b")),
 ]
-IMPLIES_VENDOR = {"ENCODE", "Abcam", "Santa Cruz", "Bethyl", "Proteintech", "Atlas Antibodies", "GeneTex"}
+IMPLIES_VENDOR = {"RRID", "ENCODE", "Abcam", "Bethyl", "Proteintech", "Atlas Antibodies", "GeneTex", "Covance"}
+CST_CLONE = re.compile(r"\b([A-Z]\d{1,2}[A-Z]\d{1,2})\b")  # CST rabbit mAb clone IDs, e.g. D22F2, C29F4
+NA_TXT = re.compile(r"^\s*(n/?a|none|-|not applicable|unknown|not available|\.)\s*$", re.I)
 CLONES = re.compile(r"\b(8WG16|4H8|3E10|3E8|H5|H14|DO-1|DO-7|9E10|12CA5|3F10|16B12|M2)\b")
 CLONE_EXPL = re.compile(r"\bclone[\s:#]*([A-Za-z0-9][A-Za-z0-9\-\.]{1,15})", re.I)
 HOST = re.compile(r"\b(mouse|rabbit|goat|rat|sheep|chicken|guinea[\s\-]?pig|donkey|llama|hamster)\b", re.I)
@@ -142,12 +149,13 @@ TAGS = [("FLAG", re.compile(r"\bflag\b|\bF1804\b|\bF3165\b|\bM2\b", re.I)),
         ("Myc-tag", re.compile(r"\bmyc[\s\-]*tag|\bc-?myc\s*epitope|\bmyc\b.*\b9E10\b", re.I)),
         ("other", re.compile(r"\b(T7[\s\-]*tag|His[\s\-]*tag|6xHis|Strep[\s\-]*tag|TY1|HALO[\s\-]*tag|biotin|Avi[\s\-]*tag|"
                              r"BioTag|BirA)\b", re.I))]
-CONTROL_TXT = re.compile(r"^\s*((normal\s+)?(rabbit|mouse|goat|rat)?\s*IgG|IgG|none|no antibody|mock|input|n/?a|-)\s*$", re.I)
+CONTROL_TXT = re.compile(r"^\s*((normal\s+)?(rabbit|mouse|goat|rat)?\s*IgG|IgG|no antibody|mock|input)\s*$", re.I)
 
 
 def parse_antibody(attrs, antigen_raw):
     """attrs: list of (key, value). Uses keys containing 'antibod' except 'control antibody'."""
-    ab = [(k, v) for k, v in attrs if "antibod" in k.lower() and "control" not in k.lower() and v.strip()]
+    ab = [(k, v) for k, v in attrs if "antibod" in k.lower() and "control" not in k.lower()
+          and "secondary" not in k.lower() and v.strip() and not NA_TXT.match(v)]
     out = dict(antibody_raw=MISSING, antibody_source_field=MISSING, antibody_target_raw=MISSING,
                antibody_vendor=MISSING, antibody_catalog=MISSING, antibody_clone=MISSING, antibody_host=MISSING,
                antibody_type="unknown", antibody_id=MISSING, antibody_label=MISSING, epitope_tag="unknown",
@@ -168,11 +176,15 @@ def parse_antibody(attrs, antigen_raw):
     vend = [n for n, rx in VENDOR_RE if rx.search(text)]
     cats = []
     for n, rx in CATALOG:
-        if n in IMPLIES_VENDOR or n in vend:
+        if n in IMPLIES_VENDOR or n in vend or (n == "Santa Cruz" and re.search(r"\b(sc|scbt)[\s\-]?\d", text, re.I)):
             for c in rx.findall(text):
-                cats.append((n, re.sub(r"\s+", "", c)))
+                c = re.sub(r"\s+", "", c)
+                if n == "Santa Cruz" and c[0].isdigit():
+                    c = "sc-" + c
+                cats.append((n, c))
     cats = list(dict.fromkeys(cats))
-    clone = CLONE_EXPL.search(text) or CLONES.search(text)
+    clone = CLONE_EXPL.search(text) or CLONES.search(text) or \
+        (CST_CLONE.search(text) if "Cell Signaling Technology" in vend else None)
     host = HOST.search(text)
     out["antibody_host"] = host.group(1).lower() if host else MISSING
     low = text.lower()
@@ -188,8 +200,10 @@ def parse_antibody(attrs, antigen_raw):
         out["antibody_status"] = "ambiguous"
         out["antibody_catalog"] = ";".join(c for _, c in cats)[:200]
     elif cats:
-        n, c = cats[0]
-        out.update(antibody_vendor=n, antibody_catalog=c, antibody_id=f"{n}:{c}" if n != "ENCODE" else c,
+        n, c = next((x for x in cats if x[0] != "RRID"), cats[0]) if len({c for _, c in cats}) == 1 else cats[0]
+        rrid = next((c2 for n2, c2 in cats if n2 == "RRID"), None)
+        out.update(antibody_vendor=n if n != "RRID" else out["antibody_vendor"], antibody_catalog=c,
+                   antibody_id=f"RRID:{rrid}" if rrid else (c if n == "ENCODE" else f"{n}:{c}"),
                    antibody_status="catalog_resolved")
     elif clone:
         out["antibody_status"] = "clone_resolved"
@@ -204,14 +218,16 @@ def parse_antibody(attrs, antigen_raw):
 # ---------------------------------------------------------------- context (§5.3)
 
 UNTREATED = re.compile(r"^\s*(none|no|untreated|no treatment|non[\s\-]?treated|control|ctrl|mock|vehicle|dmso|"
-                       r"etoh|ethanol|pbs|unstimulated|n/?a|-|0|nothing|normal|wt|wild[\s\-]?type)\s*$", re.I)
+                       r"etoh|ethanol|pbs|unstimulated|n/?a|-|0|nothing|normal|wt|wild[\s\-]?type)\s*$|"
+                       r"\b(vehicle|dmso|non[\s\-]?targeting|scrambl\w*|mock|untreated|unstimulated|no treatment)\b|"
+                       r"^\s*(ntc|control)\b", re.I)
 TREAT_KEYS = ("treatment", "agent", "drug", "stimulation", "treatment description", "compound", "treated with")
 PERTURB = [("knockdown", r"knock[\s\-]*down|\bsi[\s\-]?rna|\bsh[\s\-]?rna|\bkd\b"),
            ("knockout", r"knock[\s\-]*out|\bko\b|crispr|-/-|null"),
            ("overexpression", r"over[\s\-]*express|\boe\b|transfect|transduc|induc(ed|ible) expression"),
            ("degron", r"degron|dTAG|\bAID\b|auxin"),
            ("stimulation", r"stimulat|\bLPS\b|\bTNF|\bIFN|estradiol|\bE2\b|dexamethasone|\bDex\b|androgen|DHT|R1881|"
-                           r"insulin|forskolin|PMA|ionomycin|heat shock|hypoxia"),
+                           r"insulin|forskolin|PMA|ionomycin|heat shock|hypoxia|estrogen|hormone|agonist|ligand"),
            ("drug", r"inhibitor|\bnM\b|\buM\b|\bµM\b|mg/ml|treated with|\bJQ1\b|tamoxifen|doxycycline|\bdox\b")]
 PERTURB_RE = [(n, re.compile(p, re.I)) for n, p in PERTURB]
 PRIMARY_CELL = re.compile(r"\b(T[\s\-]?cells?|B[\s\-]?cells?|monocytes?|macrophages?|neutrophils?|PBMC|"
@@ -231,7 +247,7 @@ def parse_context(desc, attrs, cell_type_class, cell_type):
         bt = "organoid"
     elif "Primary Tissue" in d or (a.get("cell line", "").strip() and not UNTREATED.match(a["cell line"])):
         bt = "cell_line"
-    elif re.search(r"(ipsc|es[\s\-]?cell|stem cell)[\s\-]*derived|differentiat", blob):
+    elif re.search(r"(h?ipscs?|h?escs?|ips|es[\s\-]?cells?|stem[\s\-]?cells?)[\s\-]*derived|differentiat", blob):
         bt = "stem_cell_derived"
     elif a.get("tissue") and not a.get("cell line"):
         bt = "primary_tissue"

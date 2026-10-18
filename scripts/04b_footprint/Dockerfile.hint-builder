@@ -1,23 +1,34 @@
-# Build with an explicit immutable linux/amd64 base image:
-# docker build --platform linux/amd64 --build-arg BUILDER_IMAGE=<image>@sha256:<digest> \
-#   -f scripts/04b_footprint/Dockerfile.hint-builder -t pma-hint-builder .
-ARG BUILDER_IMAGE
-FROM --platform=linux/amd64 ${BUILDER_IMAGE}
+# Build the runtime image with: docker build --platform linux/amd64 \
+#   -f scripts/04b_footprint/Dockerfile.hint-builder -t pma-hint-builder:reviewed .
+# Before running, resolve the final image ID to its sha256 digest and pass that
+# digest to run_hint_bundle_builder.sh. The builder records that runtime digest.
+FROM --platform=linux/amd64 quay.io/pypa/manylinux2014_x86_64@sha256:8a481b7b8ddb36790ae01ebbe34d8eb9dd83d442585d69e357ae75dc14691ebc
 
-ARG BUILDER_IMAGE
-ENV PMA_HINT_BUILDER_IMAGE=${BUILDER_IMAGE}
+ENV PATH=/opt/python/cp311-cp311/bin:/opt/conda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+COPY scripts/04b_footprint/hint-builder-requirements.lock /tmp/hint-builder-requirements.lock
+
+RUN curl -fsSL "https://github.com/conda-forge/miniforge/releases/download/25.3.1-0/Miniforge3-25.3.1-0-Linux-x86_64.sh" -o /tmp/miniforge.sh \
+ && echo "376b160ed8130820db0ab0f3826ac1fc85923647f75c1b8231166e3d559ab768  /tmp/miniforge.sh" | sha256sum -c - \
+ && bash /tmp/miniforge.sh -b -p /opt/conda \
+ && /opt/conda/bin/conda install --yes --name base --override-channels -c conda-forge \
+      conda=25.3.1 conda-index=0.12.1 \
+ && /opt/python/cp311-cp311/bin/python -m pip install --no-cache-dir --require-hashes \
+      -r /tmp/hint-builder-requirements.lock \
+ && /opt/conda/bin/conda list --explicit --name base > /opt/conda/build-toolchain-explicit.txt \
+ && /opt/python/cp311-cp311/bin/python -m pip list --format=json > /opt/conda/build-toolchain-pip.json \
+ && rm -f /tmp/miniforge.sh
+
 WORKDIR /opt/pma
 COPY scripts/04b_footprint /opt/pma/scripts/04b_footprint
 
-RUN python -c 'import os,re; assert re.fullmatch(r"[^\s]+@sha256:[0-9a-f]{64}", os.environ["PMA_HINT_BUILDER_IMAGE"])' \
- && python --version \
- && python -c 'import packaging' \
+RUN python -c 'import platform,sys; assert sys.version_info[:2] == (3,11); assert platform.machine() == "x86_64"' \
+ && python -c 'import packaging, setuptools, wheel; assert packaging.__version__ == "25.0"; assert setuptools.__version__ == "80.9.0"; assert wheel.__version__ == "0.45.1"' \
  && conda --version \
  && conda index --help >/dev/null \
- && pip --version \
  && auditwheel --version \
- && gcc --version \
- && conda list conda-index \
- && readelf --version | head -n 1
+ && gcc --version | head -n 1 \
+ && readelf --version | head -n 1 \
+ && test -s /opt/conda/build-toolchain-explicit.txt \
+ && test -s /opt/conda/build-toolchain-pip.json
 
 ENTRYPOINT ["python", "/opt/pma/scripts/04b_footprint/build_hint_bundle.py"]

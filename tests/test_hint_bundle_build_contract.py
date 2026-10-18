@@ -1,8 +1,15 @@
 """Small contract checks for the external HINT bundle builder."""
 import importlib.util
+import hashlib
+import json
+import os
+import re
+import subprocess
+import tarfile
 import tempfile
 import unittest
 import zipfile
+from io import BytesIO
 from pathlib import Path
 from unittest import mock
 
@@ -60,6 +67,146 @@ class HintBundleBuildContract(unittest.TestCase):
                 BUILDER.render_pip_lock([wheel]),
                 f"some-pkg==1.2.3 --hash=sha256:{BUILDER.sha256(wheel)}\n",
             )
+
+    def test_elf_contract_rejects_wrong_architecture_and_unresolved_needed(self):
+        wrong_arch = BUILDER.check_elf_contract("AArch64", set(), {"libc.so.6"})
+        self.assertTrue(any(item.startswith("ELF_MACHINE_UNSUPPORTED") for item in wrong_arch))
+        missing = BUILDER.check_elf_contract(
+            "Advanced Micro Devices X86-64", {"libc.so.6", "libmissing.so"}, {"libstdc++.so.6"}
+        )
+        self.assertEqual(missing, ["ELF_NEEDED_UNRESOLVED:libmissing.so"])
+
+    def test_readelf_version_parser_separates_needs_and_definitions(self):
+        output = """Version needs section '.gnu.version_r' contains 1 entry:
+  Name: GLIBCXX_3.4.26
+Version definition section '.gnu.version_d' contains 1 entry:
+  Name: GLIBCXX_3.4.29
+"""
+        self.assertEqual(BUILDER.readelf_versions(output, "GLIBCXX", "needs"), ["3.4.26"])
+        self.assertEqual(BUILDER.readelf_versions(output, "GLIBCXX", "definition"), ["3.4.29"])
+        self.assertTrue(BUILDER.abi_provider_compatible(["3.4.26"], ["3.4.29"]))
+        self.assertFalse(BUILDER.abi_provider_compatible(["3.4.30"], ["3.4.29"]))
+        self.assertFalse(BUILDER.abi_provider_compatible(["1.3.8"], []))
+
+    def test_conda_solver_never_creates_its_target_prefix(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            prefix = Path(tmp) / "must-remain-absent"
+            observed = []
+
+            def fake_run(argv, *, capture):
+                observed.extend(argv)
+                return "{}"
+
+            with mock.patch.object(BUILDER, "run", side_effect=fake_run):
+                self.assertEqual(BUILDER.conda_dry_run("conda", prefix, ["--offline"], ("python=3.11",)), "{}")
+            self.assertIn("--dry-run", observed)
+            self.assertFalse(prefix.exists())
+
+            def violating_run(argv, *, capture):
+                Path(argv[argv.index("-p") + 1]).mkdir()
+                return "{}"
+
+            with mock.patch.object(BUILDER, "run", side_effect=violating_run):
+                with self.assertRaisesRegex(RuntimeError, "CONDA_DRY_RUN_CREATED_PREFIX"):
+                    BUILDER.conda_dry_run("conda", prefix, [], ("python=3.11",))
+            self.assertTrue(prefix.exists())
+
+    def test_mock_bundle_build_helpers_pass_repository_validator(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            bundle = Path(tmp) / "bundle"
+            for subdir in ("linux-64", "noarch"):
+                (bundle / "conda" / subdir).mkdir(parents=True)
+            (bundle / "wheels").mkdir()
+            (bundle / "reports").mkdir()
+            conda_rows = [
+                ("linux-64", "python", "3.11.9", "mock_0"),
+                ("linux-64", "numpy", "1.26.4", "mock_0"),
+                ("noarch", "setuptools", "80.9.0", "mock_0"),
+                ("linux-64", "pip", "25.2", "mock_0"),
+            ]
+            repodata = {"linux-64": {"packages": {}, "packages.conda": {}},
+                        "noarch": {"packages": {}, "packages.conda": {}}}
+            lock_rows = []
+            inventory_paths = []
+            for subdir, name, version, build in conda_rows:
+                filename = f"{name}-{version}-{build}.tar.bz2"
+                archive_path = bundle / "conda" / subdir / filename
+                with tarfile.open(archive_path, "w:bz2") as archive:
+                    payload = json.dumps({"name": name, "version": version, "build": build}).encode()
+                    info = tarfile.TarInfo("info/index.json")
+                    info.size = len(payload)
+                    archive.addfile(info, BytesIO(payload))
+                digest = BUILDER.sha256(archive_path)
+                repodata[subdir]["packages"][filename] = {
+                    "name": name, "version": version, "build": build, "sha256": digest
+                }
+                lock_rows.append("\t".join((subdir, name, version, build, filename, digest)) + "\n")
+                inventory_paths.append(archive_path)
+            for subdir in ("linux-64", "noarch"):
+                path = bundle / "conda" / subdir / "repodata.json"
+                path.write_text(json.dumps(repodata[subdir]), encoding="utf-8")
+                inventory_paths.append(path)
+            conda_lock = bundle / "conda-explicit-linux-64.lock"
+            conda_lock.write_text("".join(lock_rows), encoding="utf-8")
+            inventory_paths.append(conda_lock)
+
+            wheel = bundle / "wheels/RGT-1.0.2-py3-none-any.whl"
+            with zipfile.ZipFile(wheel, "w") as archive:
+                archive.writestr("RGT-1.0.2.dist-info/METADATA",
+                                 "Name: RGT\nVersion: 1.0.2\nRequires-Python: >=3.11,<3.12\n\n")
+                archive.writestr("RGT-1.0.2.dist-info/WHEEL",
+                                 "Wheel-Version: 1.0\nRoot-Is-Purelib: true\nTag: py3-none-any\n")
+            pip_lock = bundle / "pip-requirements.lock"
+            pip_lock.write_text(BUILDER.render_pip_lock([wheel]), encoding="utf-8")
+            inventory_paths.extend((wheel, pip_lock))
+
+            report = bundle / "reports/rgt-wheel-audit.json"
+            report.write_text(json.dumps({
+                "rgt_sdist_sha256": BUILDER.RGT_SHA256,
+                "builder": "mock.example/pma@sha256:" + "a" * 64,
+                "python_abi": "cp311", "glibc_symbol_max": "2.17",
+                "auditwheel_policy": "pure-python-no-ELF", "native_dependencies": [],
+                "rgt_wheel": wheel.name, "rgt_wheel_sha256": BUILDER.sha256(wheel),
+            }), encoding="utf-8")
+            inventory_paths.append(report)
+            inventory = bundle / "artifacts.sha256"
+            inventory.write_text("".join(
+                f"{BUILDER.sha256(path)}  {path.relative_to(bundle).as_posix()}\n"
+                for path in sorted(inventory_paths)
+            ), encoding="utf-8")
+            manifest = {
+                "schema_version": 1, "target_platform": "linux-64", "python_abi": "cp311",
+                "glibc_max": "2.17", "builder": "mock.example/pma@sha256:" + "a" * 64,
+                "conda_version": "conda 25.3.1", "pip_version": "pip 25.2",
+                "rgt_sdist_sha256": BUILDER.RGT_SHA256, "rgt_wheel": wheel.name,
+                "rgt_wheel_sha256": BUILDER.sha256(wheel),
+                "rgt_build_report": "reports/rgt-wheel-audit.json",
+                "rgt_build_report_sha256": BUILDER.sha256(report),
+                "conda_lock_sha256": BUILDER.sha256(conda_lock),
+                "pip_lock_sha256": BUILDER.sha256(pip_lock),
+                "artifacts_sha256": BUILDER.sha256(inventory),
+            }
+            (bundle / "bundle-manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+            env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1")
+            result = subprocess.run([BUILDER.sys.executable,
+                                     str(ROOT / "scripts/04b_footprint/validate_hint_bundle.py"),
+                                     str(bundle)], capture_output=True, text=True, env=env)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_dockerfile_pins_base_digest_and_tool_versions(self):
+        text = (ROOT / "scripts/04b_footprint/Dockerfile.hint-builder").read_text()
+        base = re.search(r"^FROM --platform=linux/amd64 (\S+)$", text, re.MULTILINE)
+        self.assertIsNotNone(base)
+        self.assertRegex(base.group(1), r"@sha256:[0-9a-f]{64}$")
+        self.assertNotRegex(text, r"(?m)^ARG [A-Z_]+(?:IMAGE|RELEASE|SHA256)\b")
+        for package in ("conda=25.3.1", "conda-index=0.12.1"):
+            self.assertIn(package, text)
+        lock = (ROOT / "scripts/04b_footprint/hint-builder-requirements.lock").read_text()
+        for package in ("pip==25.2", "packaging==25.0", "setuptools==80.9.0",
+                        "wheel==0.45.1", "auditwheel==6.0.0", "pyelftools==0.31"):
+            self.assertIn(package, lock)
+        for line in lock.splitlines():
+            self.assertRegex(line, r"^\S+==\S+ --hash=sha256:[0-9a-f]{64}$")
 
 
 if __name__ == "__main__":

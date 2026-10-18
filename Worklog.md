@@ -440,3 +440,31 @@ Docker Desktop daemon remains unavailable: macOS arm64 host, admin authorization
 ## 2026-10-18 05:51 EDT — builder static review found and fixed pip-lock API error
 
 A focused static review found `parse_wheel_filename()` returns a normalized string, not a name object with `.canonicalize_name()`. Added a lock-rendering helper using `packaging.utils.canonicalize_name` and a fixture that verifies canonical name, version, and SHA-256 output. Re-ran builder contract tests (6 passed), `tests/test_hint_env_builder.sh`, `tests/test_step4b_runner_contract.sh`, `git diff --check`, and Python bytecode compilation; all passed. The compilation cache was removed immediately. Runner failure messages are expected negative-fixture output; suite exits 0. No Docker/Linux build, bundle, Argos access, environment change, external data change, or merge occurred. Builder remains unreviewed and local; all real external stages remain blocked on exact full-HEAD GPT review and a compliant Linux builder.
+
+## 2026-10-18 06:01 EDT — GPT builder review REQUEST_CHANGES on e4826ca
+
+GPT reviewed exact full PR #4 HEAD `e4826ca599603016cc19a451b64d4f5734c77b3d` vs `9c3a0735b3761378236949f00a03d383269feb8e`; GitHub confirmed PR OPEN/unmerged and one new six-file commit. Verdict `REQUEST_CHANGES`, with audit consistency PASS and four builder blockers plus behavior-test gaps:
+
+- F1: `build_hint_bundle.py` creates `rgt-build-prefix` with `conda create`; current stage handoff literally says no Conda prefix. GPT requires a pre-provisioned controlled build image or an explicitly approved scope revision; do not reinterpret this unilaterally.
+- F2: Dockerfile takes a caller-supplied digest instead of fixing a verified image digest and does not install/pin the toolchain/build dependencies.
+- F3: Conda ELF audit records `DT_NEEDED` but does not fail on unresolved libraries, check ELF x86_64 machine architecture, or prove GLIBCXX/CXXABI runtime compatibility.
+- F4: output validation uses container paths; a host checkout bind-mounted elsewhere can alias `/output` and write into the repository. GPT recommends a host-side wrapper that canonicalizes/checks host paths and only mounts external output directories, with repository source read-only if mounted.
+- Tests cover basic format checks only; add F1–F4 negative behavior fixtures and a mocked builder-to-validator success path.
+
+No Linux/Docker bundle build, Argos access, environment/data change, HINT analysis, or merge occurred. The exact new HEAD is not approved for real construction. Repair only these findings in the same PR; preserve all previous review scope limits and unrelated `design/protein_binding_resources.md`.
+
+## 2026-10-18 06:07 EDT — F1 clarification and focused repairs for GPT findings
+
+Asked GPT to clarify whether a pre-provisioned Docker build environment plus solver dry-runs satisfies F1. GPT confirmed it does: the image may contain fixed CPython/Conda/build dependencies; builder runtime may perform only Conda dry-run solves and must not create/install/update/clone/remove any prefix. No Argos environment may be accessed or changed. This clarification does not approve `e4826ca` or authorize execution.
+
+Applied local, uncommitted repairs for F1–F4 and F5 test gaps in the same PR:
+
+- Removed runtime `conda create` build-prefix installation. Online and offline solver calls now go through `conda_dry_run`, require the target prefix to be absent before and after, and fail if a mocked/real command creates it.
+- Pinned the builder Dockerfile to a specific `linux/amd64` manylinux2014 base-image digest. Pinned Miniforge installer release plus verified SHA-256, Conda/conda-index versions, and CPython 3.11 pip tool packages in `hint-builder-requirements.lock` with PyPI wheel hashes. The image captures its explicit Conda and Python package inventories; the external host wrapper requires the final runtime image digest and the builder records it.
+- Added `run_hint_bundle_builder.sh`: canonicalizes host output paths (resolving symlink aliases), rejects any path within the Git checkout, requires distinct empty output dirs and an image digest, and mounts only the two checked external outputs. The source checkout is not mounted.
+- ELF scan now checks x86_64 machine, verifies each `DT_NEEDED` resolves to a real ELF or symlink-to-ELF in the locked Conda archives or a small explicit system runtime allowlist, and fails unless GLIBCXX/CXXABI requirements are covered by the bundled `libstdc++` version definitions. ABI evidence records the provider inventory and allowlist.
+- Added tests for dry-run prefix invariants, wrong ELF architecture/missing library, GLIBCXX/CXXABI provider bounds, pinned Docker/tool dependencies and hashes, bind-mount/symlink output path rejection, and a mocked bundle assembled with builder helpers then accepted by the repository validator.
+
+Validation passed locally: 11 Python builder contract tests (including mocked bundle→validator PASS), `tests/test_hint_bundle_builder_wrapper.sh`, `tests/test_hint_env_builder.sh`, `tests/test_step4b_runner_contract.sh`, shell syntax, AST parse, and `git diff --check`. Expected `BUNDLE_OUTPUT_MUST_BE_OUTSIDE_GIT_CHECKOUT` and runner conversion/prep failure messages are negative-fixture outputs; all suites exit 0. This is mock/static evidence only. No Docker build, Linux wheel/ELF audit on a real image, bundle generation, Argos access, prefix/environment change, data change, HINT analysis, or merge occurred. Work remains uncommitted; next finish static self-review, synchronize Worklog/CODEX_HANDOFF/stage handoff/PR description, explicitly stage task files, push the same PR, and request GPT review of the exact full new HEAD. Preserve unrelated `design/protein_binding_resources.md`.
+
+Sources used to pin the builder base/tool artifacts: [Pypa manylinux image](https://github.com/pypa/manylinux), [Miniforge release 25.3.1-0](https://github.com/conda-forge/miniforge/releases/tag/25.3.1-0), and the exact PyPI release wheel metadata for each pinned build dependency (hashes stored in `scripts/04b_footprint/hint-builder-requirements.lock`).

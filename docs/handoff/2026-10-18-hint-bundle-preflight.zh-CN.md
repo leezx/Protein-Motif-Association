@@ -47,3 +47,12 @@
 - 本地/mock 验证通过：builder 合同单测 5 项、`tests/test_hint_env_builder.sh`、`tests/test_step4b_runner_contract.sh`、`git diff --check`。这些结果不证明 Linux 兼容性或真实 Conda/pip 求解。
 - PR #4 远端仍 OPEN、未合并；本次检查时完整 HEAD 为 `9c3a0735b3761378236949f00a03d383269feb8e`。下一步完成代码自审和审计记录，显式暂存任务文件，在同一 PR 提交/推送后请 GPT 审核精确完整 HEAD。Docker Desktop 管理员授权仍未接受、daemon socket 不存在；不得绕过权限。Argos 之前的任务已结束，当前无评测运行。
 - 不相关未跟踪文件 `design/protein_binding_resources.md` 保持原样。PR merge 仍需用户单独确认。
+
+## 2026-10-18 06:07 EDT 状态更新：按 GPT findings 做本地修复
+
+- GPT 对完整 HEAD `e4826ca599603016cc19a451b64d4f5734c77b3d` 返回 `REQUEST_CHANGES`，F1–F4 和行为测试缺口见 Worklog 06:01 条目。审计准确性 PASS。GitHub formal review 登记返回 HTTP 403，持久 PMA 对话保存 review 结论。
+- GPT 随后澄清 F1：builder 镜像可包含预置、固定并留证的构建工具链；builder 运行时必须不创建、安装、更新、克隆或删除任何 Conda prefix，只允许 solver dry-run；不接触 Argos 环境。该澄清不改变原阶段范围，也不是对 `e4826ca` 的批准。
+- 已在本地做窄范围修复：删除运行时真实 `conda create`，对在线/离线 solver dry-run 目标 prefix 做前后存在性检查；Dockerfile 改用固定 Linux/amd64 基础镜像 digest、校验 Miniforge 安装器 SHA-256、固定 Conda/conda-index 版本，CPython 3.11 pip 工具由带 SHA-256 的 requirements lock 安装，并保存 Conda/Python toolchain 清单。最终 builder image digest 由 wrapper 必填并写入报告。
+- 新增 host-side wrapper：canonicalize 输出路径并拒绝 checkout 内路径/符号链接别名，只挂载两个已核验的外部输出目录，不挂载源码 checkout。ELF 检查现在验证 x86_64 machine、`DT_NEEDED` 仅可解析到 bundle 内真实 ELF/指向 ELF 的 symlink 或明确系统 runtime allowlist，并将 GLIBCXX/CXXABI 需求与 bundle 内 libstdc++ definitions 对照；无法证明则失败关闭。
+- 增加 dry-run prefix、镜像与 pip hashes、ELF 架构/动态库/ABI、仓库内及 symlink 输出路径负向测试，并添加 mocked bundle 通过 `validate_hint_bundle.py` 的正向测试。当前验证：11 项 Python 合同测试、wrapper 测试、既有 `tests/test_hint_env_builder.sh` 和 `tests/test_step4b_runner_contract.sh`、shell syntax、AST parse、`git diff --check` 均通过。runner 输出的 conversion/prep fail 是负向 fixture 的预期内容，测试退出码为 0。
+- 修复仍未提交、未推送、未获 GPT 复审。本次没有 Docker/Linux 构建、bundle 生成、Argos 访问/命令、环境修改、外部数据更改或分析运行。下一步完成静态自审，更新三处审计及 PR body，在同一 PR 显式暂存相关文件后提交推送，申请对精确新完整 HEAD 复审；获批且存在合规 Linux builder 后再构建。无 merge 授权。

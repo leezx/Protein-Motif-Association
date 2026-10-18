@@ -28,6 +28,11 @@ from packaging.utils import canonicalize_name, parse_wheel_filename
 
 RGT_SHA256 = "2169e71f2018340d101146bab09bb933a384611c5f7b76f4be5999fa835cac7e"
 TARGET_SPECS = ("python=3.11", "numpy=1.26.4", "setuptools=80.9.0", "pip")
+SYSTEM_RUNTIME_LIBS = {
+    "ld-linux-x86-64.so.2", "libc.so.6", "libm.so.6", "libpthread.so.0",
+    "librt.so.1", "libdl.so.2", "libutil.so.1", "libresolv.so.2", "libnsl.so.1",
+    "linux-vdso.so.1",
+}
 RUN_LOG: Path | None = None
 
 
@@ -54,6 +59,16 @@ def run(argv: list[str], *, capture: bool = False) -> str:
     return output
 
 
+def conda_dry_run(conda: str, prefix: Path, options: list[str], specs: tuple[str, ...]) -> str:
+    if prefix.exists():
+        raise RuntimeError(f"CONDA_DRY_RUN_TARGET_ALREADY_EXISTS:{prefix}")
+    output = run([conda, "create", "--dry-run", "--json", "--yes", *options,
+                  "-p", str(prefix), *specs], capture=True)
+    if prefix.exists():
+        raise RuntimeError(f"CONDA_DRY_RUN_CREATED_PREFIX:{prefix}")
+    return output
+
+
 def require_builder() -> tuple[str, str]:
     if platform.system() != "Linux" or platform.machine() not in ("x86_64", "AMD64"):
         raise RuntimeError("BUILDER_PLATFORM_MUST_BE_LINUX_X86_64")
@@ -65,6 +80,10 @@ def require_builder() -> tuple[str, str]:
     image = os.environ.get("PMA_HINT_BUILDER_IMAGE", "")
     if not re.fullmatch(r"[^\s]+@sha256:[0-9a-f]{64}", image):
         raise RuntimeError("PMA_HINT_BUILDER_IMAGE_MUST_BE_DIGEST_PINNED")
+    for path in (Path("/opt/conda/build-toolchain-explicit.txt"),
+                 Path("/opt/conda/build-toolchain-pip.json")):
+        if not path.is_file() or path.stat().st_size == 0:
+            raise RuntimeError(f"PREPROVISIONED_TOOLCHAIN_LOCK_MISSING:{path}")
     conda = shutil.which("conda")
     if not conda:
         raise RuntimeError("CONDA_EXECUTABLE_MISSING")
@@ -78,9 +97,11 @@ def require_builder() -> tuple[str, str]:
 
 def load_solver_plan(conda: str, work: Path) -> tuple[list[dict], str, str]:
     plan_path = work / "conda-solve.json"
-    command = [conda, "create", "--dry-run", "--json", "--yes", "--no-default-packages",
-               "--override-channels", "-c", "conda-forge", "-p", str(work / "solve-prefix"), *TARGET_SPECS]
-    output = run(command, capture=True)
+    solve_prefix = work / "solve-prefix"
+    options = ["--no-default-packages", "--override-channels", "-c", "conda-forge"]
+    command = [conda, "create", "--dry-run", "--json", "--yes", *options,
+               "-p", str(solve_prefix), *TARGET_SPECS]
+    output = conda_dry_run(conda, solve_prefix, options, TARGET_SPECS)
     plan_path.write_text(output, encoding="utf-8")
     try:
         parsed = json.loads(output)
@@ -130,15 +151,64 @@ def version_max(values: list[str]) -> str:
     return ".".join(map(str, max(tuple(map(int, value.split("."))) for value in values)))
 
 
+def readelf_versions(output: str, prefix: str, section: str) -> list[str]:
+    start = output.find(f"Version {section} section")
+    if start < 0:
+        return []
+    body = output[start:]
+    end = body.find("\nVersion ", 1)
+    if end >= 0:
+        body = body[:end]
+    return re.findall(rf"{re.escape(prefix)}_(\d+(?:\.\d+)+)", body)
+
+
+def check_elf_contract(machine: str, needed: set[str], package_libraries: set[str]) -> list[str]:
+    problems = []
+    if machine.strip() != "Advanced Micro Devices X86-64":
+        problems.append(f"ELF_MACHINE_UNSUPPORTED:{machine.strip()}")
+    unresolved = sorted(needed - package_libraries - SYSTEM_RUNTIME_LIBS)
+    if unresolved:
+        problems.append("ELF_NEEDED_UNRESOLVED:" + ",".join(unresolved))
+    return problems
+
+
+def abi_provider_compatible(required: list[str], provided: list[str]) -> bool:
+    if not required:
+        return True
+    if not provided:
+        return False
+    return max(tuple(map(int, item.split("."))) for item in required) <= max(
+        tuple(map(int, item.split("."))) for item in provided
+    )
+
+
 def audit_conda_elf(records: list[dict], bundle: Path, work: Path) -> dict:
     readelf = shutil.which("readelf")
     if not readelf:
         raise RuntimeError("READELF_MISSING_CANNOT_PROVE_CONDA_ABI")
-    glibc, glibcxx, cxxabi, needed_libraries, checked = [], [], [], set(), 0
+    glibc, glibcxx, cxxabi, provided_glibcxx, provided_cxxabi = [], [], [], [], []
+    needed_libraries, package_libraries, package_elf_files, package_symlinks, checked = set(), set(), set(), [], 0
     for record in records:
         archive_path = bundle / "conda" / record["subdir"] / record["filename"]
         with tarfile.open(archive_path, "r:bz2") as archive:
             for member in archive:
+                if member.isdir():
+                    continue
+                basename = Path(member.name).name
+                if member.issym() or member.islnk():
+                    package_symlinks.append((basename, Path(member.linkname).name))
+                elif member.isfile():
+                    source = archive.extractfile(member)
+                    if source and source.read(4) == b"\x7fELF":
+                        package_elf_files.add(basename)
+    package_libraries.update(package_elf_files)
+    package_libraries.update(alias for alias, target in package_symlinks if target in package_elf_files)
+    for record in records:
+        archive_path = bundle / "conda" / record["subdir"] / record["filename"]
+        with tarfile.open(archive_path, "r:bz2") as archive:
+            for member in archive:
+                if member.isdir():
+                    continue
                 if not member.isfile():
                     continue
                 source = archive.extractfile(member)
@@ -148,12 +218,26 @@ def audit_conda_elf(records: list[dict], bundle: Path, work: Path) -> dict:
                 staged = work / f"elf-{checked}"
                 with staged.open("wb") as out:
                     shutil.copyfileobj(source, out)
+                header = run([readelf, "--file-header", str(staged)], capture=True)
+                machine_match = re.search(r"^\s*Machine:\s*(.+)$", header, re.MULTILINE)
+                if not machine_match:
+                    raise RuntimeError(f"ELF_MACHINE_UNREADABLE:{member.name}")
+                elf_problems = check_elf_contract(machine_match.group(1), set(), package_libraries)
+                if elf_problems:
+                    raise RuntimeError(f"{elf_problems[0]}:{member.name}")
                 versions = run([readelf, "--version-info", str(staged)], capture=True)
                 needed = run([readelf, "--dynamic", str(staged)], capture=True)
-                glibc.extend(re.findall(r"GLIBC_(\d+(?:\.\d+)+)", versions))
-                glibcxx.extend(re.findall(r"GLIBCXX_(\d+(?:\.\d+)+)", versions))
-                cxxabi.extend(re.findall(r"CXXABI_(\d+(?:\.\d+)+)", versions))
+                glibc.extend(readelf_versions(versions, "GLIBC", "needs"))
+                glibcxx.extend(readelf_versions(versions, "GLIBCXX", "needs"))
+                cxxabi.extend(readelf_versions(versions, "CXXABI", "needs"))
+                if Path(member.name).name.startswith("libstdc++.so"):
+                    provided_glibcxx.extend(readelf_versions(versions, "GLIBCXX", "definition"))
+                    provided_cxxabi.extend(readelf_versions(versions, "CXXABI", "definition"))
                 needed_libraries.update(re.findall(r"\(NEEDED\).*?\[(.*?)\]", needed))
+                elf_problems = check_elf_contract(machine_match.group(1),
+                    set(re.findall(r"\(NEEDED\).*?\[(.*?)\]", needed)), package_libraries)
+                if elf_problems:
+                    raise RuntimeError(f"{elf_problems[0]}:{member.name}")
                 checked += 1
                 staged.unlink()
     if checked == 0:
@@ -161,10 +245,16 @@ def audit_conda_elf(records: list[dict], bundle: Path, work: Path) -> dict:
     glibc_max, glibcxx_max, cxxabi_max = version_max(glibc), version_max(glibcxx), version_max(cxxabi)
     if tuple(map(int, glibc_max.split("."))) > (2, 23):
         raise RuntimeError(f"CONDA_GLIBC_ABI_TOO_NEW:{glibc_max}")
+    for label, required, provided in (("GLIBCXX", glibcxx, provided_glibcxx),
+                                       ("CXXABI", cxxabi, provided_cxxabi)):
+        if not abi_provider_compatible(required, provided):
+            raise RuntimeError(f"CONDA_{label}_PROVIDER_INCOMPATIBLE:{version_max(required)}:{version_max(provided)}")
     return {"elf_files_checked": checked, "glibc_max": glibc_max,
             "glibcxx_max": glibcxx_max, "cxxabi_max": cxxabi_max,
             "needed_libraries": sorted(needed_libraries),
-            "method": "readelf --version-info and --dynamic on every ELF member in each locked archive"}
+            "package_library_names": sorted(package_libraries),
+            "system_runtime_allowlist": sorted(SYSTEM_RUNTIME_LIBS),
+            "method": "readelf machine, version-needs/definitions, and DT_NEEDED resolution across locked package members and explicit system runtime allowlist"}
 
 
 def audit_rgt_wheel(wheel: Path, builder: str, work: Path, sdist_digest: str) -> dict:
@@ -327,10 +417,10 @@ def main() -> int:
         conda_records = copy_conda_closure(links, bundle)
         run([conda, "index", str(bundle / "conda")])
         abi = audit_conda_elf(conda_records, bundle, work)
-        offline = run([conda, "create", "--dry-run", "--json", "--yes", "--offline",
-                       "--no-default-packages", "--override-channels", "-c",
-                       (bundle / "conda").as_uri(), "-p", str(work / "offline-solve-prefix"),
-                       *TARGET_SPECS], capture=True)
+        offline_prefix = work / "offline-solve-prefix"
+        offline_options = ["--offline", "--no-default-packages", "--override-channels", "-c",
+                           (bundle / "conda").as_uri()]
+        offline = conda_dry_run(conda, offline_prefix, offline_options, TARGET_SPECS)
         (evidence / "conda-offline-solve.json").write_text(offline, encoding="utf-8")
         try:
             offline_links = json.loads(offline)["actions"]["LINK"]
@@ -347,13 +437,10 @@ def main() -> int:
         identities = lambda rows: sorted(identity(row) for row in rows)
         if identities(links) != identities(offline_links):
             raise RuntimeError("CONDA_OFFLINE_SOLVER_CLOSURE_MISMATCH")
-        build_prefix = work / "rgt-build-prefix"
-        run([conda, "create", "--yes", "--offline", "--copy", "--no-default-packages",
-             "--override-channels", "-c", (bundle / "conda").as_uri(), "-p", str(build_prefix), *TARGET_SPECS])
-        build_python = build_prefix / "bin/python"
+        build_python = Path(sys.executable).resolve()
         build_python_version = run([str(build_python), "--version"], capture=True).strip()
         if not re.fullmatch(r"Python 3\.11\.\d+", build_python_version):
-            raise RuntimeError(f"BUILD_PREFIX_PYTHON_MISMATCH:{build_python_version}")
+            raise RuntimeError(f"PREPROVISIONED_BUILDER_PYTHON_MISMATCH:{build_python_version}")
         rgt_wheel = fetch_and_build_rgt(bundle, work, build_python)
         wheels = resolve_pip_closure(rgt_wheel, bundle, work, conda_records, build_python)
         wheel_abi = audit_pip_wheels(wheels, work)
@@ -382,6 +469,8 @@ def main() -> int:
             "build_prefix_python": build_python_version,
             "conda_solve_command": solve_command, "conda_artifacts": conda_records,
             "conda_abi_audit": abi, "pip_wheel_abi_audit": wheel_abi}, indent=2) + "\n", encoding="utf-8")
+        shutil.copy2("/opt/conda/build-toolchain-explicit.txt", evidence / "build-toolchain-conda-explicit.txt")
+        shutil.copy2("/opt/conda/build-toolchain-pip.json", evidence / "build-toolchain-pip.json")
         inventory = []
         for path in sorted(bundle.rglob("*")):
             if path.is_file() and path.name != "artifacts.sha256":
@@ -391,6 +480,8 @@ def main() -> int:
                     "glibc_max": version_max([abi["glibc_max"], wheel_abi["glibc_max"]]),
                     "builder": os.environ["PMA_HINT_BUILDER_IMAGE"],
                     "conda_version": run([conda, "--version"], capture=True).strip(),
+            "conda_toolchain_explicit_sha256": sha256(evidence / "build-toolchain-conda-explicit.txt"),
+            "pip_toolchain_inventory_sha256": sha256(evidence / "build-toolchain-pip.json"),
                     "pip_version": run([sys.executable, "-m", "pip", "--version"], capture=True).strip(),
                     "rgt_sdist_sha256": RGT_SHA256, "rgt_wheel": rgt_wheel.name,
                     "rgt_wheel_sha256": sha256(rgt_wheel), "rgt_build_report": "reports/rgt-wheel-audit.json",
@@ -400,7 +491,6 @@ def main() -> int:
         (bundle / "bundle-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
         validator = Path(__file__).with_name("validate_hint_bundle.py")
         run([sys.executable, str(validator), str(bundle)])
-        shutil.rmtree(build_prefix)
         shutil.copy2(bundle / "bundle-manifest.json", evidence / "bundle-manifest.json")
         archive_path = evidence / "pma_hint_bundle.tar.gz"
         with tarfile.open(archive_path, "w:gz") as archive:

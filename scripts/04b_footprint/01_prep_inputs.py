@@ -17,6 +17,7 @@ No caller-specific processing happens here.
 import gzip
 import json
 import random
+import shlex
 import subprocess
 import sys
 from collections import Counter
@@ -28,7 +29,21 @@ CANON = {f"chr{i}" for i in list(range(1, 23)) + ["X", "Y"]}
 SEED = 20261017
 
 
-def bam_to_frags(bams, out, name):
+def indexed_file_ok(path):
+    index = Path(str(path) + ".tbi")
+    if not path.is_file() or path.stat().st_size == 0 or not index.is_file() or index.stat().st_size == 0:
+        return False
+    try:
+        with pysam.TabixFile(str(path)) as tb:
+            for contig in tb.contigs:
+                if next(tb.fetch(contig), None) is not None:
+                    return True
+            return False
+    except Exception:
+        return False
+
+
+def bam_to_frags(bams, out, name, sort_tmp):
     n = Counter()
     tmp = str(out) + ".unsorted"
     with open(tmp, "w") as w:
@@ -44,8 +59,9 @@ def bam_to_frags(bams, out, name):
                     continue
                 w.write(f"{r.reference_name}\t{s + 4}\t{e - 5}\t{name}\t1\n")
                 n["fragments"] += 1
-    subprocess.run(f"LC_ALL=C sort -k1,1 -k2,2n -k3,3n -S 4G {tmp} | bgzip -@ 4 > {out} && tabix -p bed {out} && rm {tmp}",
-                   shell=True, check=True)
+    cmd = (f"LC_ALL=C sort -T {shlex.quote(str(sort_tmp))} -k1,1 -k2,2n -k3,3n -S 4G {shlex.quote(tmp)} "
+           f"| bgzip -@ 4 > {shlex.quote(str(out))} && tabix -p bed {shlex.quote(str(out))} && rm {shlex.quote(tmp)}")
+    subprocess.run(["bash", "-o", "pipefail", "-c", cmd], check=True)
     return dict(n)
 
 
@@ -53,18 +69,22 @@ def main(raw, work, blacklist):
     raw, work = Path(raw), Path(work)
     (work / "frags").mkdir(parents=True, exist_ok=True)
     (work / "regions").mkdir(parents=True, exist_ok=True)
+    sort_tmp = work / "sort_tmp"
+    sort_tmp.mkdir(parents=True, exist_ok=True)
     enc, geo = raw / "encode", raw / "geo"
     summ = {}
     for name, bams in (("HCT116_ctrl", ["ENCFF784ATG.bam", "ENCFF794FUH.bam"]),
                        ("HCT116_aux", ["ENCFF877LRY.bam", "ENCFF745WLX.bam"])):
         out = work / "frags" / f"{name}.frags.tsv.gz"
-        if not out.exists():
-            summ[name] = bam_to_frags([str(enc / b) for b in bams], out, name)
+        if not indexed_file_ok(out):
+            summ[name] = bam_to_frags([str(enc / b) for b in bams], out, name, sort_tmp)
     g = work / "frags" / "gDNA.frags.tsv.gz"
-    if not g.exists():
-        files = " ".join(str(p) for p in sorted(geo.glob("GSM859988*_gDNA_*.frags.txt.gz")))
-        subprocess.run(f"zcat {files} | awk 'BEGIN{{OFS=\"\\t\"}}{{print $1,$2,$3,\"gDNA\",$5}}' | LC_ALL=C sort -k1,1 -k2,2n "
-                       f"-k3,3n -S 4G | bgzip -@ 4 > {g} && tabix -p bed {g}", shell=True, check=True)
+    if not indexed_file_ok(g):
+        files = " ".join(shlex.quote(str(p)) for p in sorted(geo.glob("GSM859988*_gDNA_*.frags.txt.gz")))
+        cmd = (f"zcat {files} | awk 'BEGIN{{OFS=\"\\t\"}}{{print $1,$2,$3,\"gDNA\",$5}}' "
+               f"| LC_ALL=C sort -T {shlex.quote(str(sort_tmp))} -k1,1 -k2,2n -k3,3n -S 4G "
+               f"| bgzip -@ 4 > {shlex.quote(str(g))} && tabix -p bed {shlex.quote(str(g))}")
+        subprocess.run(["bash", "-o", "pipefail", "-c", cmd], check=True)
     bl = []
     with gzip.open(blacklist, "rt") as f:
         bl = [(c, int(s), int(e)) for c, s, e, *_ in (line.split("\t") for line in f)]

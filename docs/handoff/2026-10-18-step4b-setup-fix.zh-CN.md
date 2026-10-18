@@ -44,3 +44,11 @@ GPT 还指出 PR 描述没有概括 interruption recovery；提交前将更新 P
 GPT 对 PR #4 HEAD `c63bc91` 明确给出 `APPROVE`：FASTA/FAI/marker 完成状态、四种恢复 fixture、失败产物保留和审计记录均通过；此前 scope-control finding 保持解决。GPT 未发现新 finding。GitHub 的 review 集成仍返回 HTTP 403，因此 approval 保存在持久审核对话，没有登记到 PR 页面。
 
 本次批准只覆盖 `c63bc91` 的 setup 修复与审计内容。它没有授权扩大分析范围或合并。第一轮 benchmark 的独立执行授权来自用户此前要求 Codex 按本文件 §6 在门禁满足后启动。按仓库规则，现先把 GPT 结论及计划中的 Argos driver 执行登记在本 PR，再对更新后的审计 diff 请求复审；复审前不向 Argos 发命令。若复审通过，按已批准方法和既有用户授权恢复 `run_4b1.sh`，运行 setup、prep、smoke、12 个 round-1 jobs；任何失败即停下并修复，不扩展范围。
+
+## 2026-10-18 02:16 EDT — 首次授权运行在 gDNA sort 临时盘失败后停止
+
+在 `d5e2513` 获 GPT 明确批准、并对本次执行范围追加记录获审后，按用户此前的 §6 授权启动 Argos driver。启动脚本 `/home/zz950/PMA_fetch/pma_step4b1_launch_d5e2513.sh`，driver PID 12074，日志 `/home/zz950/PMA_fetch/fp_4b1_c63_20261018.log`。setup 正常完成 `SETUP_OK`；旧的部分 FASTA 已归档，完整 hg38 FASTA、FAI 和 SHA256 marker 已生成。HCT116 control/aux fragment BGZF 与 tabix 均成功。
+
+裸 gDNA fragment 的全量 sort 在写 `/tmp/sortHyH1vI` 时因空间不足退出。Argos 的 `/tmp` 位于 54 GB 根文件系统，sort 临时 spill 需要超过当时可用空间；GNU sort 的失败没有由原来的 shell pipeline 传播，留下 28-byte `gDNA.frags.tsv.gz` 和 75-byte `.tbi`。我立即停止 driver（12074）和 prep（12212）。没有产生 region summary、smoke output 或任何 footprint caller 结果；没有修改 raw 输入。峰值采样 sort RSS 约 4.2 GB，低于 50 GB 上限。
+
+同一 PR 的修复将 sort spill 指向外部 `processed/round1/sort_tmp`，用 Bash `pipefail` 传播任意上游错误，并且只有 pysam 能打开非空 BGZF+tabix 文件时才复用 fragment 缓存；下一次运行会重建上述无效 gDNA 文件。Python bytecode compile、小型 `sort -T` 与 pipefail 检查、`git diff --check` 通过。当前 Mac Python 未安装 pysam，因此 pysam 缓存验证尚未在本地执行。Worklog 同步记录完整故障。更新后的 PR HEAD 必须经 GPT 明确复审后才可再次访问 Argos。

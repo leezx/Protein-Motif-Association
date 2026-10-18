@@ -12,9 +12,8 @@ CONDA_LOCK=${BUNDLE}/conda-explicit-linux-64.lock
 PIP_LOCK=${BUNDLE}/pip-requirements.lock
 ARTIFACTS=${BUNDLE}/artifacts.sha256
 BUNDLE_META=${BUNDLE}/bundle-manifest.json
-EXPLICIT_TMP=${AUDIT}/conda-explicit.generated.txt
+CONDA_SPECS_TMP=${AUDIT}/conda-specs.generated.txt
 AUDIT_DONE=0
-RGT_SDIST_SHA256=2169e71f2018340d101146bab09bb933a384611c5f7b76f4be5999fa835cac7e
 
 sha256_file() {
   if command -v sha256sum >/dev/null 2>&1; then
@@ -22,6 +21,17 @@ sha256_file() {
   else
     shasum -a 256 "$1" | awk '{print $1}'
   fi
+}
+
+# Bound each serial Conda/pip subprocess below 50 GB. The limit is conservative
+# on virtual address space; installations that need more fail closed.
+run_bounded() {
+  (
+    if [[ "$(uname -s)" == Linux ]]; then
+      ulimit -v 48000000 || { echo "MEMORY_LIMIT_UNAVAILABLE" >&2; exit 125; }
+    fi
+    exec "$@"
+  )
 }
 
 usage() {
@@ -60,89 +70,86 @@ on_exit() {
 
 # Validate bundle paths and hashes before passing any package archive to Conda or pip.
 preflight_bundle() {
-  local line subdir name version build filename digest source explicit_file uri
+  local subdir name version build filename digest source failed
   [[ -s "$CONDA_LOCK" ]] || { echo "CONDA_LOCK_MISSING $CONDA_LOCK" >&2; return 1; }
   [[ -s "$PIP_LOCK" ]] || { echo "PIP_LOCK_MISSING $PIP_LOCK" >&2; return 1; }
   [[ -s "$ARTIFACTS" ]] || { echo "ARTIFACT_HASHES_MISSING $ARTIFACTS" >&2; return 1; }
   [[ -s "$BUNDLE_META" ]] || { echo "BUNDLE_MANIFEST_MISSING $BUNDLE_META" >&2; return 1; }
-  if ! "$PMAFP/bin/python" - "$BUNDLE_META" "$CONDA_LOCK" "$PIP_LOCK" "$ARTIFACTS" "$RGT_SDIST_SHA256" <<'PY'
-import hashlib, json, re, sys
-manifest_path, conda_lock, pip_lock, artifact_list, expected_sdist = sys.argv[1:]
-with open(manifest_path, encoding="utf-8") as handle:
-    manifest = json.load(handle)
-assert manifest["schema_version"] == 1
-assert manifest["target_platform"] == "linux-64"
-assert manifest["python_abi"] == "cp311"
-assert tuple(map(int, manifest["glibc_max"].split("."))) <= (2, 23)
-assert len(manifest["builder"])
-assert manifest["rgt_sdist_sha256"] == expected_sdist
-wheel = manifest["rgt_wheel"]
-wheel_sha = manifest["rgt_wheel_sha256"]
-assert wheel.endswith(".whl") and "/" not in wheel and ".." not in wheel
-assert re.fullmatch(r"[a-fA-F0-9]{64}", wheel_sha)
-for key, path in (("conda_lock_sha256", conda_lock), ("pip_lock_sha256", pip_lock), ("artifacts_sha256", artifact_list)):
-    digest = hashlib.sha256(open(path, "rb").read()).hexdigest()
-    assert manifest[key] == digest, f"{key} mismatch"
-with open(pip_lock, encoding="utf-8") as handle:
-    pip_text = handle.read()
-assert "RGT==1.0.2" in pip_text and wheel_sha in pip_text
-with open(artifact_list, encoding="utf-8") as handle:
-    assert any(line.split()[-1:] == ["wheels/" + wheel] and line.split()[0] == wheel_sha
-               for line in handle if line.strip() and not line.lstrip().startswith("#"))
-with open(conda_lock, encoding="utf-8") as handle:
-    rows = [line.rstrip("\n").split("\t") for line in handle
-            if line.strip() and not line.lstrip().startswith("#")]
-packages = {row[1].lower(): row[2] for row in rows if len(row) == 6}
-assert packages.get("python", "").startswith("3.11."), "Python 3.11 absent from Conda lock"
-assert packages.get("numpy") == "1.26.4", "NumPy 1.26.4 absent from Conda lock"
-assert packages.get("setuptools") == "80.9.0", "setuptools 80.9.0 absent from Conda lock"
-PY
-  then
-    echo "HINT_BUNDLE_MANIFEST_INVALID: platform, runtime, RGT provenance, wheel, or lock digest mismatch" >&2
+  if ! "$PMAFP/bin/python" "$HERE/validate_hint_bundle.py" "$BUNDLE" > "$AUDIT/bundle-validation.log" 2>&1; then
+    cat "$AUDIT/bundle-validation.log" >&2
     return 1
   fi
   : > "$AUDIT/artifact-hashes.log"
+  failed=0
   while read -r digest relative_path; do
     [[ -n "$digest" && "$digest" != \#* ]] || continue
-    case "/$relative_path/" in *"/../"*|"//"*) echo "ARTIFACT_PATH_INVALID $relative_path" >> "$AUDIT/artifact-hashes.log"; return 1 ;; esac
-    [[ "$digest" =~ ^[a-fA-F0-9]{64}$ && -s "$BUNDLE/$relative_path" ]] || {
+    case "/$relative_path/" in
+      *"/../"*|"//"*) echo "ARTIFACT_PATH_INVALID $relative_path" >> "$AUDIT/artifact-hashes.log"; failed=1; continue ;;
+    esac
+    if [[ ! "$digest" =~ ^[a-fA-F0-9]{64}$ || ! -s "$BUNDLE/$relative_path" ]]; then
       echo "MISSING_OR_INVALID_ARTIFACT $relative_path" >> "$AUDIT/artifact-hashes.log"
-      echo "MISSING_OR_INVALID_ARTIFACT $relative_path" >&2
-      return 1
-    }
-    [[ "$(sha256_file "$BUNDLE/$relative_path")" == "$digest" ]] || {
+      failed=1
+      continue
+    fi
+    if [[ "$(sha256_file "$BUNDLE/$relative_path")" != "$digest" ]]; then
       echo "HINT_ARTIFACT_HASH_FAIL $relative_path" >> "$AUDIT/artifact-hashes.log"
-      echo "HINT_ARTIFACT_HASH_FAIL $relative_path" >&2
-      return 1
-    }
+      failed=1
+    fi
   done < "$ARTIFACTS"
-  : > "$EXPLICIT_TMP"
-  printf '@EXPLICIT\n' >> "$EXPLICIT_TMP"
+  : > "$CONDA_SPECS_TMP"
   while IFS=$'\t' read -r subdir name version build filename digest; do
     [[ -n "$subdir" && "$subdir" != \#* ]] || continue
-    [[ "$subdir" == linux-64 || "$subdir" == noarch ]] || { echo "CONDA_LOCK_BAD_SUBDIR $subdir" >&2; return 1; }
-    [[ "$filename" != */* && "$filename" != *..* && "$digest" =~ ^[a-fA-F0-9]{64}$ ]] || {
-      echo "CONDA_LOCK_BAD_ROW $name $version $build $filename" >&2; return 1;
-    }
+    if [[ "$subdir" != linux-64 && "$subdir" != noarch ]]; then
+      echo "CONDA_LOCK_BAD_SUBDIR $subdir" >> "$AUDIT/artifact-hashes.log"; failed=1; continue
+    fi
+    if [[ "$filename" == */* || "$filename" == *..* || ! "$digest" =~ ^[a-fA-F0-9]{64}$ ]]; then
+      echo "CONDA_LOCK_BAD_ROW $name $version $build $filename" >> "$AUDIT/artifact-hashes.log"; failed=1; continue
+    fi
     source="$BUNDLE/conda/$subdir/$filename"
-    [[ -s "$source" ]] || { echo "MISSING_CONDA_ARTIFACT $name=$version=$build ($source)" >&2; return 1; }
-    [[ "$(sha256_file "$source")" == "$digest" ]] || {
-      echo "CONDA_ARTIFACT_HASH_MISMATCH $filename" >&2; return 1;
-    }
-    uri=$("$PMAFP/bin/python" -c 'from pathlib import Path; import sys; print(Path(sys.argv[1]).resolve().as_uri())' "$source")
-    printf '%s\n' "$uri" >> "$EXPLICIT_TMP"
+    if [[ ! -s "$source" ]]; then
+      echo "MISSING_CONDA_ARTIFACT $name=$version=$build ($source)" >> "$AUDIT/artifact-hashes.log"; failed=1; continue
+    fi
+    if [[ "$(sha256_file "$source")" != "$digest" ]]; then
+      echo "CONDA_ARTIFACT_HASH_MISMATCH $filename" >> "$AUDIT/artifact-hashes.log"; failed=1; continue
+    fi
+    printf '%s=%s=%s\n' "$name" "$version" "$build" >> "$CONDA_SPECS_TMP"
   done < "$CONDA_LOCK"
-  [[ "$(wc -l < "$EXPLICIT_TMP" | tr -d ' ')" -gt 1 ]] || { echo "CONDA_LOCK_EMPTY" >&2; return 1; }
-  if ! CONDA_JSON="$AUDIT/conda-dry-run.json" "$CONDA" create --dry-run --json --offline \
-      --override-channels --no-default-packages --prefix "$TARGET" --file "$EXPLICIT_TMP" \
-      > "$AUDIT/conda-dry-run.stdout" 2> "$AUDIT/conda-dry-run.stderr"; then
-    echo "CONDA_PREFLIGHT_FAIL; inspect $AUDIT/conda-dry-run.{stdout,stderr}" >&2
+  if [[ "$failed" != 0 ]]; then cat "$AUDIT/artifact-hashes.log" >&2; return 1; fi
+  [[ -s "$BUNDLE/conda/linux-64/repodata.json" && -s "$BUNDLE/conda/noarch/repodata.json" ]] || {
+    echo "CONDA_LOCAL_CHANNEL_REPODATA_MISSING" >&2; return 1;
+  }
+  [[ "$(wc -l < "$CONDA_SPECS_TMP" | tr -d ' ')" -gt 0 ]] || { echo "CONDA_LOCK_EMPTY" >&2; return 1; }
+  CONDA_CHANNEL_URI=$("$PMAFP/bin/python" -c 'from pathlib import Path; import sys; print(Path(sys.argv[1]).resolve().as_uri())' "$BUNDLE/conda")
+  if ! run_bounded "$CONDA" create --dry-run --json --offline --override-channels --no-default-packages --copy \
+      --channel "$CONDA_CHANNEL_URI" --prefix "$TARGET" --file "$CONDA_SPECS_TMP" \
+      > "$AUDIT/conda-dry-run.json" 2> "$AUDIT/conda-dry-run.stderr"; then
+    echo "CONDA_PREFLIGHT_FAIL; inspect $AUDIT/conda-dry-run.json and .stderr" >&2
     return 1
   fi
-  if ! PIP_NO_CACHE_DIR=1 "$PMAFP/bin/python" -m pip install --dry-run --ignore-installed --no-index \
+  if ! "$PMAFP/bin/python" - "$AUDIT/conda-dry-run.json" "$CONDA_LOCK" <<'PY'
+import json, sys
+with open(sys.argv[1], encoding="utf-8") as handle:
+    result = json.load(handle)
+with open(sys.argv[2], encoding="utf-8") as handle:
+    expected = {(fields[1].lower(), fields[2], fields[3])
+                for line in handle if line.strip() and not line.lstrip().startswith("#")
+                for fields in [line.rstrip("\n").split("\t")] if len(fields) == 6}
+linked = (result.get("actions") or {}).get("LINK")
+if not isinstance(linked, list):
+    raise SystemExit("CONDA_DRY_RUN_ACTIONS_UNVERIFIABLE")
+actual = {(item.get("name", "").lower(), item.get("version", ""),
+           item.get("build_string", item.get("build", ""))) for item in linked}
+if actual != expected:
+    raise SystemExit(f"CONDA_DEPENDENCY_CLOSURE_MISMATCH expected={sorted(expected)} actual={sorted(actual)}")
+PY
+  then
+    echo "CONDA_DEPENDENCY_CLOSURE_UNVERIFIED; inspect $AUDIT/conda-dry-run.json" >&2
+    return 1
+  fi
+  if ! run_bounded env PIP_NO_CACHE_DIR=1 "$PMAFP/bin/python" -m pip install --dry-run --no-deps --no-index \
       --find-links "$BUNDLE/wheels" --only-binary=:all: --require-hashes -r "$PIP_LOCK" \
       > "$AUDIT/pip-dry-run.log" 2>&1; then
-    echo "PIP_PREFLIGHT_FAIL: missing/incompatible wheel or unresolved locked dependency; see $AUDIT/pip-dry-run.log" >&2
+    echo "PIP_PREFLIGHT_FAIL: missing/incompatible locked wheel; see $AUDIT/pip-dry-run.log" >&2
     return 1
   fi
   echo HINT_OFFLINE_PREFLIGHT_OK
@@ -159,9 +166,9 @@ trap on_exit EXIT
 "$PMAFP/bin/python" -m pip freeze --all > "$PMAFP_PIP_BEFORE"
 
 # Create at the final prefix only after preflight has verified every locked artifact.
-"$CONDA" create --yes --offline --override-channels --no-default-packages \
-  --prefix "$TARGET" --file "$EXPLICIT_TMP"
-PIP_NO_CACHE_DIR=1 "$TARGET/bin/python" -m pip install --no-index \
+run_bounded "$CONDA" create --yes --offline --override-channels --no-default-packages --copy \
+  --channel "$CONDA_CHANNEL_URI" --prefix "$TARGET" --file "$CONDA_SPECS_TMP"
+run_bounded env PIP_NO_CACHE_DIR=1 "$TARGET/bin/python" -m pip install --no-deps --no-index \
   --find-links "$BUNDLE/wheels" --only-binary=:all: --require-hashes -r "$PIP_LOCK"
 "$TARGET/bin/python" -m pip check
 "$TARGET/bin/python" - <<'PY'

@@ -120,3 +120,18 @@ GPT 已批准审计版 HEAD `fc124f1`，但其关于克隆失败的诊断明确�
 ## 2026-10-18 04:29 EDT — recovery 实现本地提交
 
 离线 HINT builder、driver READY 检查、bundle 规范、mock fixtures 及当前审计已提交为本地 commit `58bff3b`。提交时显式暂存 7 个相关文件并新增 `tests/test_hint_env_builder.sh`；无关的 `design/protein_binding_resources.md` 保持未暂存。此时 `origin` 和 PR #4 仍停在 `fc124f1`，尚未推送；当前 handoff/worklog 需再提交一次以反映这一状态。没有 Argos 操作。下一步提交审计更正，推送同一分支，更新 PR 正文，并请求 GPT 审核完整新 HEAD。
+
+## 2026-10-18 04:38 EDT — 按 GPT bundle 合同加固本地实现
+
+对照 GPT 的设计回复，发现并补齐四个不足：Conda lock 要证明是完整 solver closure；pip 不能把 Conda 管理的 NumPy 当成待安装依赖；预检需要汇总所有缺件；smoke 与真实 HINT small-BED 需要独立标记。新增 validate_hint_bundle.py，校验 RGT build report 对应官方 sdist 和 wheel 的 SHA、CPython ABI、GLIBC symbol 上限、auditwheel policy/native dependency 记录；从 wheel METADATA 检查 tags 及所有激活 Requires-Dist，并确保包只归 Conda 或 pip 一方管理。要求旧版 Conda 兼容的 tar.bz2 package 和带哈希的本地 channel repodata；先离线 solver dry-run，再校验返回的 LINK 包集合与锁文件完全相同。pip 使用 no-deps dry-run/install，依赖闭包由 metadata 映射和安装后 pip check 双重核验。Linux 子进程应用 48,000,000 KB 虚拟内存上限。环境 READY 与小 BED 运行标记分开；smoke 三组 HINT 成功后写入含代码/环境身份及 BAM、regions、events SHA-256 的 HINT_SMALLBED_VALIDATED.json，full round 需该标记。
+
+验证：bash syntax、Python compile-in-memory、两组 mock tests、git diff --check 通过。fixture 覆盖多缺件汇报、缺 wheel、平台/来源不匹配、Conda closure 不符、安装失败/source audit、READY 发布和 runner 失败。测试中曾因 fixture 仍用 .conda 文件名失败，已切换 tar.bz2；macOS 无法设置 48,000,000 KB ulimit，故只在目标 Linux Argos 子进程应用，mock 测试不执行真实安装。所有错误均已修复，最终测试通过。当前远端 PR HEAD 仍是 971fdce；这轮代码尚未提交。没有连接 Argos、构建真实 Linux bundle、改环境、运行 HINT/benchmark、改数据或合并。下一步更新同一 PR 的 handoff/worklog/描述，推送后请 GPT 审核完整新 HEAD；明确批准前不运行 Argos 命令。
+
+
+## 2026-10-18 04:39 EDT — small-BED gate 的失败传播
+
+run_4b1.sh 没有启用 errexit；因此为 HINT_SMALLBED_VALIDATED 的写入和校验加上显式失败退出，避免 marker 写入/校验失败后仍进入 full round。marker 校验包含代码 commit、READY lock digest、三组 BAM/regions/events 的存在和 SHA-256；HINT 事件 BED 可为空，只要 caller 正常退出且无 failed chunks。最终重跑 shell syntax、Python compile-in-memory、两组行为 fixture 和 git diff --check，均通过。Argos 未连接或运行；本轮调整仍在本地，远端 PR HEAD 仍为 971fdce，待提交、推送并由 GPT 审核。
+
+## 2026-10-18 04:41 EDT — 目标 ABI 的 wheel 标签判定
+
+代码复核发现 validator 的 wheel tag 判定依赖调用它的 pmafp Python ABI，而目标 HINT 环境要求 CPython 3.11/Linux x86_64。已改为按目标 ABI 和 glibc 2.23 上限验证，并从 Conda lock 读取 Python 版本计算 Requires-Dist markers；新增兼容/不兼容 wheel tag fixture。shell syntax、validator compile-in-memory、builder fixtures、runner contract fixtures、git diff --check 均通过。远端 PR #4 HEAD 仍为 `971fdce`，修正尚未提交。没有 Argos 操作、外部 bundle 构建、HINT/benchmark 运行或数据更改；此项须和完整审计一起提交并请 GPT 审核。

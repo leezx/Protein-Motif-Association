@@ -3,7 +3,7 @@
 更新时间：2026-10-18 17:22 EDT
 工作分支：`task_20261018_chipatlas_unique_bed6_design`
 基线：`origin/step4b-atac-footprinting`
-PR：[#6](https://github.com/leezx/Protein-Motif-Association/pull/6)，OPEN；设计-only，当前完整 HEAD 审核待请求。初始提交 `49621ade482fb8fa1b73de8392dd8d65da4c782d`，随后会推送审计同步提交并以新 SHA 送审。
+PR：[#6](https://github.com/leezx/Protein-Motif-Association/pull/6)，OPEN；设计-only，当前完整 HEAD 审核待请求。初始提交 `49621ade482fb8fa1b73de8392dd8d65da4c782d`；PR 中已包含审计同步和空白修正，复核远端 HEAD 后送审。
 
 ## PI 目标
 

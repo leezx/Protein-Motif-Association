@@ -30,3 +30,11 @@ GPT approved the scope clarification at commit `9c8ff5a`. The driver was then st
 The attempt showed that the old setup treated any nonempty `hg38.fa` as complete. The PR now preserves unindexed output under `processed/round1/setup_interrupted/`, decompresses to a temporary path, atomically installs the full reference, and indexes it. This updated code and audit record require GPT review before another Argos command. No analysis has run.
 
 原始数据和分析输出均留在仓库外。
+
+## 2026-10-18 01:46 EDT — FAI 完成状态复审与修复
+
+GPT 对 PR #4 当前 HEAD `1333434` 给出 `REQUEST_CHANGES`。已知的“部分 FASTA、无索引”恢复正确，但仅用非空 `.fai` 判定完成会漏掉索引写入中断、FASTA 缺失或 stale/mismatched FAI。GPT 未发现新的审计范围阻断项，原 scope-control finding 继续为 RESOLVED；GitHub review 提交仍返回 HTTP 403。
+
+在同一 PR 中新增 `setup_reference.sh`：仅当 FASTA、FAI 与最后写入的 SHA256 完成标记相互匹配才复用；否则将既有 FASTA、FAI 和标记归档到外部工作目录，从原始 gzip 解压到同目录临时文件、在临时 FASTA 上建索引，再安装 FASTA/FAI 并最后原子写入标记。新增小型本地 fixture 覆盖部分 FASTA、部分 FAI、有效 pair 复用、FASTA 缺失但 stale FAI 存在四种情况，均通过。`bash -n`、`git diff --check` 通过。未访问 Argos，未执行外部分析。
+
+GPT 还指出 PR 描述没有概括 interruption recovery；提交前将更新 PR 描述反映完整修复范围。当前代码和审计改动仍需在本 PR 获取新 HEAD 的明确 `APPROVE` 后，才可同步或在 Argos 上运行。完整 benchmark 仍按用户此前授权范围执行，PR approval 不扩大该范围；合并另需用户确认。

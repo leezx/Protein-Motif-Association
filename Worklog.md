@@ -189,3 +189,11 @@ table; F17 experiment count is not cluster size.
 **Repair**: The partial output revealed that the old `if [ ! -s hg38.fa ]` guard could accept an interrupted extraction as complete. The same PR now preserves unindexed output under external `processed/round1/setup_interrupted/`, decompresses to a temporary path, atomically installs and indexes the complete FASTA. No benchmark method, input, or threshold changed. Syntax/diff validation and GPT review are pending for this updated PR head.
 
 **Gate**: Do not run another Argos command until the updated PR receives explicit GPT `APPROVE`. Then follow the user's existing benchmark authorization and preserve the partial file in `processed/round1/setup_interrupted/`. Do not merge without separate user confirmation.
+
+## 2026-10-18 01:46 EDT — PR #4 re-review: FAI integrity finding
+
+**Review**: GPT reviewed PR #4 at HEAD `1333434` and returned `REQUEST_CHANGES`. The partial-FASTA/no-FAI recovery path and immutable gzip source were judged correct, but a nonempty `.fai` could be partial or stale (including when FASTA is absent/mismatched). The scope-control finding remains resolved. GitHub review submission returned HTTP 403; the explicit verdict is in the persistent RA-Xiaolu / PMA项目 conversation.
+
+**Repair**: Added `setup_reference.sh`, which reuses only a FASTA/FAI pair matching a SHA256 completion marker written last after successful indexing. Otherwise it archives existing derived files under the external work directory, decompresses to a same-directory temporary FASTA, indexes the temporary file, installs the pair, and writes the marker last. Added local small-FASTA fixtures for partial FASTA/no index, partial FAI, valid-pair reuse, and missing FASTA/stale FAI. All fixtures passed; `bash -n` and `git diff --check` passed. No Argos access or external analysis was performed.
+
+**Next gate**: Update PR #4 description to include FASTA/FAI interruption recovery, commit only relevant files, push the same PR, and ask GPT to re-review the new HEAD. Do not send Argos commands until explicit approval of that HEAD. Do not merge without separate user confirmation.

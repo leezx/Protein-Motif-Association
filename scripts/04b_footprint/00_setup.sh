@@ -3,6 +3,7 @@
 # usage: 00_setup.sh <raw_dir> <work_dir> <env_prefix> <chrom.sizes>
 set -euo pipefail
 RAW=$1; W=$2; ENV=$3; SIZES=$4
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 mkdir -p $W/print_shared
 cd $W/print_shared
 if [ ! -d dispModel ]; then mkdir -p dispModel && tar -xzf $RAW/print_zenodo/dispModel.tar.gz -C dispModel --strip-components=0; fi
@@ -15,19 +16,8 @@ fi
 cp -n $RAW/print_zenodo/Tn5_NN_model.h5 .
 ls -ld precomputedTn5Bias dispModel
 cp -n $SIZES $W/hg38.chrom.sizes
-FA=$RAW/reference/hg38.fa
-if [ ! -s "$FA.fai" ]; then
-  # Preserve an unindexed file from an interrupted extraction, then rebuild from the immutable gzip source.
-  if [ -s "$FA" ]; then
-    mkdir -p "$W/setup_interrupted"
-    mv "$FA" "$W/setup_interrupted/hg38.fa.no_fai.$(date +%Y%m%dT%H%M%S)"
-  fi
-  TMP=$RAW/reference/.hg38.fa.tmp.$$
-  gunzip -c "$RAW/reference/hg38.fa.gz" > "$TMP"
-  [ -s "$TMP" ]
-  mv "$TMP" "$FA"
-  $ENV/bin/samtools faidx "$FA"
-fi
+source "$SCRIPT_DIR/setup_reference.sh"
+pma_prepare_reference "$RAW/reference/hg38.fa" "$RAW/reference/hg38.fa.gz" "$W" "$ENV/bin/samtools"
 # RGT: genome path for hg38 (data.config.user overrides data.config)
 CFG=$HOME/rgtdata/data.config.user
 grep -q "^\[hg38\]" $CFG 2>/dev/null || printf "\n[hg38]\ngenome: %s\nchromosome_sizes: %s\n" $RAW/reference/hg38.fa $W/hg38.chrom.sizes >> $CFG

@@ -2,7 +2,8 @@
 
 - 日期：2026-10-18
 - 分支：`step4b-atac-footprinting`
-- PR / commit：待创建
+- PR：[#4](https://github.com/leezx/Protein-Motif-Association/pull/4)，base `step4b-atac-footprinting`
+- 修复 commit：`8e33a35`（PR head 后续可能因审计元数据更新）
 - 任务：修复 Argos 首次 setup 在 PRINT 资源预览处退出的问题。
 
 ## 证据与修复
@@ -13,7 +14,9 @@ Argos 上 driver PID 8822 在 `00_setup.sh` 阶段以 `SETUP_FAIL` 退出，尚�
 
 ## 验证与门禁
 
-- Shell 语法检查和 PR diff 检查：待执行。
+- Shell 语法检查：`bash -n scripts/04b_footprint/00_setup.sh` 通过。
+- Git diff 检查：`git diff --check` 通过；修复 commit 为 `8e33a35`。
+- PR #4 已提交，ChatGPT 审核待完成。
 - 当前远端 setup 已停止；数据和已生成的资源仍在 `/home/zz950/DATA/2.PROJECTS/PMA/atac_footprint/processed/round1/`。
 - 在当前 PR 获得明确 `APPROVE` 前，不重启 setup、smoke test 或 round-1 分析。
 - 获批后同步同一分支，在 Argos 重跑 driver；检查 setup 和输入准备，再逐项确认三个 smoke 集合的输出。

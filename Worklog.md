@@ -165,3 +165,9 @@ table; F17 experiment count is not cluster size.
 **Repair**: change only the log preview to `ls -ld precomputedTn5Bias dispModel`, which avoids truncating a long listing. No analysis thresholds, input definitions, or outputs changed. Shell syntax validation and PR review are pending.
 
 **Gate**: per the active review gate, do not rerun setup or any dependent external analysis until the current Step 4b PR receives explicit ChatGPT `APPROVE`. The incomplete setup outputs remain under the external DATA path and will be reused by the rerun.
+
+## 2026-10-18 01:34 EDT — PR #4 submitted for setup fix review
+
+**Change**: commit `8e33a35` (`Step 4b-1: avoid SIGPIPE in setup resource listing`) on `task_20261018_step4b_setup_fix`. The PR is [#4](https://github.com/leezx/Protein-Motif-Association/pull/4), based on `step4b-atac-footprinting` so its diff stays limited to the setup fix and its audit records.
+
+**Review gate**: PR #4 is pending ChatGPT review. No merge, remote code update, setup rerun, smoke test, or round-1 analysis is authorized before explicit `APPROVE`. PR handoff: `docs/handoff/2026-10-18-step4b-setup-fix.zh-CN.md`.

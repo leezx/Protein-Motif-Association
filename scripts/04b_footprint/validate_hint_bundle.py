@@ -16,6 +16,27 @@ from packaging.version import Version
 RGT_SDIST_SHA256 = "2169e71f2018340d101146bab09bb933a384611c5f7b76f4be5999fa835cac7e"
 
 
+def conda_container_issues(path, name, version, build):
+    expected = {"metadata.json", f"info-{name}-{version}-{build}.tar.zst",
+                f"pkg-{name}-{version}-{build}.tar.zst"}
+    try:
+        with zipfile.ZipFile(path) as archive:
+            members = archive.infolist()
+            names = [member.filename for member in members]
+            if len(names) != len(set(names)) or set(names) != expected:
+                return ["CONDA_ZIP_MEMBERS_INVALID"]
+            if any(member.compress_type != zipfile.ZIP_STORED or member.flag_bits & 1 for member in members):
+                return ["CONDA_ZIP_CONTAINER_ENCODING_INVALID"]
+            metadata = json.loads(archive.read("metadata.json"))
+            if not isinstance(metadata, dict) or metadata.get("conda_pkg_format_version") != 2:
+                return ["CONDA_ZIP_FORMAT_VERSION_UNSUPPORTED"]
+            if archive.testzip() is not None:
+                return ["CONDA_ZIP_CRC_FAILED"]
+    except (OSError, zipfile.BadZipFile, json.JSONDecodeError):
+        return ["CONDA_ZIP_INVALID"]
+    return []
+
+
 def wheel_targets_hint(wheel_tags):
     """Check wheel tags against the declared CPython 3.11 Linux x86_64 target.
 
@@ -166,7 +187,8 @@ def main():
             if not isinstance(parsed_repodata, dict):
                 issues.append(f"REPODATA_ROOT_INVALID:{relative}")
                 repodata_by_subdir[subdir] = {}
-            elif not isinstance(parsed_repodata.get("packages"), dict):
+            elif (not isinstance(parsed_repodata.get("packages"), dict) or
+                  not isinstance(parsed_repodata.get("packages.conda"), dict)):
                 issues.append(f"REPODATA_PACKAGES_INVALID:{relative}")
                 repodata_by_subdir[subdir] = parsed_repodata
             else:
@@ -193,7 +215,12 @@ def main():
                 relative = f"conda/{subdir}/{filename}"
                 if subdir not in ("linux-64", "noarch") or "/" in filename or ".." in filename:
                     issues.append(f"CONDA_LOCK_PATH_INVALID:{relative}")
-                if not filename.endswith(".tar.bz2"):
+                if filename.endswith(".tar.bz2"):
+                    package_section = "packages"
+                elif filename.endswith(".conda"):
+                    package_section = "packages.conda"
+                else:
+                    package_section = None
                     issues.append(f"CONDA_PACKAGE_FORMAT_UNSUPPORTED:{filename}")
                 if artifacts.get(relative) != digest.lower():
                     issues.append(f"CONDA_ARTIFACT_NOT_IN_INVENTORY:{relative}")
@@ -202,7 +229,8 @@ def main():
                     issues.append(f"MISSING_CONDA_ARTIFACT:{name}={version}={build}")
                 elif sha256(path) != digest.lower():
                     issues.append(f"CONDA_ARTIFACT_HASH_MISMATCH:{relative}")
-                package_record = repodata_by_subdir.get(subdir, {}).get("packages", {}).get(filename)
+                package_record = (repodata_by_subdir.get(subdir, {}).get(package_section, {}).get(filename)
+                                  if package_section else None)
                 if package_record is None:
                     issues.append(f"CONDA_LOCK_NOT_IN_REPODATA:{relative}")
                 else:
@@ -215,6 +243,12 @@ def main():
                     if prior is not None and prior != filename:
                         issues.append(f"CONDA_REPODATA_DUPLICATE_DIST:{subdir}/{name}/{version}/{build}")
                     repodata_dist_keys[dist_key] = filename
+                    artifact_path = os.path.join(bundle, relative)
+                    if package_record.get("size") is not None and package_record["size"] != os.path.getsize(artifact_path):
+                        issues.append(f"CONDA_REPODATA_SIZE_MISMATCH:{relative}")
+                    if filename.endswith(".conda"):
+                        for issue in conda_container_issues(artifact_path, name, version, build):
+                            issues.append(f"{issue}:{relative}")
     except OSError as exc:
         issues.append(f"CONDA_LOCK_INVALID:{exc}")
     for name, expected in (("python", None), ("numpy", "1.26.4"), ("setuptools", "80.9.0")):

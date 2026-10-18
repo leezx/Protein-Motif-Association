@@ -50,6 +50,14 @@ Footprint 的 fragment/region inputs 已就绪、当前无 caller 进程。Argos
 
 PR #5 exact approved HEAD `6ec6fc230aec422c1124aeb42ee71c308d23de81` 的 Argos contract suite 已运行 40 tests、3 failures：import-origin fixture 的路径顺序不匹配；pip wheel 因 host `pmafp/site-packages/jaraco` 被 fail-closed probe 拒绝；wrapper test 由于 PATH 选中 Argos 系统 Python 3.5.2 而失败。完整日志：`/home/zz950/PMA_fetch/pma_pr5_g2_tests_6ec6fc2/contract-tests-discovery.log`。`py_compile`、`bash -n` 通过，`pmafp` manifests 前后相同。没有 bundle、环境变更、HINT/smoke/round-1。错误日志保留，不得绕过 gate；PR #5 修复需同一 PR 最小变更和新 exact-head GPT approval。
 
+## 2026-10-18 16:18 EDT — LINK/FETCH 来源解析与 `.conda` 官方解包修订待审核
+
+PR #5 远端仍为 OPEN，HEAD `9c7410b097af0c59ffd411baf58f27af5cec751e`。该 HEAD 获批的 artifact-only G2 已因真实 `LINK` 仅包含 distribution identity 而停止；37 个已选包在保存的 repodata `packages.conda` 中各有唯一 artifact，`packages` 中没有匹配项；`FETCH` 提供实际文件名与哈希。完整失败证据、repodata 与 `PMAFP_INTEGRITY_OK` 留在 `/home/zz950/PMA_fetch/pma_pr5_g2_9c7410b/`。
+
+新 PMA GPT 对话对技术设计的答复不是 PR 审核或 APPROVE。当前同 PR 的本地未提交修复支持 `.conda` 与 `.tar.bz2`，从 LINK + FETCH + upstream repodata 解析真实 artifact，不构造文件名；重复候选要求 FETCH 文件名和校验值齐全；solver 使用的 repodata cache 必须与留存快照逐字节相同；离线 repodata 按真实 artifact section 构建并做六字段 exact closure 比对。`.conda` 通过容器与成员校验，使用现有、版本和 conda-meta provenance 可核验的 official `conda_package_handling.api.extract`，隔离 preflight 拒绝路径穿越、危险链接、特殊文件、超出文件数/解包大小的内容，ABI 扫描真实 payload。新增合同 fixture 覆盖双格式、歧义/不足 FETCH、容器与 extractor ABI 路径。
+
+本次只做本机静态检查，不运行测试或分析；未向 Argos 发命令、改环境、启动 caller，也未合并。新代码尚未提交、推送或审核；旧 HEAD APPROVE 不继承。下一步在提交前复查 `git diff --check`、`py_compile` 和完整 diff，提交推送同一 PR #5、同步 PR body，再请求新完整 HEAD 的 GPT APPROVE；仅获批后跑 Argos 合同测试，测试全过且源环境完整性相同后才可按新批准跑 artifact-only G2。目标 1 unique BED6 无进展；目标 2 仅解除 HINT builder 前置项，尚无 benchmark 结果。`HUMAN DECISION: PENDING`。
+
 更新时间：2026-10-18 10:43 EDT
 仓库：`Protein-Motif-Association`
 基线：PR #4 merge commit `6c2e323fc80cc3e05f9de05282d1bbce49ba98fa`，目标分支 `step4b-atac-footprinting`
@@ -131,3 +139,17 @@ PR #5 仍 OPEN，精确 HEAD `0aaf8a00c52000490782d95bf1efe5508f4d1a1a`。Argos 
 ## 2026-10-18 15:01 EDT — 最小修订待 exact-head 复审
 
 持久 PMA GPT 已确认 Conda CLI 的导入路径污染根因，建议专用 `run_conda()` 只清除 Conda 子进程的三项 builder Python 启动变量，保留 `CONDA_PKGS_DIRS`、审计的 Conda 路径、通用日志脱敏和 pip 来源检查。当前本地未提交修订已覆盖五处 Conda CLI 调用和针对 online/offline dry-run、version/list/index/create 的合同检查；原真实 pip-wheel backend 测试保留。`git diff --check` PASS；未在 Mac mini 跑测试/构建/分析，未向 Argos 下发新代码。下一步提交推送同一 PR #5，更新 PR body，请 GPT 审核新完整 HEAD；仅在明确 APPROVE 后于 Argos 跑合同测试，全过才以新外部 WORK 重跑 G2。两项目标均未完成，不合并 PR。`HUMAN DECISION: PENDING`。
+
+## 2026-10-18 15:12 EDT — 新完整 HEAD 获批；Argos 合同全过，G2 运行中
+
+PR #5 OPEN，完整 HEAD `9c7410b097af0c59ffd411baf58f27af5cec751e` 已获持久 PMA GPT 明确 APPROVE，范围为 Argos Gate A 合同测试、通过后 artifact-only G2/offline preflight。独立 checkout `/home/zz950/PMA_fetch/pma_pr5_code_9c7410b` 的 42/42 测试 PASS、无 skip，真实 pip-wheel backend PASS；Python 编译和 wrapper shell 语法 PASS。测试证据在 `/home/zz950/PMA_fetch/pma_pr5_g2_tests_9c7410b/`，`runner.exit=0`、`pmafp-integrity-status.txt=PMAFP_INTEGRITY_OK`，前后 Conda/pip 清单逐字节一致。
+
+已从同一 HEAD 启动批准的 G2，外部 WORK `/home/zz950/PMA_fetch/pma_pr5_g2_9c7410b`，PID 45454，runner 日志 `/home/zz950/PMA_fetch/pma_pr5_g2_9c7410b.runner.log`。15:12 EDT 正下载 Conda upstream repodata；尚未确认 bundle、ABI 和 offline preflight。继续监控并保全失败证据；不创建/安装环境，不运行 HINT CLI、smoke 或 footprint 分析，不合并 PR #5。PI 目标 1 unique BED6 仍未完成，目标 2 四工具比较仍未完成；当前具体推进是 HINT 前置合同从失败变为全通过，下一验收是 G2 完整证据。`HUMAN DECISION: PENDING`。
+
+## 2026-10-18 15:44 EDT — G2 首个真实 Conda solver dry-run 通过
+
+获批 G2 仍在 Argos 运行（PID 45454，HEAD `9c7410b097af0c59ffd411baf58f27af5cec751e`）。第一条 audited `conda create --dry-run --json` 返回 `success: true`、exit 0，验证了清理 Conda child Python 环境的修复。`linux-64` before repodata 456,923,955 字节和 `noarch` before repodata 191,794,232 字节已保存；`linux-64` after repodata 15:44 EDT 为 369,098,752 字节，仍在下载。完整日志和快照位于 `/home/zz950/PMA_fetch/pma_pr5_g2_9c7410b/`。Bundle、ABI、offline preflight 和 `pmafp` 最终完整性仍待结果。未建/改环境，未运行 HINT CLI、smoke 或 footprint analysis。目标 2 的 HINT 前置阻断获得真实 Argos 证据；目标 1 BED6 与四工具比较均未完成。下一验收为 G2 所有剩余检查 PASS。
+
+## 2026-10-18 15:55 EDT — G2 失败，保留 solver 与 repodata 证据
+
+PR #5 的 exact HEAD `9c7410b097af0c59ffd411baf58f27af5cec751e` 在 Argos 的 42/42 合同门禁通过；批准的 G2 随后下载了 linux-64/noarch before/after repodata，Conda 在线 `create --dry-run --json` 成功，但 builder 校验 package closure 时退出：`ARGOS_UPSTREAM_REPODATA_RECORD_MISSING:noarch:`。实测 `actions.LINK` noarch 条目含 `dist_name/name/platform/version/build_string`，不含 artifact filename/hash/dependency 字段；同一 Conda JSON 的 `actions.FETCH` 含确切 `.conda` filename 和 SHA-256。当前 builder 将 LINK 当作带 filename 的记录并只索引 `packages`（tar.bz2），无法覆盖实际 Conda 2 格式输出。失败证据：`/home/zz950/PMA_fetch/pma_pr5_g2_9c7410b/evidence/builder/build-failure.txt`、`commands.log`、`argos-builder.stdout.log`、四份 repodata 与 provenance；均保留。`pmafp-integrity.json` 为 `PMAFP_INTEGRITY_OK`。没有 bundle/ABI/offline-preflight，没有环境修改或 HINT/footprint 运行。已向持久 PMA GPT 请求最小闭包来源修复建议；不重跑 G2，等待诊断后在同一 PR 修复、测试并重新请求 exact-head review。两项 PI 科学产物未完成。

@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tarfile
@@ -593,20 +594,23 @@ fi
             output = json.dumps({"actions": {"LINK": [{
                 "name": "python", "version": "3.11.9", "build": "mock_0",
                 "fn": "python-3.11.9-mock_0.tar.bz2", "subdir": "linux-64",
-                "sha256": "a" * 64,
-                "url": "https://example.org/linux-64/python-3.11.9-mock_0.tar.bz2?token=secret"
+                "base_url": "https://example.org/channel", "sha256": "a" * 64,
+                "url": "https://example.org/channel/linux-64/python-3.11.9-mock_0.tar.bz2?token=secret"
             }]}})
             snapshot_record = {"name": "python", "version": "3.11.9", "build": "mock_0",
-                              "sha256": "a" * 64, "depends": [], "constrains": []}
-            snapshot = {"url": "https://example.org/linux-64/repodata.json", "sha256": "b" * 64,
+                              "sha256": "a" * 64, "size": 123, "depends": [], "constrains": []}
+            snapshot = {"url": "https://example.org/channel/linux-64/repodata.json", "sha256": "b" * 64,
                         "evidence_file": "upstream-repodata-linux-64-after.json",
-                        "packages": {"python-3.11.9-mock_0.tar.bz2": snapshot_record}}
+                        "packages": {"python-3.11.9-mock_0.tar.bz2": snapshot_record},
+                        "packages.conda": {}}
+            package_cache = work / "package-cache"
             with mock.patch.dict(BUILDER.os.environ, {
                 "PMA_HINT_BUILDER_MODE": "argos-native",
                 "PMA_HINT_ARGOS_CONDA_CHANNEL": "https://example.org/channel",
             }), mock.patch.object(BUILDER, "fetch_repodata_snapshot", return_value=snapshot), \
+                 mock.patch.object(BUILDER, "verify_solver_repodata_cache", return_value={"sha256": "b" * 64}), \
                  mock.patch.object(BUILDER, "conda_dry_run", return_value=output):
-                BUILDER.load_solver_plan("/mock/conda", work)
+                BUILDER.load_solver_plan("/mock/conda", work, package_cache=package_cache)
             for path in work.rglob("*"):
                 if path.is_file():
                     content = path.read_text(encoding="utf-8")
@@ -632,7 +636,7 @@ fi
         })
 
     def test_argos_upstream_repodata_snapshot_is_retained_and_hash_verifiable(self):
-        payload = b'{"packages": {"demo-1.0-0.tar.bz2": {"depends": []}}}'
+        payload = b'{"info":{"subdir":"linux-64"},"packages":{"demo-1.0-0.tar.bz2":{"depends":[]}},"packages.conda":{}}'
         with tempfile.TemporaryDirectory() as tmp:
             work = Path(tmp)
 
@@ -651,6 +655,8 @@ fi
             provenance = json.loads((work / f"{retained.name}.provenance.json").read_text(encoding="utf-8"))
             self.assertEqual(provenance["url"], snapshot["url"])
             self.assertEqual(provenance["sha256"], snapshot["sha256"])
+            self.assertEqual(snapshot["size"], len(payload))
+            self.assertEqual(snapshot["packages.conda"], {})
             provenance = json.loads((work / f"{retained.name}.provenance.json").read_text(encoding="utf-8"))
             self.assertEqual(provenance["url"], snapshot["url"])
             self.assertEqual(provenance["sha256"], snapshot["sha256"])
@@ -727,13 +733,140 @@ fi
             self.assertEqual(result["auditwheel_policy"], "pure-python-no-ELF")
             self.assertEqual(result["native_dependencies"], [])
 
-    def test_conda_package_format_must_match_validator_contract(self):
+    def test_realistic_conda_link_uniquely_maps_to_conda_repodata_artifact(self):
+        channel = "https://example.org/channel"
+        filename = "demo-1.2.3-py311_0.conda"
+        record = {"name": "demo", "version": "1.2.3", "build": "py311_0",
+                  "build_number": 0, "sha256": "a" * 64, "md5": "b" * 32,
+                  "size": 1234, "depends": ["python >=3.11"], "constrains": []}
+        link = {"base_url": channel, "channel": "example/channel", "dist_name": "demo-1.2.3-py311_0",
+                "name": "demo", "version": "1.2.3", "build_string": "py311_0",
+                "build_number": 0, "platform": "linux-64"}
+        resolved = BUILDER.resolve_solver_artifacts([link], {
+            "linux-64": {"packages": {}, "packages.conda": {filename: record}}
+        }, expected_channel=channel)
+        artifact = resolved[0]["pma_artifact"]
+        self.assertEqual(artifact["filename"], filename)
+        self.assertEqual(artifact["sha256"], "a" * 64)
+        self.assertEqual(artifact["repodata_section"], "packages.conda")
+        self.assertEqual(artifact["artifact_url"], f"{channel}/linux-64/{filename}")
+        self.assertEqual(resolved[0]["pma_solver_metadata_fields"]["depends"], False)
+
+    def test_cross_format_duplicate_requires_fetch_filename_and_hash(self):
+        channel = "https://example.org/channel"
+        link = {"base_url": channel, "name": "demo", "version": "1.2.3",
+                "build_string": "py311_0", "platform": "linux-64"}
+        tar_fn = "demo-1.2.3-py311_0.tar.bz2"
+        conda_fn = "demo-1.2.3-py311_0.conda"
+        tar_record = {"name": "demo", "version": "1.2.3", "build": "py311_0",
+                      "sha256": "a" * 64, "size": 10}
+        conda_record = {**tar_record, "sha256": "b" * 64}
+        snapshots = {"linux-64": {"packages": {tar_fn: tar_record},
+                                  "packages.conda": {conda_fn: conda_record}}}
+        with self.assertRaisesRegex(RuntimeError, "ARTIFACT_NOT_UNIQUE"):
+            BUILDER.resolve_solver_artifacts([link], snapshots, expected_channel=channel)
+        with self.assertRaisesRegex(RuntimeError, "FETCH_DISAMBIGUATION_INCOMPLETE"):
+            BUILDER.resolve_solver_artifacts([link], snapshots,
+                fetches=[{"name": "demo", "version": "1.2.3", "build": "py311_0",
+                          "subdir": "linux-64", "fn": conda_fn}], expected_channel=channel)
+        with self.assertRaisesRegex(RuntimeError, "FETCH_DISAMBIGUATION_INCOMPLETE"):
+            BUILDER.resolve_solver_artifacts([link], snapshots,
+                fetches=[{"name": "demo", "version": "1.2.3", "build": "py311_0",
+                          "subdir": "linux-64", "sha256": "b" * 64}], expected_channel=channel)
+        fetch = [{"name": "demo", "version": "1.2.3", "build": "py311_0",
+                  "subdir": "linux-64", "fn": conda_fn, "sha256": "b" * 64}]
+        resolved = BUILDER.resolve_solver_artifacts([link], snapshots, fetches=fetch,
+                                                     expected_channel=channel)
+        self.assertEqual(resolved[0]["pma_artifact"]["filename"], conda_fn)
+        with self.assertRaisesRegex(RuntimeError, "FETCH_REPODATA_CONFLICT"):
+            BUILDER.resolve_solver_artifacts([link], snapshots,
+                fetches=[{**fetch[0], "sha256": "c" * 64}], expected_channel=channel)
+
+    def test_solver_missing_depends_differs_from_explicit_empty_depends(self):
+        channel = "https://example.org/channel"
+        filename = "demo-1.2.3-h0.conda"
+        record = {"name": "demo", "version": "1.2.3", "build": "h0",
+                  "sha256": "a" * 64, "size": 12, "depends": ["libc >=2.17"]}
+        link = {"base_url": channel, "name": "demo", "version": "1.2.3",
+                "build_string": "h0", "platform": "noarch"}
+        snapshot = {"noarch": {"packages": {}, "packages.conda": {filename: record}}}
+        resolved = BUILDER.resolve_solver_artifacts([link], snapshot, expected_channel=channel)
+        self.assertFalse(resolved[0]["pma_solver_metadata_fields"]["depends"])
+        with self.assertRaisesRegex(RuntimeError, "METADATA_MISMATCH:.*depends"):
+            BUILDER.resolve_solver_artifacts([{**link, "depends": []}], snapshot,
+                                             expected_channel=channel)
+
+    def test_conda_container_format_and_local_repodata_section(self):
         with tempfile.TemporaryDirectory() as tmp:
-            record = {"subdir": "linux-64", "fn": "python-3.11.0-0.conda",
-                      "sha256": "a" * 64, "url": "https://example.org/linux-64/python-3.11.0-0.conda"}
+            root = Path(tmp)
+            path = root / "demo-1.2.3-py311_0.conda"
+            with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_STORED) as archive:
+                archive.writestr("metadata.json", '{"conda_pkg_format_version":2}')
+                archive.writestr("info-demo-1.2.3-py311_0.tar.zst", b"info")
+                archive.writestr("pkg-demo-1.2.3-py311_0.tar.zst", b"payload")
+            artifact = {"name": "demo", "version": "1.2.3", "build": "py311_0"}
+            BUILDER.validate_conda_archive(path, artifact)
+            with self.assertRaisesRegex(RuntimeError, "ZIP_MEMBERS_INVALID"):
+                with zipfile.ZipFile(path, "a", compression=zipfile.ZIP_STORED) as archive:
+                    archive.writestr("unexpected.txt", b"extra")
+                BUILDER.validate_conda_archive(path, artifact)
+        filename = "demo-1.2.3-py311_0.conda"
+        record = {"subdir": "linux-64", "name": "demo", "version": "1.2.3",
+                  "build": "py311_0", "filename": filename, "sha256": "a" * 64,
+                  "md5": "b" * 32, "size": 12, "index_record": {"name": "demo",
+                  "version": "1.2.3", "build": "py311_0", "depends": []},
+                  "source_record": {"name": "demo", "version": "1.2.3", "build": "py311_0",
+                  "depends": [], "constrains": []}}
+        result = BUILDER.build_local_repodata([record], "linux-64")
+        self.assertNotIn(filename, result["packages"])
+        self.assertEqual(result["packages.conda"][filename]["sha256"], "a" * 64)
+
+    def test_conda_official_extractor_preserves_payload_for_abi_scan(self):
+        conda = os.environ.get("PMA_HINT_CONDA_EXECUTABLE") or shutil.which("conda")
+        self.assertTrue(conda, "audited Conda executable is required for the .conda contract")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            prefix = root / "fixture-prefix"
+            (prefix / "info").mkdir(parents=True)
+            (prefix / "bin").mkdir()
+            (prefix / "info/index.json").write_text(json.dumps({
+                "name": "pma-conda-fixture", "version": "1.0", "build": "0",
+                "build_number": 0, "depends": []}), encoding="utf-8")
+            (prefix / "bin/true").write_bytes(Path("/bin/true").read_bytes())
+            archive = root / "pma-conda-fixture-1.0-0.conda"
+            python, provenance = BUILDER.conda_extractor(conda, root)
+            self.assertEqual(provenance["extract_api"], "conda_package_handling.api.extract")
+            create_code = "from conda_package_handling.api import create; import sys; create(sys.argv[1], ['info/index.json', 'bin/true'], sys.argv[2])"
+            env = os.environ.copy()
+            for key in BUILDER.CONDA_ISOLATED_ENV_VARS:
+                env.pop(key, None)
+            subprocess.run([str(python), "-I", "-c", create_code, str(prefix), str(archive)],
+                           check=True, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                           text=True)
+            artifact = {"name": "pma-conda-fixture", "version": "1.0", "build": "0"}
+            BUILDER.validate_conda_archive(archive, artifact)
+            extracted = BUILDER.extract_conda_archive(python, archive, root / "extract", root)
+            self.assertEqual((extracted / "info/index.json").read_text(encoding="utf-8"),
+                             (prefix / "info/index.json").read_text(encoding="utf-8"))
+            bundle = root / "bundle"
+            target = bundle / "conda/linux-64" / archive.name
+            target.parent.mkdir(parents=True)
+            target.write_bytes(archive.read_bytes())
+            (root / "audit").mkdir()
+            audit = BUILDER.audit_conda_elf([{"subdir": "linux-64", "filename": archive.name}],
+                                           bundle, root / "audit", conda)
+            self.assertGreater(audit["elf_files_checked"], 0)
+
+    def test_conda_unknown_package_format_is_rejected_before_download(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            record = {"pma_artifact": {"subdir": "linux-64", "filename": "python-3.11.0-0.deb",
+                                       "sha256": "a" * 64,
+                                       "artifact_url": "https://example.org/linux-64/python-3.11.0-0.deb",
+                                       "size": 123}}
             with mock.patch.object(BUILDER.urllib.request, "urlretrieve") as download:
                 with self.assertRaisesRegex(RuntimeError, "UNSUPPORTED_CONDA_ARTIFACT"):
-                    BUILDER.copy_conda_closure([record], Path(tmp))
+                    BUILDER.copy_conda_closure([record], root, "/mock/conda", root / "work")
             download.assert_not_called()
 
     def test_pip_lock_uses_canonical_distribution_name_and_hash(self):

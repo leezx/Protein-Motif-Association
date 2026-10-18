@@ -37,6 +37,10 @@ SYSTEM_RUNTIME_LIBS = {
     "libgcc_s.so.1", "linux-vdso.so.1",
 }
 RUN_LOG: Path | None = None
+EXTRACTOR_PROVENANCE: dict = {}
+EXTRACTOR_PYTHON: Path | None = None
+MAX_EXTRACTED_PACKAGE_BYTES = 8 * 1024 * 1024 * 1024
+MAX_EXTRACTED_PACKAGE_FILES = 250_000
 CONDA_ISOLATED_ENV_VARS = (
     "PYTHONPATH", "PMA_HINT_EXTERNAL_TOOLCHAIN_PYTHON_ROOT", "PMA_HINT_ALLOWED_WORKSPACE",
 )
@@ -216,28 +220,382 @@ def require_audited_conda(conda: str, expected: str | None) -> None:
     validate_audited_conda(conda, expected or "")
 
 
+def _solver_subdir(item: dict) -> str | None:
+    subdir = item.get("subdir") or item.get("platform")
+    return subdir if subdir in ("linux-64", "noarch") else None
+
+
+def resolve_solver_artifacts(links: list[dict], repodata_by_subdir: dict[str, dict], *,
+                             fetches: list[dict] | None = None,
+                             expected_channel: str | None = None) -> list[dict]:
+    """Bind distribution-level LINK rows to exactly one provenance-backed artifact."""
+    fetches = fetches or []
+    resolved = []
+    for item in links:
+        subdir = _solver_subdir(item)
+        name, version = item.get("name"), item.get("version")
+        build = item.get("build") or item.get("build_string")
+        if subdir is None or not all(isinstance(value, str) and value for value in (name, version, build)):
+            raise RuntimeError("CONDA_SOLVER_LINK_IDENTITY_INVALID")
+        expected_dist = f"{name}-{version}-{build}"
+        if item.get("dist_name") not in (None, expected_dist):
+            raise RuntimeError(f"CONDA_SOLVER_DIST_IDENTITY_MISMATCH:{name}")
+        base_url = item.get("base_url")
+        if expected_channel is not None:
+            if not isinstance(base_url, str) or sanitize_url(base_url).rstrip("/") != expected_channel.rstrip("/"):
+                raise RuntimeError(f"CONDA_SOLVER_CHANNEL_MISMATCH:{name}")
+        snapshot = repodata_by_subdir.get(subdir)
+        if not isinstance(snapshot, dict):
+            raise RuntimeError(f"CONDA_SOLVER_REPODATA_SUBDIR_MISSING:{subdir}")
+        candidates = []
+        for section, suffix in (("packages", ".tar.bz2"), ("packages.conda", ".conda")):
+            records = snapshot.get(section)
+            if not isinstance(records, dict):
+                raise RuntimeError(f"ARGOS_UPSTREAM_REPODATA_SECTION_MISSING:{subdir}:{section}")
+            for filename, record in records.items():
+                if (not isinstance(filename, str) or not filename.endswith(suffix) or
+                        not isinstance(record, dict)):
+                    continue
+                if (record.get("name"), record.get("version"), record.get("build")) == (name, version, build):
+                    candidates.append((section, filename, record))
+        matching_fetches = []
+        for fetch in fetches:
+            fetch_subdir = _solver_subdir(fetch)
+            fetch_build = fetch.get("build") or fetch.get("build_string")
+            if (fetch_subdir, fetch.get("name"), fetch.get("version"), fetch_build) == (subdir, name, version, build):
+                matching_fetches.append(fetch)
+        if len(matching_fetches) > 1:
+            raise RuntimeError(f"CONDA_SOLVER_FETCH_DUPLICATE:{name}")
+        if matching_fetches:
+            fetch = matching_fetches[0]
+            fetch_filename = fetch.get("fn")
+            fetch_url = fetch.get("url")
+            if fetch_url:
+                fetch_filename_from_url = urlsplit(fetch_url).path.rsplit("/", 1)[-1]
+                if fetch_filename and fetch_filename != fetch_filename_from_url:
+                    raise RuntimeError(f"CONDA_SOLVER_FETCH_FILENAME_CONFLICT:{name}")
+                fetch_filename = fetch_filename or fetch_filename_from_url
+            fetch_sha = fetch.get("sha256")
+            fetch_md5 = fetch.get("md5")
+            if len(candidates) > 1 and not (fetch_filename and (fetch_sha or fetch_md5)):
+                raise RuntimeError(f"CONDA_SOLVER_FETCH_DISAMBIGUATION_INCOMPLETE:{name}")
+            if fetch_filename or fetch_sha or fetch_md5:
+                filtered = []
+                for candidate in candidates:
+                    _section, filename, record = candidate
+                    if fetch_filename and filename != fetch_filename:
+                        continue
+                    if fetch_sha and record.get("sha256", "").lower() != str(fetch_sha).lower():
+                        continue
+                    if fetch_md5 and record.get("md5", "").lower() != str(fetch_md5).lower():
+                        continue
+                    filtered.append(candidate)
+                if not filtered:
+                    raise RuntimeError(f"CONDA_SOLVER_FETCH_REPODATA_CONFLICT:{name}")
+                candidates = filtered
+        if len(candidates) != 1:
+            raise RuntimeError(f"CONDA_SOLVER_ARTIFACT_NOT_UNIQUE:{subdir}:{name}:{len(candidates)}")
+        section, filename, source = candidates[0]
+        artifact_sha = source.get("sha256")
+        size = source.get("size")
+        if not re.fullmatch(r"[0-9a-fA-F]{64}", str(artifact_sha or "")):
+            raise RuntimeError(f"CONDA_REPODATA_SHA256_INVALID:{filename}")
+        if not isinstance(size, int) or size <= 0:
+            raise RuntimeError(f"CONDA_REPODATA_SIZE_INVALID:{filename}")
+        if source.get("md5") and not re.fullmatch(r"[0-9a-fA-F]{32}", str(source["md5"])):
+            raise RuntimeError(f"CONDA_REPODATA_MD5_INVALID:{filename}")
+        for key, value in (("build_number", item.get("build_number")),):
+            if value is not None and source.get(key) != value:
+                raise RuntimeError(f"CONDA_SOLVER_REPODATA_IDENTITY_MISMATCH:{filename}:{key}")
+        for key in ("fn", "filename"):
+            if item.get(key) and item[key] != filename:
+                raise RuntimeError(f"CONDA_SOLVER_REPODATA_IDENTITY_MISMATCH:{filename}:{key}")
+        for key in ("depends", "constrains"):
+            if key in item:
+                link_value, source_value = item[key], source.get(key, [])
+                if not isinstance(link_value, list) or not isinstance(source_value, list):
+                    raise RuntimeError(f"CONDA_SOLVER_REPODATA_METADATA_INVALID:{filename}:{key}")
+                if sorted(link_value) != sorted(source_value):
+                    raise RuntimeError(f"CONDA_SOLVER_REPODATA_METADATA_MISMATCH:{filename}:{key}")
+        artifact_url = f"{expected_channel.rstrip('/')}/{subdir}/{filename}" if expected_channel else ""
+        if matching_fetches and matching_fetches[0].get("url") and artifact_url:
+            if sanitize_url(matching_fetches[0]["url"]) != artifact_url:
+                raise RuntimeError(f"CONDA_SOLVER_FETCH_URL_MISMATCH:{filename}")
+        if item.get("url") and sanitize_url(item["url"]) != artifact_url:
+            raise RuntimeError(f"CONDA_SOLVER_ARTIFACT_URL_MISMATCH:{filename}")
+        normalized = dict(item)
+        normalized["pma_artifact"] = {
+            "channel_base_url": expected_channel or base_url,
+            "subdir": subdir, "name": name, "version": version, "build": build,
+            "build_number": source.get("build_number"), "repodata_section": section,
+            "filename": filename, "artifact_url": sanitize_url(artifact_url) if artifact_url else "",
+            "sha256": artifact_sha.lower(), "md5": source.get("md5"), "size": size,
+            "depends": source.get("depends"), "constrains": source.get("constrains"),
+        }
+        normalized["pma_solver_metadata_fields"] = {
+            key: key in item for key in ("depends", "constrains", "sha256", "fn", "url")
+        }
+        normalized["pma_upstream_repodata_record"] = source
+        resolved.append(normalized)
+    identities = [(row["pma_artifact"]["subdir"], row["name"], row["version"],
+                   row["pma_artifact"]["build"], row["pma_artifact"]["filename"],
+                   row["pma_artifact"]["sha256"]) for row in resolved]
+    if len(identities) != len(set(identities)):
+        raise RuntimeError("CONDA_SOLVER_ARTIFACT_DUPLICATE")
+    return resolved
+
+
+def verify_solver_repodata_cache(package_cache: Path, channel: str, subdir: str,
+                                snapshot: dict) -> dict:
+    """Prove Conda solved from the same cached repodata bytes saved as evidence."""
+    cache = package_cache / "cache"
+    expected_url = f"{channel.rstrip('/')}/{subdir}"
+    matches = []
+    for info_path in cache.glob("*.info.json"):
+        try:
+            info = json.loads(info_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if sanitize_url(str(info.get("url", ""))).rstrip("/") == expected_url:
+            matches.append((info_path, info))
+    if len(matches) != 1:
+        raise RuntimeError(f"CONDA_SOLVER_REPODATA_CACHE_NOT_UNIQUE:{subdir}:{len(matches)}")
+    info_path, info = matches[0]
+    json_path = info_path.with_name(info_path.name.removesuffix(".info.json") + ".json")
+    if not json_path.is_file():
+        raise RuntimeError(f"CONDA_SOLVER_REPODATA_CACHE_MISSING:{subdir}")
+    if json_path.stat().st_size != snapshot["size"] or info.get("size") != snapshot["size"]:
+        raise RuntimeError(f"CONDA_SOLVER_REPODATA_CACHE_SIZE_MISMATCH:{subdir}")
+    digest = sha256(json_path)
+    if digest != snapshot["sha256"]:
+        raise RuntimeError(f"CONDA_SOLVER_REPODATA_CACHE_HASH_MISMATCH:{subdir}")
+    if info.get("url") != expected_url:
+        raise RuntimeError(f"CONDA_SOLVER_REPODATA_CACHE_URL_MISMATCH:{subdir}")
+    return {"url": expected_url, "cache_file": json_path.name,
+            "sha256": digest, "size": json_path.stat().st_size}
+
+
+def conda_extractor(conda: str, work: Path) -> tuple[Path, dict]:
+    """Probe the audited Conda base's existing package extractor; never install it."""
+    base_prefix = Path(conda).resolve().parent.parent
+    python = (base_prefix / "bin" / "python").resolve()
+    if not python.is_file() or not python.resolve().is_relative_to(base_prefix.resolve()):
+        raise RuntimeError("CONDA_BASE_PYTHON_INVALID")
+    probe = (
+        "import importlib.metadata as m, json, pathlib, sys, "
+        "conda_package_handling, conda_package_streaming, zstandard; "
+        "print(json.dumps({'python':str(pathlib.Path(sys.executable).resolve()),"
+        "'python_version':sys.version.split()[0],"
+        "'cph_version':m.version('conda-package-handling'),"
+        "'cph_module':str(pathlib.Path(conda_package_handling.__file__).resolve()),"
+        "'streaming_version':m.version('conda-package-streaming'),"
+        "'streaming_module':str(pathlib.Path(conda_package_streaming.__file__).resolve()),"
+        "'zstandard_version':m.version('zstandard'),"
+        "'zstandard_module':str(pathlib.Path(zstandard.__file__).resolve())}, sort_keys=True))"
+    )
+    env = os.environ.copy()
+    for key in CONDA_ISOLATED_ENV_VARS:
+        env.pop(key, None)
+    output = run([str(python), "-I", "-c", probe], capture=True, env=env)
+    try:
+        details = json.loads(output)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"CONDA_EXTRACTOR_PROBE_INVALID:{exc}") from exc
+    for key in ("cph_module", "streaming_module", "zstandard_module"):
+        module_path = Path(details.get(key, "")).resolve()
+        if not module_path.is_relative_to(base_prefix.resolve()):
+            raise RuntimeError(f"CONDA_EXTRACTOR_MODULE_OUTSIDE_BASE:{key}")
+    if Path(details.get("python", "")).resolve() != python:
+        raise RuntimeError("CONDA_EXTRACTOR_PYTHON_MISMATCH")
+    meta = base_prefix / "conda-meta"
+    records = {}
+    for package in ("conda-package-handling", "conda-package-streaming", "zstandard"):
+        candidates = list(meta.glob(f"{package}-*.json"))
+        if len(candidates) != 1:
+            raise RuntimeError(f"CONDA_EXTRACTOR_PACKAGE_RECORD_NOT_UNIQUE:{package}")
+        record_path = candidates[0]
+        record = json.loads(record_path.read_text(encoding="utf-8"))
+        version_key = {"conda-package-handling": "cph_version",
+                       "conda-package-streaming": "streaming_version",
+                       "zstandard": "zstandard_version"}[package]
+        if record.get("version") != details[version_key]:
+            raise RuntimeError(f"CONDA_EXTRACTOR_PACKAGE_VERSION_MISMATCH:{package}")
+        if not re.fullmatch(r"[0-9a-fA-F]{64}", str(record.get("sha256") or "")):
+            raise RuntimeError(f"CONDA_EXTRACTOR_PACKAGE_HASH_MISSING:{package}")
+        records[package] = {"record_file": record_path.name, "record_sha256": sha256(record_path),
+                            "name": record.get("name"), "version": record.get("version"),
+                            "build": record.get("build"), "channel": sanitize_url(record.get("channel", "")),
+                            "url": sanitize_url(record.get("url", "")),
+                            "sha256": record["sha256"]}
+    evidence = {**details, "base_prefix": str(base_prefix), "packages": records,
+                "extract_api": "conda_package_handling.api.extract", "python_isolated": True}
+    global EXTRACTOR_PROVENANCE, EXTRACTOR_PYTHON
+    EXTRACTOR_PROVENANCE = evidence
+    EXTRACTOR_PYTHON = python
+    return python, evidence
+
+
+def validate_conda_archive(path: Path, artifact: dict) -> None:
+    name = artifact["name"]
+    version = artifact["version"]
+    build = artifact["build"]
+    expected = {"metadata.json", f"info-{name}-{version}-{build}.tar.zst",
+                f"pkg-{name}-{version}-{build}.tar.zst"}
+    try:
+        with zipfile.ZipFile(path) as archive:
+            members = archive.infolist()
+            names = [member.filename for member in members]
+            if len(names) != len(set(names)) or set(names) != expected:
+                raise RuntimeError(f"CONDA_ZIP_MEMBERS_INVALID:{path.name}")
+            if any(member.compress_type != zipfile.ZIP_STORED or member.flag_bits & 1 for member in members):
+                raise RuntimeError(f"CONDA_ZIP_CONTAINER_ENCODING_INVALID:{path.name}")
+            metadata = json.loads(archive.read("metadata.json"))
+            if not isinstance(metadata, dict) or metadata.get("conda_pkg_format_version") != 2:
+                raise RuntimeError(f"CONDA_ZIP_FORMAT_VERSION_UNSUPPORTED:{path.name}")
+            if archive.testzip() is not None:
+                raise RuntimeError(f"CONDA_ZIP_CRC_FAILED:{path.name}")
+    except (OSError, zipfile.BadZipFile, json.JSONDecodeError) as exc:
+        raise RuntimeError(f"CONDA_ZIP_INVALID:{path.name}:{exc}") from exc
+
+
+def extract_conda_archive(python: Path, archive: Path, destination: Path, work: Path) -> Path:
+    if destination.exists() or not destination.resolve().is_relative_to(work.resolve()):
+        raise RuntimeError("CONDA_EXTRACT_DESTINATION_INVALID")
+    env = os.environ.copy()
+    for key in CONDA_ISOLATED_ENV_VARS:
+        env.pop(key, None)
+    preflight = r'''import json, posixpath, sys
+from conda_package_streaming.package_streaming import stream_conda_component
+path = sys.argv[1]
+seen = set()
+kinds = {}
+hardlinks = []
+total = 0
+count = 0
+def safe_name(value):
+    if not value or value.startswith("/") or "\\" in value:
+        return None
+    raw = value.rstrip("/")
+    if not raw or any(part in ("", ".", "..") for part in raw.split("/")):
+        return None
+    normalized = posixpath.normpath(value)
+    if normalized in (".", "..") or normalized.startswith("../"):
+        return None
+    if normalized != raw:
+        return None
+    return normalized
+
+def safe_link_target(name, link, hardlink):
+    if not link or link.startswith("/") or "\\" in link:
+        return None
+    target = posixpath.normpath(link if hardlink else posixpath.join(posixpath.dirname(name), link))
+    if target in (".", "..") or target.startswith("../"):
+        return None
+    return target
+
+for component in ("pkg", "info"):
+    with open(path, "rb") as source:
+        for tar, member in stream_conda_component(path, source, component=component):
+            name = safe_name(member.name)
+            if name is None or name in seen:
+                raise SystemExit("CONDA_ARCHIVE_MEMBER_PATH_OR_DUPLICATE_INVALID")
+            parts = name.split("/")
+            for i in range(1, len(parts)):
+                parent = "/".join(parts[:i])
+                if kinds.get(parent) not in (None, "dir"):
+                    raise SystemExit("CONDA_ARCHIVE_MEMBER_WRITES_THROUGH_NON_DIRECTORY")
+            seen.add(name)
+            count += 1
+            if count > int(sys.argv[3]):
+                raise SystemExit("CONDA_ARCHIVE_FILE_COUNT_LIMIT")
+            if not member.isdir() and any(existing.startswith(name + "/") for existing in seen):
+                raise SystemExit("CONDA_ARCHIVE_NON_DIRECTORY_REPLACES_DIRECTORY")
+            if member.isfile():
+                kinds[name] = "file"
+                total += member.size
+            elif member.issym() or member.islnk():
+                target = safe_link_target(name, member.linkname, member.islnk())
+                if target is None:
+                    raise SystemExit("CONDA_ARCHIVE_LINK_ESCAPE")
+                if member.issym():
+                    kinds[name] = "symlink"
+                else:
+                    hardlinks.append((name, target))
+                    kinds[name] = "hardlink"
+            elif not member.isdir():
+                raise SystemExit("CONDA_ARCHIVE_SPECIAL_FILE_UNSUPPORTED")
+            else:
+                kinds[name] = "dir"
+            if total > int(sys.argv[2]):
+                raise SystemExit("CONDA_ARCHIVE_UNPACKED_SIZE_LIMIT")
+for name, target in hardlinks:
+    if kinds.get(target) != "file":
+        raise SystemExit("CONDA_ARCHIVE_HARDLINK_TARGET_NOT_REGULAR_FILE")
+    parts = target.split("/")
+    if any(kinds.get("/".join(parts[:i])) not in (None, "dir") for i in range(1, len(parts))):
+        raise SystemExit("CONDA_ARCHIVE_HARDLINK_TARGET_THROUGH_NON_DIRECTORY")
+'''
+    run([str(python), "-I", "-c", preflight, str(archive),
+         str(MAX_EXTRACTED_PACKAGE_BYTES), str(MAX_EXTRACTED_PACKAGE_FILES)],
+        capture=True, env=env)
+    code = "from conda_package_handling.api import extract; import sys; extract(sys.argv[1], dest_dir=sys.argv[2])"
+    run([str(python), "-I", "-c", code, str(archive), str(destination)], capture=True, env=env)
+    if not destination.is_dir():
+        raise RuntimeError(f"CONDA_EXTRACT_OUTPUT_MISSING:{archive.name}")
+    total_bytes = 0
+    count = 0
+    root = destination.resolve()
+    for path in destination.rglob("*"):
+        count += 1
+        if count > MAX_EXTRACTED_PACKAGE_FILES:
+            raise RuntimeError(f"CONDA_EXTRACT_FILE_COUNT_LIMIT:{archive.name}")
+        if path.is_symlink():
+            target = Path(os.readlink(path))
+            if target.is_absolute() or not (path.parent / target).resolve().is_relative_to(root):
+                raise RuntimeError(f"CONDA_EXTRACT_SYMLINK_ESCAPE:{archive.name}:{path.name}")
+        elif path.is_file():
+            if not path.resolve().is_relative_to(root):
+                raise RuntimeError(f"CONDA_EXTRACT_PATH_ESCAPE:{archive.name}:{path.name}")
+            total_bytes += path.stat().st_size
+            if total_bytes > MAX_EXTRACTED_PACKAGE_BYTES:
+                raise RuntimeError(f"CONDA_EXTRACT_SIZE_LIMIT:{archive.name}")
+        elif not path.is_dir():
+            raise RuntimeError(f"CONDA_EXTRACT_SPECIAL_FILE:{archive.name}:{path.name}")
+    return destination
+
+
+def load_local_repodata(channel: Path) -> dict[str, dict]:
+    result = {}
+    for subdir in ("linux-64", "noarch"):
+        try:
+            result[subdir] = json.loads((channel / subdir / "repodata.json").read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise RuntimeError(f"LOCAL_CONDA_REPODATA_INVALID:{subdir}:{exc}") from exc
+    return result
+
+
 def load_solver_plan(conda: str, work: Path, package_cache: Path | None = None) -> tuple[list[dict], str, str]:
     plan_path = work / "conda-solve.json"
     solve_prefix = work / "solve-prefix"
-    channel = os.environ.get("PMA_HINT_ARGOS_CONDA_CHANNEL", "conda-forge")
-    if os.environ.get("PMA_HINT_BUILDER_MODE") == "argos-native" and not channel.startswith("https://"):
-        raise RuntimeError("ARGOS_CONDA_CHANNEL_MUST_BE_EXPLICIT_HTTPS_URL")
-    if os.environ.get("PMA_HINT_BUILDER_MODE") == "argos-native":
-        parsed_channel = urlsplit(channel)
-        if not parsed_channel.netloc or parsed_channel.username or parsed_channel.password or parsed_channel.query or parsed_channel.fragment:
-            raise RuntimeError("ARGOS_CONDA_CHANNEL_MUST_NOT_CONTAIN_CREDENTIALS_OR_QUERY")
-    options = ["--no-default-packages", "--override-channels", "-c", channel]
+    channel = os.environ.get("PMA_HINT_ARGOS_CONDA_CHANNEL", "https://conda.anaconda.org/conda-forge")
+    if not channel.startswith("https://"):
+        raise RuntimeError("CONDA_CHANNEL_MUST_BE_EXPLICIT_HTTPS_URL")
+    parsed_channel = urlsplit(channel)
+    if not parsed_channel.netloc or parsed_channel.username or parsed_channel.password or parsed_channel.query or parsed_channel.fragment:
+        raise RuntimeError("CONDA_CHANNEL_MUST_NOT_CONTAIN_CREDENTIALS_OR_QUERY")
+    options = ["--no-default-packages", "--override-channels", "--repodata-fn", "repodata.json",
+               "-c", channel]
     command = [conda, "create", "--dry-run", "--json", "--yes", *options,
                "-p", str(solve_prefix), *TARGET_SPECS]
     repodata_before = {}
-    if os.environ.get("PMA_HINT_BUILDER_MODE") == "argos-native":
-        for subdir in ("linux-64", "noarch"):
-            repodata_before[subdir] = fetch_repodata_snapshot(
-                channel, subdir, work, load_records=False, snapshot_id="before")
+    for subdir in ("linux-64", "noarch"):
+        repodata_before[subdir] = fetch_repodata_snapshot(
+            channel, subdir, work, load_records=False, snapshot_id="before")
     output = conda_dry_run(conda, solve_prefix, options, TARGET_SPECS, package_cache=package_cache)
     try:
         parsed = json.loads(output)
         links = parsed["actions"]["LINK"]
+        fetches = parsed["actions"].get("FETCH", [])
     except (json.JSONDecodeError, KeyError, TypeError) as exc:
         raise RuntimeError(f"CONDA_SOLVER_JSON_INVALID:{exc}") from exc
     if not links:
@@ -249,33 +607,20 @@ def load_solver_plan(conda: str, work: Path, package_cache: Path | None = None) 
                 channel, subdir, work, load_records=True, snapshot_id="after")
             if snapshot["sha256"] != repodata_before[subdir]["sha256"]:
                 raise RuntimeError(f"ARGOS_UPSTREAM_REPODATA_CHANGED_DURING_SOLVE:{subdir}")
+            if package_cache is None:
+                raise RuntimeError("CONDA_PACKAGE_CACHE_REQUIRED_FOR_SOLVE_PROVENANCE")
+            snapshot["solver_cache"] = verify_solver_repodata_cache(
+                package_cache, channel, subdir, snapshot)
             repodata_by_subdir[subdir] = snapshot
-        for item in links:
-            subdir = item.get("subdir") or item.get("platform")
-            url = item.get("url", "")
-            if subdir not in ("linux-64", "noarch"):
-                subdir = "noarch" if "/noarch/" in url else "linux-64" if "/linux-64/" in url else None
-            filename = item.get("fn") or url.rsplit("/", 1)[-1]
-            snapshot = repodata_by_subdir.get(subdir)
-            source_record = (snapshot["packages"].get(filename) if snapshot else None)
-            if source_record is None:
-                raise RuntimeError(f"ARGOS_UPSTREAM_REPODATA_RECORD_MISSING:{subdir}:{filename}")
-            for key, value in (("name", item.get("name")), ("version", item.get("version")),
-                               ("build", item.get("build") or item.get("build_string")),
-                               ("sha256", item.get("sha256"))):
-                if source_record.get(key) != value:
-                    raise RuntimeError(f"ARGOS_SOLVER_REPODATA_IDENTITY_MISMATCH:{filename}:{key}")
-            for key in ("depends", "constrains"):
-                link_value = item.get(key, [])
-                source_value = source_record.get(key, [])
-                if not isinstance(link_value, list) or not isinstance(source_value, list):
-                    raise RuntimeError(f"ARGOS_SOLVER_REPODATA_METADATA_MISSING:{filename}:{key}")
-                if sorted(link_value) != sorted(source_value):
-                    raise RuntimeError(f"ARGOS_SOLVER_REPODATA_METADATA_MISMATCH:{filename}:{key}")
-            item["pma_upstream_repodata_record"] = source_record
-            item["pma_upstream_repodata"] = {
-                "url": snapshot["url"], "sha256": snapshot["sha256"],
-                "evidence_file": snapshot["evidence_file"]}
+        resolved = resolve_solver_artifacts(links, repodata_by_subdir, fetches=fetches,
+                                            expected_channel=channel)
+        for original, normalized in zip(links, resolved):
+            original.update(normalized)
+            original["pma_upstream_repodata"] = {
+                "url": repodata_by_subdir[_solver_subdir(original)]["url"],
+                "sha256": repodata_by_subdir[_solver_subdir(original)]["sha256"],
+                "evidence_file": repodata_by_subdir[_solver_subdir(original)]["evidence_file"],
+                "solver_cache": repodata_by_subdir[_solver_subdir(original)]["solver_cache"]}
     plan_path.write_text(json.dumps(sanitize_evidence(parsed), indent=2, sort_keys=True) + "\n",
                          encoding="utf-8")
     return links, " ".join(command), output
@@ -292,7 +637,8 @@ def fetch_repodata_snapshot(channel: str, subdir: str, work: Path, *, load_recor
     try:
         urllib.request.urlretrieve(url, path)
         digest = sha256(path)
-        result = {"url": sanitize_url(url), "sha256": digest, "evidence_file": path.name}
+        result = {"url": sanitize_url(url), "sha256": digest, "size": path.stat().st_size,
+                  "evidence_file": path.name}
         (work / f"{path.name}.provenance.json").write_text(
             json.dumps({"snapshot_id": snapshot_id, "subdir": subdir, "url": result["url"],
                         "sha256": digest, "evidence_file": path.name},
@@ -303,26 +649,30 @@ def fetch_repodata_snapshot(channel: str, subdir: str, work: Path, *, load_recor
                     repodata = json.load(stream)
             except (OSError, json.JSONDecodeError) as exc:
                 raise RuntimeError(f"ARGOS_UPSTREAM_REPODATA_INVALID:{subdir}:{exc}") from exc
-            packages = repodata.get("packages")
-            if not isinstance(packages, dict):
-                raise RuntimeError(f"ARGOS_UPSTREAM_REPODATA_PACKAGES_MISSING:{subdir}")
-            result["packages"] = {name: record for name, record in packages.items()
-                                   if name.endswith(".tar.bz2")}
+            for section in ("packages", "packages.conda"):
+                packages = repodata.get(section)
+                if not isinstance(packages, dict):
+                    raise RuntimeError(f"ARGOS_UPSTREAM_REPODATA_SECTION_MISSING:{subdir}:{section}")
+                result[section] = packages
+            result["info"] = repodata.get("info", {})
         return result
     except (OSError, urllib.error.URLError) as exc:
         raise RuntimeError(f"ARGOS_UPSTREAM_REPODATA_FETCH_FAILED:{subdir}:{sanitize_text(str(exc))}") from exc
 
 
-def copy_conda_closure(links: list[dict], bundle: Path) -> list[dict]:
+def copy_conda_closure(links: list[dict], bundle: Path, conda: str, work: Path) -> list[dict]:
     records = []
+    extractor_python = None
     for item in links:
-        url = item.get("url") or item.get("base_url", "").rstrip("/") + "/" + item.get("fn", "")
-        filename = item.get("fn") or url.rsplit("/", 1)[-1]
-        subdir = item.get("subdir") or item.get("platform")
-        if subdir not in ("linux-64", "noarch"):
-            subdir = "noarch" if "/noarch/" in url else "linux-64" if "/linux-64/" in url else None
-        digest = item.get("sha256")
-        if subdir not in ("linux-64", "noarch") or not filename.endswith(".tar.bz2"):
+        artifact = item.get("pma_artifact")
+        if not isinstance(artifact, dict):
+            raise RuntimeError("CONDA_ARTIFACT_LOCK_MISSING")
+        filename = artifact["filename"]
+        subdir = artifact["subdir"]
+        url = artifact["artifact_url"]
+        digest = artifact["sha256"]
+        if (subdir not in ("linux-64", "noarch") or
+                not (filename.endswith(".tar.bz2") or filename.endswith(".conda"))):
             raise RuntimeError(f"UNSUPPORTED_CONDA_ARTIFACT:{subdir}:{filename}")
         if not re.fullmatch(r"[0-9a-fA-F]{64}", str(digest or "")):
             raise RuntimeError(f"CONDA_SHA256_MISSING:{filename}")
@@ -330,17 +680,46 @@ def copy_conda_closure(links: list[dict], bundle: Path) -> list[dict]:
             raise RuntimeError(f"CONDA_SOURCE_URL_INVALID:{filename}")
         destination = bundle / "conda" / subdir / filename
         destination.parent.mkdir(parents=True, exist_ok=True)
-        urllib.request.urlretrieve(url, destination)
-        if sha256(destination) != digest.lower():
-            raise RuntimeError(f"CONDA_SHA256_MISMATCH:{filename}")
-        with tarfile.open(destination, "r:bz2") as archive:
-            index = json.load(archive.extractfile("info/index.json"))
+        partial = destination.with_name(destination.name + ".partial")
+        if destination.exists() or partial.exists():
+            raise RuntimeError(f"CONDA_ARTIFACT_DESTINATION_EXISTS:{filename}")
+        try:
+            urllib.request.urlretrieve(url, partial)
+            if partial.stat().st_size != artifact["size"]:
+                raise RuntimeError(f"CONDA_SIZE_MISMATCH:{filename}")
+            if sha256(partial) != digest.lower():
+                raise RuntimeError(f"CONDA_SHA256_MISMATCH:{filename}")
+            if artifact.get("md5") and md5(partial) != artifact["md5"].lower():
+                raise RuntimeError(f"CONDA_MD5_MISMATCH:{filename}")
+            os.replace(partial, destination)
+        except Exception:
+            partial.unlink(missing_ok=True)
+            raise
+        if filename.endswith(".conda"):
+            validate_conda_archive(destination, artifact)
+            if extractor_python is None:
+                extractor_python, _ = conda_extractor(conda, work)
+            extract_dir = work / "artifact-info" / re.sub(r"[^A-Za-z0-9_.-]", "_", filename)
+            extracted = extract_conda_archive(extractor_python, destination, extract_dir, work)
+            index_path = extracted / "info" / "index.json"
+            try:
+                index = json.loads(index_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError) as exc:
+                raise RuntimeError(f"CONDA_PACKAGE_INDEX_INVALID:{filename}:{exc}") from exc
+            shutil.rmtree(extracted)
+        else:
+            with tarfile.open(destination, "r:bz2") as archive:
+                index = json.load(archive.extractfile("info/index.json"))
         record = {"subdir": subdir, "name": index["name"], "version": index["version"],
                   "build": index["build"], "filename": filename, "sha256": digest.lower()}
-        plan_build = item.get("build") or item.get("build_string")
+        plan_build = artifact["build"]
         if (record["name"], record["version"], record["build"]) != (
-                item.get("name"), item.get("version"), plan_build):
+                artifact["name"], artifact["version"], plan_build):
             raise RuntimeError(f"CONDA_PACKAGE_IDENTITY_MISMATCH:{filename}")
+        for field in ("depends", "constrains"):
+            if field in index and sorted(index[field]) != sorted(artifact.get(field) or []):
+                item.setdefault("pma_package_index_metadata_diff", {})[field] = {
+                    "archive_index": index[field], "solver_repodata": artifact.get(field) or []}
         record["md5"] = md5(destination)
         record["size"] = destination.stat().st_size
         record["source_url"] = sanitize_url(url)
@@ -348,7 +727,8 @@ def copy_conda_closure(links: list[dict], bundle: Path) -> list[dict]:
         if "pma_upstream_repodata_record" in item:
             record["source_record"] = item["pma_upstream_repodata_record"]
             record["source_repodata"] = item["pma_upstream_repodata"]
-            record["solver_record"] = {key: item.get(key, []) for key in ("depends", "constrains")}
+            record["solver_record"] = {key: item[key] for key in ("depends", "constrains") if key in item}
+            record["solver_metadata_fields"] = item.get("pma_solver_metadata_fields", {})
         else:
             record["source_record"] = {key: value for key, value in item.items()
                                        if key not in {"url", "base_url", "channel", "channel_url"}}
@@ -360,13 +740,18 @@ def build_local_repodata(records: list[dict], subdir: str) -> dict:
     if subdir not in ("linux-64", "noarch"):
         raise RuntimeError(f"REPODATA_SUBDIR_UNSUPPORTED:{subdir}")
     packages = {}
+    packages_conda = {}
     for row in records:
         if row["subdir"] != subdir:
             continue
         source = row.get("source_record") or {}
         index = row.get("index_record") or {}
         filename = row["filename"]
-        if not filename.endswith(".tar.bz2"):
+        if filename.endswith(".tar.bz2"):
+            package_section = packages
+        elif filename.endswith(".conda"):
+            package_section = packages_conda
+        else:
             raise RuntimeError(f"REPODATA_ARCHIVE_UNSUPPORTED:{filename}")
         if not isinstance(source.get("depends"), list):
             raise RuntimeError(f"REPODATA_UPSTREAM_DEPENDS_MISSING:{filename}")
@@ -381,7 +766,10 @@ def build_local_repodata(records: list[dict], subdir: str) -> dict:
                 raise RuntimeError(f"REPODATA_UPSTREAM_PROVENANCE_INVALID:{filename}")
             if not isinstance(solver_record, dict):
                 raise RuntimeError(f"REPODATA_SOLVER_RECORD_MISSING:{filename}")
+            solver_fields = row.get("solver_metadata_fields", {})
             for key in ("depends", "constrains"):
+                if not solver_fields.get(key, key in solver_record):
+                    continue
                 upstream = source.get(key, [])
                 solved = solver_record.get(key, [])
                 if not isinstance(upstream, list) or not isinstance(solved, list):
@@ -415,13 +803,13 @@ def build_local_repodata(records: list[dict], subdir: str) -> dict:
             row["dependency_metadata_diff"] = dependency_diff
         record.update({"subdir": subdir, "fn": filename, "sha256": row["sha256"],
                        "md5": row["md5"], "size": row["size"]})
-        if filename in packages:
+        if filename in package_section:
             raise RuntimeError(f"REPODATA_DUPLICATE_FILENAME:{filename}")
-        packages[filename] = record
-    if not packages:
+        package_section[filename] = record
+    if not packages and not packages_conda:
         raise RuntimeError(f"REPODATA_SUBDIR_EMPTY:{subdir}")
     return {"info": {"subdir": subdir, "repodata_version": 1},
-            "packages": packages, "packages.conda": {}, "removed": []}
+            "packages": packages, "packages.conda": packages_conda, "removed": []}
 
 
 def write_local_repodata(records: list[dict], channel: Path) -> None:
@@ -470,14 +858,32 @@ def abi_provider_compatible(required: list[str], provided: list[str]) -> bool:
     )
 
 
-def audit_conda_elf(records: list[dict], bundle: Path, work: Path) -> dict:
+def audit_conda_elf(records: list[dict], bundle: Path, work: Path, conda: str) -> dict:
     readelf = shutil.which("readelf")
     if not readelf:
         raise RuntimeError("READELF_MISSING_CANNOT_PROVE_CONDA_ABI")
+    extractor_python = EXTRACTOR_PYTHON
+    if any(row["filename"].endswith(".conda") for row in records) and extractor_python is None:
+        extractor_python, _ = conda_extractor(conda, work)
     glibc, glibcxx, cxxabi, provided_glibcxx, provided_cxxabi = [], [], [], [], []
     needed_libraries, package_libraries, package_elf_files, package_symlinks, checked = set(), set(), set(), [], 0
-    for record in records:
+    for index, record in enumerate(records):
         archive_path = bundle / "conda" / record["subdir"] / record["filename"]
+        if record["filename"].endswith(".conda"):
+            extracted = extract_conda_archive(
+                extractor_python, archive_path, work / f"abi-inventory-{index}", work)
+            try:
+                for member in extracted.rglob("*"):
+                    basename = member.name
+                    if member.is_symlink():
+                        package_symlinks.append((basename, Path(os.readlink(member)).name))
+                    elif member.is_file():
+                        with member.open("rb") as source:
+                            if source.read(4) == b"\x7fELF":
+                                package_elf_files.add(basename)
+            finally:
+                shutil.rmtree(extracted)
+            continue
         with tarfile.open(archive_path, "r:bz2") as archive:
             for member in archive:
                 if member.isdir():
@@ -491,8 +897,48 @@ def audit_conda_elf(records: list[dict], bundle: Path, work: Path) -> dict:
                         package_elf_files.add(basename)
     package_libraries.update(package_elf_files)
     package_libraries.update(alias for alias, target in package_symlinks if target in package_elf_files)
-    for record in records:
+    for index, record in enumerate(records):
         archive_path = bundle / "conda" / record["subdir"] / record["filename"]
+        if record["filename"].endswith(".conda"):
+            extracted = extract_conda_archive(
+                extractor_python, archive_path, work / f"abi-audit-{index}", work)
+            try:
+                for member in extracted.rglob("*"):
+                    if member.is_symlink() or not member.is_file():
+                        continue
+                    with member.open("rb") as source:
+                        if source.read(4) != b"\x7fELF":
+                            continue
+                        source.seek(0)
+                        staged = work / f"elf-{checked}"
+                        with staged.open("wb") as out:
+                            shutil.copyfileobj(source, out)
+                    member_name = member.relative_to(extracted).as_posix()
+                    header = run([readelf, "--file-header", str(staged)], capture=True)
+                    machine_match = re.search(r"^\s*Machine:\s*(.+)$", header, re.MULTILINE)
+                    if not machine_match:
+                        raise RuntimeError(f"ELF_MACHINE_UNREADABLE:{member_name}")
+                    elf_problems = check_elf_contract(machine_match.group(1), set(), package_libraries)
+                    if elf_problems:
+                        raise RuntimeError(f"{elf_problems[0]}:{member_name}")
+                    versions = run([readelf, "--version-info", str(staged)], capture=True)
+                    needed = run([readelf, "--dynamic", str(staged)], capture=True)
+                    glibc.extend(readelf_versions(versions, "GLIBC", "needs"))
+                    glibcxx.extend(readelf_versions(versions, "GLIBCXX", "needs"))
+                    cxxabi.extend(readelf_versions(versions, "CXXABI", "needs"))
+                    if member.name.startswith("libstdc++.so"):
+                        provided_glibcxx.extend(readelf_versions(versions, "GLIBCXX", "definition"))
+                        provided_cxxabi.extend(readelf_versions(versions, "CXXABI", "definition"))
+                    needed_libraries.update(re.findall(r"\(NEEDED\).*?\[(.*?)\]", needed))
+                    elf_problems = check_elf_contract(machine_match.group(1),
+                        set(re.findall(r"\(NEEDED\).*?\[(.*?)\]", needed)), package_libraries)
+                    if elf_problems:
+                        raise RuntimeError(f"{elf_problems[0]}:{member_name}")
+                    checked += 1
+                    staged.unlink()
+            finally:
+                shutil.rmtree(extracted)
+            continue
         with tarfile.open(archive_path, "r:bz2") as archive:
             for member in archive:
                 if member.isdir():
@@ -544,7 +990,8 @@ def audit_conda_elf(records: list[dict], bundle: Path, work: Path) -> dict:
             "needed_libraries": sorted(needed_libraries),
             "package_library_names": sorted(package_libraries),
             "system_runtime_allowlist": sorted(SYSTEM_RUNTIME_LIBS),
-            "method": "readelf machine, version-needs/definitions, and DT_NEEDED resolution across locked package members and explicit system runtime allowlist"}
+            "method": "readelf machine, version-needs/definitions, and DT_NEEDED resolution across locked package members and explicit system runtime allowlist",
+            "conda_extractor": EXTRACTOR_PROVENANCE if any(row["filename"].endswith(".conda") for row in records) else None}
 
 
 def wheel_elf_members(wheel: Path) -> list[str]:
@@ -754,10 +1201,12 @@ def main() -> int:
     builder_mode = os.environ.get("PMA_HINT_BUILDER_MODE", "docker-image")
     builder_id = (os.environ["PMA_HINT_BUILDER_IMAGE"] if builder_mode == "docker-image" else
                   f"argos-native:{platform.node()}")
-    package_cache = (Path(os.environ["CONDA_PKGS_DIRS"]).resolve()
-                     if builder_mode == "argos-native" else None)
     work = evidence / "work"
     work.mkdir()
+    if builder_mode == "argos-native":
+        package_cache = Path(os.environ["CONDA_PKGS_DIRS"]).resolve()
+    else:
+        package_cache = work / "conda-package-cache"
     try:
         links, solve_command, solve_json = load_solver_plan(conda, work, package_cache=package_cache)
         parsed_solve = json.loads(solve_json)
@@ -765,16 +1214,18 @@ def main() -> int:
             json.dumps(sanitize_evidence(parsed_solve), indent=2, sort_keys=True) + "\n", encoding="utf-8")
         (evidence / "conda-upstream-link-records.json").write_text(
             json.dumps(sanitize_evidence(links), indent=2, sort_keys=True) + "\n", encoding="utf-8")
-        conda_records = copy_conda_closure(links, bundle)
+        conda_records = copy_conda_closure(links, bundle, conda, work)
+        if EXTRACTOR_PROVENANCE:
+            (evidence / "conda-extractor-provenance.json").write_text(
+                json.dumps(sanitize_evidence(EXTRACTOR_PROVENANCE), indent=2, sort_keys=True) + "\n",
+                encoding="utf-8")
         (evidence / "conda-artifact-provenance.json").write_text(
             json.dumps(sanitize_evidence(conda_records), indent=2, sort_keys=True) + "\n", encoding="utf-8")
-        if builder_mode == "argos-native":
-            write_local_repodata(conda_records, bundle / "conda")
-        else:
-            run_conda([conda, "index", str(bundle / "conda")])
-        abi = audit_conda_elf(conda_records, bundle, work)
+        write_local_repodata(conda_records, bundle / "conda")
+        abi = audit_conda_elf(conda_records, bundle, work, conda)
         offline_prefix = work / "offline-solve-prefix"
-        offline_options = ["--offline", "--no-default-packages", "--override-channels", "-c",
+        offline_options = ["--offline", "--no-default-packages", "--override-channels",
+                           "--repodata-fn", "repodata.json", "-c",
                            (bundle / "conda").as_uri()]
         offline = conda_dry_run(conda, offline_prefix, offline_options, TARGET_SPECS,
                                 package_cache=package_cache)
@@ -783,16 +1234,26 @@ def main() -> int:
             offline_links = json.loads(offline)["actions"]["LINK"]
         except (json.JSONDecodeError, KeyError, TypeError) as exc:
             raise RuntimeError(f"CONDA_OFFLINE_SOLVER_JSON_INVALID:{exc}") from exc
+        offline_repodata_provenance = {}
+        for subdir in ("linux-64", "noarch"):
+            local_path = bundle / "conda" / subdir / "repodata.json"
+            local_snapshot = {"sha256": sha256(local_path), "size": local_path.stat().st_size}
+            offline_repodata_provenance[subdir] = verify_solver_repodata_cache(
+                package_cache, (bundle / "conda").as_uri(), subdir, local_snapshot)
+        (evidence / "conda-offline-repodata-provenance.json").write_text(
+            json.dumps(offline_repodata_provenance, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8")
+        offline_resolved = resolve_solver_artifacts(
+            offline_links, load_local_repodata(bundle / "conda"),
+            fetches=json.loads(offline).get("actions", {}).get("FETCH", []),
+            expected_channel=(bundle / "conda").as_uri())
         def identity(row: dict) -> tuple:
-            url = row.get("url", "")
-            subdir = row.get("subdir") or row.get("platform")
-            if subdir not in ("linux-64", "noarch"):
-                subdir = "noarch" if "/noarch/" in url else "linux-64" if "/linux-64/" in url else "unknown"
-            filename = row.get("fn") or url.rsplit("/", 1)[-1]
-            build = row.get("build") or row.get("build_string")
-            return row["name"], row["version"], build, subdir, filename
-        identities = lambda rows: sorted(identity(row) for row in rows)
-        if identities(links) != identities(offline_links):
+            artifact = row["pma_artifact"]
+            return (row["name"], row["version"], artifact["build"], artifact["subdir"],
+                    artifact["filename"], artifact["sha256"])
+        online_identities = sorted(identity(row) for row in links)
+        offline_identities = sorted(identity(row) for row in offline_resolved)
+        if online_identities != offline_identities:
             raise RuntimeError("CONDA_OFFLINE_SOLVER_CLOSURE_MISMATCH")
         build_python = Path(sys.executable).resolve()
         build_python_version = run([str(build_python), "--version"], capture=True).strip()
@@ -865,6 +1326,19 @@ def main() -> int:
                     "rgt_wheel_sha256": sha256(rgt_wheel), "rgt_build_report": "reports/rgt-wheel-audit.json",
                     "rgt_build_report_sha256": sha256(report_path), "conda_lock_sha256": sha256(conda_lock),
                     "pip_lock_sha256": sha256(pip_lock), "artifacts_sha256": sha256(bundle / "artifacts.sha256"),
+                    "conda_artifact_format_counts": {
+                        "tar.bz2": sum(row["filename"].endswith(".tar.bz2") for row in conda_records),
+                        "conda": sum(row["filename"].endswith(".conda") for row in conda_records)},
+                    "conda_online_repodata": {
+                        subdir: next(row["pma_upstream_repodata"] for row in links
+                                     if row["pma_artifact"]["subdir"] == subdir)
+                        for subdir in ("linux-64", "noarch")
+                        if any(row["pma_artifact"]["subdir"] == subdir for row in links)},
+                    "conda_offline_repodata_provenance_sha256": sha256(
+                        evidence / "conda-offline-repodata-provenance.json"),
+                    "conda_extractor_provenance_sha256": (sha256(evidence / "conda-extractor-provenance.json")
+                                                           if (evidence / "conda-extractor-provenance.json").is_file()
+                                                           else None),
                     "conda_solve_command": sanitize_evidence(solve_command)}
         (bundle / "bundle-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
         validator = Path(__file__).with_name("validate_hint_bundle.py")

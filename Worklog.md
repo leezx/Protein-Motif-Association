@@ -253,3 +253,15 @@ table; F17 experiment count is not cluster size.
 **Review**: GPT reviewed PR #4 HEAD `812df5b` and explicitly returned `APPROVE`. It confirmed the fixed 2,000-tile eligibility gate, shortfall error, exact/over/under-count tests, summary JSON fields, missing-chrY handling, audit accuracy, and scope-control; no blocking finding remains. It noted that `gdna_selected_tiles` replaced the prior `gdna_tiles` summary key; no existing downstream code references `inputs_summary.json` fields, and no summary was produced in the failed run. GitHub review integration again returned HTTP 403, so the verdict remains in the persistent RA-Xiaolu / PMA项目 conversation.
 
 **Execution boundary**: The approval covers the reviewed code/tests/audit at `812df5b`; it is not new execution authorization and does not authorize merging. The user's prior §6 first-round benchmark instruction remains the independent authorization. Before the next Argos command, this approval and retry intent are being appended to Worklog/handoff and will receive review as an audit-only increment under the repository's external-run gate. No Argos command has been issued since the `aa54e51` `PREP_FAIL`.
+
+## 2026-10-18 03:16 EDT — 229ad96 Argos smoke failure；同一 PR 修复中
+
+**外部运行记录**：在 GPT 批准 `229ad968489c3c9ec7bc2d090b9f38f7d5e0bb2e` 和既有用户 §6 首轮执行授权下，运行 Argos `/home/zz950/PMA_code_4b` driver PID 16305，日志 `/home/zz950/PMA_fetch/fp_4b1_229ad96_20261018.log`。`00_setup.sh` 成功。prep 完成：91,210 regions、90,992 正覆盖、固定 2,000 B1 tiles、215 个 observed-zero regions、3 个 chrY missing-contig peaks；BAM counts 为 gDNA 577,891、ctrl 11,438、aux 11,687。真实 pysam/tabix 上的 prep 修复验证通过。
+
+**Smoke 结果**：driver 以 `SMOKE_FAIL` 退出，未开始 full round-1 jobs。12/12 HINT chunks 在 RGT import 时以 `ModuleNotFoundError: No module named 'pkg_resources'` 失败，各样本 `failed.txt` 均列出 4 个 chunk，HINT events 文件均为 0 bytes。只读检查确认 pmafp Python 3.11.17、setuptools 84.0.0 且无法导入 `pkg_resources`；RGT 1.0.2 的 `rgt/__init__.py` 明确导入它。setuptools 官方历史显示 82.0.0 起移除此模块：[官方版本历史](https://setuptools.pypa.io/en/latest/history.html#v82-0-0)。TOBIAS 三组产生 smoke events。PRINT/TraceBIND 无日志或输出，总控日志记录 6 次 GDAL_DATA unbound variable。只读检查发现 r4p3 activation hook 在 `set -u` 下直接展开该变量；R subprocess 在激活时退出是根据缺失日志和 activation 错误作出的推断，待修复 smoke 核实。
+
+**安全与范围**：driver 自然以 `SMOKE_FAIL` 结束；只读进程检查确认无残留 Step 4b 进程。原始输入未修改；smoke 输出仅作故障证据，不作为 benchmark 结果。当前旧 driver 使用未检查的全局 `wait`，smoke 只查文件存在，可能接受失败 caller 的空输出。无 full analysis、阈值/方法/数据/范围变更或 merge。
+
+**同一 PR 修复**：正在更新 `run_4b1.sh`、`run_round1.sh`、`run_hint.sh` 和新增 HINT 兼容约束 `scripts/04b_footprint/argos-py-constraints.txt`。目标是 preflight setuptools 80.9.0/RGT/pkg_resources，逐 job 传播失败，修复 R conda activation 对 GDAL 未设置变量的处理，并让 smoke gate fail closed。当前修改尚未推送或获 GPT 审核；完成审计与验证后在原 PR #4 提交新 HEAD，明确 `APPROVE` 前不修改 Argos 环境或发起新运行。
+
+**操作与审阅**：读取了 Argos driver、caller runners、HINT chunk logs、environment package metadata、GDAL activation hook、当前工作进程和输出文件；向持久 PMA GPT 对话请求独立诊断。工作目录中未暂存、未触碰无关文件 `design/protein_binding_resources.md`。Handoff：`docs/handoff/2026-10-18-step4b-smoke-failure.zh-CN.md`。

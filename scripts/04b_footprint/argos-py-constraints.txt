@@ -1,0 +1,2 @@
+# RGT/HINT 1.0.2 imports pkg_resources. Setuptools 82.0.0 removed pkg_resources.
+setuptools==80.9.0

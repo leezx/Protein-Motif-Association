@@ -25,18 +25,31 @@ for d in gdna ctrl aux; do  # identical inputs for BAM-only callers
   [ -s $W/bam/$d.bam ] || $B/python $HERE/frags_to_bam.py ${FR[$d]} $W/hg38.chrom.sizes ${REG[$d]} $W/bam/$d.bam
 done
 source /home/zz950/softwares/miniconda3/etc/profile.d/conda.sh
+pids=()
 for d in gdna ctrl aux; do
   O=$RUNS/$d; mkdir -p $O
-  ( conda activate r4p3; export R_LIBS=/home/zz950/softwares/R_lib_tracebind:/home/zz950/softwares/R_lib_4
+  ( export GDAL_DATA="${GDAL_DATA-}" GDAL_DRIVER_PATH="${GDAL_DRIVER_PATH-}"
+    conda activate r4p3 || exit 1
+    export R_LIBS=/home/zz950/softwares/R_lib_tracebind:/home/zz950/softwares/R_lib_4
     /usr/bin/time -v Rscript $HERE/run_print.R $PRINTREPO $SH ${REG[$d]} ${FR[$d]} $O/print $C 10,20 \
       > $O/print.log 2>&1 ) &
-  ( conda activate r4p3; export R_LIBS=/home/zz950/softwares/R_lib_tracebind:/home/zz950/softwares/R_lib_4
+  pids+=("$!")
+  ( export GDAL_DATA="${GDAL_DATA-}" GDAL_DRIVER_PATH="${GDAL_DRIVER_PATH-}"
+    conda activate r4p3 || exit 1
+    export R_LIBS=/home/zz950/softwares/R_lib_tracebind:/home/zz950/softwares/R_lib_4
     /usr/bin/time -v Rscript $HERE/run_tracebind.R $TBPY $SH ${REG[$d]} ${FR[$d]} $O/tracebind $C 0.05 \
       > $O/tracebind.log 2>&1 ) &
+  pids+=("$!")
   ( export PATH=$B:$PATH; /usr/bin/time -v bash $HERE/run_hint.sh $B $W/bam/$d.bam ${REG[$d]} $O/hint $C \
       > $O/hint.log 2>&1 ) &
+  pids+=("$!")
   ( export PATH=$B:$PATH; /usr/bin/time -v bash $HERE/run_tobias.sh $B $W/bam/$d.bam ${REG[$d]} $FA $BL $O/tobias $C \
       > $O/tobias.log 2>&1 ) &
+  pids+=("$!")
 done
-wait
+jobs_ok=1
+for pid in "${pids[@]}"; do
+  wait "$pid" || jobs_ok=0
+done
+[ "$jobs_ok" = 1 ] || { echo "CALLER_FAILURE"; exit 1; }
 echo ROUND1_DONE

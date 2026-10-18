@@ -1,0 +1,23 @@
+# Build with an explicit immutable linux/amd64 base image:
+# docker build --platform linux/amd64 --build-arg BUILDER_IMAGE=<image>@sha256:<digest> \
+#   -f scripts/04b_footprint/Dockerfile.hint-builder -t pma-hint-builder .
+ARG BUILDER_IMAGE
+FROM --platform=linux/amd64 ${BUILDER_IMAGE}
+
+ARG BUILDER_IMAGE
+ENV PMA_HINT_BUILDER_IMAGE=${BUILDER_IMAGE}
+WORKDIR /opt/pma
+COPY scripts/04b_footprint /opt/pma/scripts/04b_footprint
+
+RUN python -c 'import os,re; assert re.fullmatch(r"[^\s]+@sha256:[0-9a-f]{64}", os.environ["PMA_HINT_BUILDER_IMAGE"])' \
+ && python --version \
+ && python -c 'import packaging' \
+ && conda --version \
+ && conda index --help >/dev/null \
+ && pip --version \
+ && auditwheel --version \
+ && gcc --version \
+ && conda list conda-index \
+ && readelf --version | head -n 1
+
+ENTRYPOINT ["python", "/opt/pma/scripts/04b_footprint/build_hint_bundle.py"]

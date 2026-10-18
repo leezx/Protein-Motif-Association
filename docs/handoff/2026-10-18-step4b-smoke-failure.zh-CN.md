@@ -34,3 +34,15 @@ Smoke 最后输出 `SMOKE_FAIL`，未启动 full round 12 个 caller jobs。没�
 ## GPT 诊断与来源
 
 已向 PMA 项目的持久 GPT 对话提交独立诊断。其结论为 HINT 直接错误已确定，建议固定兼容 setuptools，并修复 smoke 的失败传播；没有批准新的代码或 Argos 运行。setuptools 版本历史：[官方文档](https://setuptools.pypa.io/en/latest/history.html#v82-0-0)。
+
+## 03:21 EDT — GPT 二次诊断与 follow-up 修订
+
+GPT 同意环境兼容、失败传播、精确 setuptools pin 可在同一 PR #4 修复，但强调事件 BED 允许合法的 0 行；不能把所有 smoke outputs 都要求非空。现有修订只要求事件 BED 文件存在、caller 成功退出；PRINT 连续 score track 单独要求非空且 gzip 可读。
+
+GPT 还发现 smoke 与 full round 共用 BAM 路径会导致 full 误用前 20 个区域过滤的 BAM。follow-up 将缓存分为 `bam/smoke/` 与 `bam/full/`，并在下一次 smoke 前将旧 `runs_smoke/` 和 `bam/smoke/` 原样移动到 `smoke_attempt_archive/<UTC attempt>/`，避免旧失败产物被误认为当前输出，同时保留审计证据。
+
+GPT 建议 R conda activation 在局部 `set +u` 中执行，而非将 `GDAL_DATA` / `GDAL_DRIVER_PATH` 置空；follow-up 采用此建议，校验 `CONDA_DEFAULT_ENV` 和 `Rscript`，并把 activation 输出写进 PRINT/TraceBIND 各自日志。driver 在昂贵 setup/prep 前预检 setuptools 80.9.0、`pkg_resources`、RGT import/CLI、`r4p3` activation 和必要 R 包。
+
+**状态更正**：Argos `run_hint.sh` 记录的退出码是 1（chunk 失败后无可合并的 `fp.bed` 导致管道失败）；真正吞掉其失败状态的是父级 `run_round1.sh` 的无参数 `wait`，它仍输出 `ROUND1_DONE`。旧 smoke 最终由 PRINT/TraceBIND 缺失触发 `SMOKE_FAIL`。此前 GPT 诊断请求中关于 `run_hint.sh` 自身退出 0 的表述有误，现以 Argos 的 `hint.log` 为准。
+
+follow-up 尚未验证或推送，也没有代码 approval。仅完成 shell 语法和 diff 格式检查；没有在 Argos 更改环境或再次运行。下一步在同一 PR 完成此最小修订与对应验证，再请求 GPT 审查当前 HEAD；审核通过前不发 Argos 命令。GPT 明确指出还需覆盖 caller 失败/成功零 events、旧输出不被复用、smoke/full BAM 路径隔离等验证场景。

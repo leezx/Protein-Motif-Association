@@ -265,3 +265,13 @@ table; F17 experiment count is not cluster size.
 **同一 PR 修复**：正在更新 `run_4b1.sh`、`run_round1.sh`、`run_hint.sh` 和新增 HINT 兼容约束 `scripts/04b_footprint/argos-py-constraints.txt`。目标是 preflight setuptools 80.9.0/RGT/pkg_resources，逐 job 传播失败，修复 R conda activation 对 GDAL 未设置变量的处理，并让 smoke gate fail closed。当前修改尚未推送或获 GPT 审核；完成审计与验证后在原 PR #4 提交新 HEAD，明确 `APPROVE` 前不修改 Argos 环境或发起新运行。
 
 **操作与审阅**：读取了 Argos driver、caller runners、HINT chunk logs、environment package metadata、GDAL activation hook、当前工作进程和输出文件；向持久 PMA GPT 对话请求独立诊断。工作目录中未暂存、未触碰无关文件 `design/protein_binding_resources.md`。Handoff：`docs/handoff/2026-10-18-step4b-smoke-failure.zh-CN.md`。
+
+## 2026-10-18 03:21 EDT — GPT follow-up 发现 smoke/full BAM 缓存混用风险
+
+GPT 独立诊断确认 HINT 的 direct import failure 与 setuptools 84.0.0 不兼容；同意在 PR #4 同时修复环境兼容与 caller failure propagation。GPT 纠正了设计边界：事件 BED 可合法为 0 行，不可简单要求所有 smoke outputs 非空；PRINT score track 应单独检查非空/ gzip 完整。R 环境建议在每个 runner 的子 shell 内局部 `set +u` 执行 `conda activate`，恢复 `set -u` 后确认 `CONDA_DEFAULT_ENV` 与 `Rscript`，并把 activation stderr 写入该 caller log。driver 在昂贵的 setup/prep 前预检 HINT CLI 和 R packages。
+
+GPT 新发现：`run_round1.sh` 的 smoke 与 full mode 原来共用 `$W/bam/$d.bam`，而 BAM 按 region BED 过滤。smoke 成功后 full 可能误用仅含 20 个 smoke regions 的 BAM，影响 caller 输入和比较。故在同一 PR 中隔离 `bam/smoke/` 与 `bam/full/`；下一次 smoke 前把旧 `runs_smoke/` 与 `bam/smoke/` 移到时间戳 archive，避免旧失败 artifacts 误通过并保留证据。增加所有 job 按 PID/label 等待和状态聚合，HINT chunks 同样逐 PID wait；run_hint 输出使用每次调用独立的 chunk 子目录。
+
+**证据更正**：Argos `run_hint.sh` 的实际退出码是 1；其 chunk 失败后无可合并的 `fp.bed`，所以带 `pipefail` 的 pipeline 使它失败。状态丢失发生在父级 `run_round1.sh` 无参数 `wait`，它仍打印 `ROUND1_DONE`。之前 GPT 诊断问题将 `run_hint.sh` 自身说成 exit 0 是提问中的误述，已在 handoff 更正。完整 driver 仍以 `SMOKE_FAIL` 结束，没有 full round1，也无遗留进程/ raw 输入修改。
+
+**当前改动与门禁**：已推送初版 fail-closed runner 修复 `b811005`，该 HEAD 尚未获 GPT approval。当前 follow-up 回应上述建议，尚未验证、提交或推送。针对当前本地版本已运行 Bash syntax check 和 `git diff --check`，均通过；没有运行测试、没有 Argos 环境改动或重跑。待完成人工 diff 检查和项目要求的验证后，更新 PR description/handoff 并在 PR #4 请求新 HEAD GPT review；未获明确 `APPROVE` 不再访问 Argos。PR #4 仍未合并，无 merge authorization。

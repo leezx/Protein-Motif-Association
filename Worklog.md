@@ -603,3 +603,7 @@ PR #5 远端完整 HEAD `e078a8d4df23bc446ed921e3ef2af245785c1513` 已获 GPT ex
 只读 Argos 检查确认普通启动时没有预载 distutils；手动按 Python `.pth` 顺序加载 external `_distutils_hack` 后，external setuptools 将 distutils 解析到外部 `setuptools/_distutils`。GPT 源码诊断定位到 `probe_startup()` 在 setuptools 初始化后调用 `importlib.util.find_spec("pip")`；setuptools 80.9.0 的 finder 将该查询作为 pip 特例，清除 local distutils 并禁用 finder，导致随后 origin check 发现 pmafp stdlib 副本。保存了只读诊断日志 `/home/zz950/PMA_fetch/pma_pr5_g2_tests_e078a8d/distutils-order-diagnostic.log`、`distutils-order-diagnostic-corrected.log` 与 `distutils-import-side-effects.log`。
 
 在同一 PR 本地做最小修复：不通过 import machinery 查询 pip spec，改为核对 external `root/pip/__init__.py` 文件与其已验证 distribution metadata。合同 fixture 加入一个 pip spec 查询时模拟清空 distutils / 关闭 finder 的 meta finder，使现有 probe 合同可捕获该回归。更新 CODEX_HANDOFF 和本任务 handoff 的实时状态、失败证据与下一 gate。用户要求所有计算只在 Argos，故 Mac 未运行 tests/build/analysis；当前改动尚未提交、推送或复审。下一步完成 diff 检查后提交到同一 PR #5、同步 PR body 并请求 GPT 新完整 HEAD APPROVE；未获批准前不再向 Argos 发测试或构建命令。已有失败 workspace 保持原样，pmafp 与 partial pma_hint 未修改；不运行 HINT/smoke/full analysis，不合并 PR。
+
+## 2026-10-18 11:32 EDT — 修复 PR 描述目标仓库并验证状态
+
+同步 PR #5 描述时，GitHub CLI 使用了默认仓库 `leezx/StelligenOS`，错误覆盖了已合并的同编号 PR 描述。发现返回 URL 与预期仓库不符后，立即将该 PR 描述恢复为符合其 Phase 4 内容的摘要，并经 `gh pr view --repo leezx/StelligenOS` 核验 PR 仍 MERGED、原标题与分支未变。随后使用显式 `--repo leezx/Protein-Motif-Association` 将本次准确的 e078a8d failure、05cab15 修复内容及验证状态写入目标 PR #5；核验目标 PR 仍 OPEN、base 正确、HEAD 为 `05cab152d4489b33d174fd3fd566c99339c87894`。未改 StelligenOS 仓库文件或提交任何代码。之后所有 PR 操作均使用显式仓库名。

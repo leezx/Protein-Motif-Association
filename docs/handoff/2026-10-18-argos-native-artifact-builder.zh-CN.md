@@ -153,3 +153,17 @@ PR #5 OPEN，完整 HEAD `9c7410b097af0c59ffd411baf58f27af5cec751e` 已获持久
 ## 2026-10-18 15:55 EDT — G2 失败，保留 solver 与 repodata 证据
 
 PR #5 的 exact HEAD `9c7410b097af0c59ffd411baf58f27af5cec751e` 在 Argos 的 42/42 合同门禁通过；批准的 G2 随后下载了 linux-64/noarch before/after repodata，Conda 在线 `create --dry-run --json` 成功，但 builder 校验 package closure 时退出：`ARGOS_UPSTREAM_REPODATA_RECORD_MISSING:noarch:`。实测 `actions.LINK` noarch 条目含 `dist_name/name/platform/version/build_string`，不含 artifact filename/hash/dependency 字段；同一 Conda JSON 的 `actions.FETCH` 含确切 `.conda` filename 和 SHA-256。当前 builder 将 LINK 当作带 filename 的记录并只索引 `packages`（tar.bz2），无法覆盖实际 Conda 2 格式输出。失败证据：`/home/zz950/PMA_fetch/pma_pr5_g2_9c7410b/evidence/builder/build-failure.txt`、`commands.log`、`argos-builder.stdout.log`、四份 repodata 与 provenance；均保留。`pmafp-integrity.json` 为 `PMAFP_INTEGRITY_OK`。没有 bundle/ABI/offline-preflight，没有环境修改或 HINT/footprint 运行。已向持久 PMA GPT 请求最小闭包来源修复建议；不重跑 G2，等待诊断后在同一 PR 修复、测试并重新请求 exact-head review。两项 PI 科学产物未完成。
+
+## 2026-10-18 16:28 EDT — GPT 对 2e34f2f 提出五项阻断，修订待新审核
+
+GPT 对 PR #5 完整 HEAD `2e34f2f8a8ce2707e7845f153e74995b68e7d746` / base `6c2e323fc80cc3e05f9de05282d1bbce49ba98fa` 返回 `REQUEST_CHANGES`，本次未批准任何 Argos operation。五项要求是：validator 双向核验 artifact inventory 和 repodata/lock 集合；每条 FETCH 精确消费一次并拒绝多余/重复；独立 evidence validator 重建 online/offline 六字段 closure；针对 `.conda` preflight 增加 symlink/hardlink/跨组件/损坏 zstd/资源限制负例；固定 extractor 官方版本并校验已安装模块内容与 `conda-meta` SHA。ABI 结果限定为静态 ELF 兼容审计，不能当作 runtime linker 验证。前次 `.conda` 根因已在代码层修复，但未在 Argos 实测。
+
+同一 PR 的本地最小修订已增加上述验证与合同 fixture，并在 ABI 报告写入静态审计范围和 `runtime_linkability_verified=false`。本机仅 Python/embedded preflight 编译和 `git diff --check` PASS；不运行测试、构建、分析，也不发 Argos 命令。当前 HEAD 仍为 2e34f2f，修订未提交/推送；GPT 对该 HEAD 的 REQUEST_CHANGES 使其没有 Argos 授权。下一步完成本地检查、更新 PR body 与审计，提交推送同一 PR #5，再请 GPT 审完整新 HEAD。只有新 HEAD 明确 APPROVE 才能跑合同测试；该合同全通过后，才依据审核范围考虑 artifact-only G2。目标 1 BED6 未推进；目标 2 只有 HINT 前置项修复，未有 benchmark 结果；不安装环境、不运行 HINT/smoke/analysis、不合并。`HUMAN DECISION: PENDING`。
+
+## 2026-10-18 16:30 EDT — 静态集成复核修正 Argos solver-cache 路径
+
+静态目录核对发现 validator 的 allowed cache workspace 是 builder evidence 的父目录 `$WORK/evidence`，但 Argos wrapper 原来把 solver cache 放在兄弟目录 `$WORK/conda-pkgs`，未来运行会 fail closed。已在同一 PR 将 wrapper 的 `PACKAGE_CACHE` 放到 `$EVIDENCE/conda-pkgs`：缓存仍在外部受保护工作区，builder 的专用 evidence 子目录仍为空且互不嵌套。Python/embedded-preflight 编译、wrapper `bash -n`、`git diff --check` PASS。未运行合同测试或构建，也未向 Argos 发命令。PR 远端仍是 GPT 拒绝的旧 HEAD `2e34f2f`；本地修订未提交。下一步静态复核后提交/推送同一 PR #5、同步 PR body并请求新完整 HEAD 的明确 GPT 审核。目标 1 unique BED6 和目标 2 footprint benchmark 均未推进；不改环境、不运行 HINT/分析、不合并。
+
+## 2026-10-18 16:31 EDT — 五项复审修订已提交到本地同一分支
+
+同一 PR #5 的 validator/resolver/archive/extractor/ABI 修订、Argos cache 路径协调、合同 fixtures 与 Worklog/CODEX_HANDOFF/handoff 已形成一个本地 Git 提交。Python/embedded-preflight 编译、wrapper shell 语法、`git diff --check` PASS；未运行测试/构建或 Argos 命令。尚未推送，PR 远端仍是被 GPT 拒绝的旧 HEAD。下一步推送并更新 PR body，再请求新完整 HEAD 的 GPT 明确审核；无新 APPROVE 不向 Argos 发命令。BED6 与 footprint benchmark 均未有新产物。

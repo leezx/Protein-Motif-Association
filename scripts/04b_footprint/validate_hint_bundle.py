@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Validate the immutable files and pip dependency closure in an offline HINT bundle."""
+import argparse
 import hashlib
 import json
 import os
@@ -7,6 +8,7 @@ import re
 import sys
 import zipfile
 from email.parser import Parser
+from pathlib import Path
 
 from packaging.requirements import Requirement
 from packaging.specifiers import SpecifierSet
@@ -97,8 +99,316 @@ def normalized(name):
     return re.sub(r"[-_.]+", "-", name).lower()
 
 
+def solver_identity_rows(solve, repodata_by_subdir, channel_by_subdir, label):
+    issues = []
+    if not isinstance(solve, dict) or not isinstance(solve.get("actions"), dict):
+        return [], [f"{label}_SOLVE_ACTIONS_INVALID"]
+    actions = solve["actions"]
+    links, fetches = actions.get("LINK"), actions.get("FETCH", [])
+    if not isinstance(links, list) or not isinstance(fetches, list):
+        return [], [f"{label}_SOLVE_LINK_FETCH_INVALID"]
+    consumed_fetches = set()
+    identities = []
+    for link_index, link in enumerate(links):
+        if not isinstance(link, dict):
+            issues.append(f"{label}_SOLVE_LINK_ROW_INVALID:{link_index}")
+            continue
+        subdir = link.get("subdir") or link.get("platform")
+        name, version = link.get("name"), link.get("version")
+        build = link.get("build") or link.get("build_string")
+        if (subdir not in ("linux-64", "noarch") or
+                not all(isinstance(value, str) and value for value in (name, version, build))):
+            issues.append(f"{label}_SOLVE_LINK_IDENTITY_INVALID:{link_index}")
+            continue
+        expected_channel = channel_by_subdir.get(subdir)
+        if link.get("base_url") != expected_channel:
+            issues.append(f"{label}_SOLVE_LINK_CHANNEL_MISMATCH:{name}")
+        snapshot = repodata_by_subdir.get(subdir, {})
+        candidates = []
+        for section, suffix in (("packages", ".tar.bz2"), ("packages.conda", ".conda")):
+            section_records = snapshot.get(section, {})
+            if not isinstance(section_records, dict):
+                issues.append(f"{label}_SOLVE_REPODATA_SECTION_INVALID:{subdir}:{section}")
+                continue
+            for filename, record in section_records.items():
+                if (isinstance(filename, str) and filename.endswith(suffix) and isinstance(record, dict) and
+                        (record.get("name"), record.get("version"), record.get("build")) ==
+                        (name, version, build)):
+                    candidates.append((section, filename, record))
+        matching_fetches = []
+        for fetch_index, fetch in enumerate(fetches):
+            if not isinstance(fetch, dict):
+                issues.append(f"{label}_SOLVE_FETCH_ROW_INVALID:{fetch_index}")
+                continue
+            fetch_subdir = fetch.get("subdir") or fetch.get("platform")
+            fetch_build = fetch.get("build") or fetch.get("build_string")
+            fetch_identity = (fetch.get("name"), fetch.get("version"), fetch_build)
+            link_identity = (name, version, build)
+            if fetch_identity == link_identity and fetch_subdir != subdir:
+                issues.append(f"{label}_SOLVE_FETCH_SUBDIR_MISMATCH:{name}")
+            if fetch_identity == link_identity and fetch_subdir == subdir:
+                matching_fetches.append((fetch_index, fetch))
+        if len(matching_fetches) > 1:
+            issues.append(f"{label}_SOLVE_FETCH_DUPLICATE:{name}")
+            continue
+        if matching_fetches:
+            fetch_index, fetch = matching_fetches[0]
+            if fetch_index in consumed_fetches:
+                issues.append(f"{label}_SOLVE_FETCH_REUSED:{name}")
+                continue
+            consumed_fetches.add(fetch_index)
+            filename = fetch.get("fn")
+            fetch_url = fetch.get("url")
+            if fetch_url:
+                url_filename = fetch_url.rsplit("/", 1)[-1]
+                if filename and filename != url_filename:
+                    issues.append(f"{label}_SOLVE_FETCH_FILENAME_CONFLICT:{name}")
+                filename = filename or url_filename
+            checksum = fetch.get("sha256") or fetch.get("md5")
+            if not filename or not checksum:
+                issues.append(f"{label}_SOLVE_FETCH_IDENTITY_INCOMPLETE:{name}")
+                continue
+            candidates = [candidate for candidate in candidates
+                          if candidate[1] == filename and
+                          str(candidate[2].get("sha256" if fetch.get("sha256") else "md5", "")).lower() ==
+                          str(checksum).lower()]
+            expected_url = f"{expected_channel.rstrip('/')}/{subdir}/{filename}"
+            if fetch_url and fetch_url != expected_url:
+                issues.append(f"{label}_SOLVE_FETCH_URL_MISMATCH:{filename}")
+        if len(candidates) != 1:
+            issues.append(f"{label}_SOLVE_ARTIFACT_NOT_UNIQUE:{subdir}:{name}:{len(candidates)}")
+            continue
+        _section, filename, record = candidates[0]
+        digest = record.get("sha256")
+        size = record.get("size")
+        if not re.fullmatch(r"[0-9a-fA-F]{64}", str(digest or "")) or not isinstance(size, int) or size <= 0:
+            issues.append(f"{label}_SOLVE_REPODATA_IDENTITY_INVALID:{filename}")
+            continue
+        identities.append((name, version, build, subdir, filename, digest.lower()))
+    if consumed_fetches != set(range(len(fetches))):
+        issues.append(f"{label}_SOLVE_FETCH_UNCONSUMED:{len(set(range(len(fetches)))-consumed_fetches)}")
+    if len(identities) != len(set(identities)):
+        issues.append(f"{label}_SOLVE_LINK_DUPLICATE")
+    return identities, issues
+
+
+def validate_solver_evidence(bundle, evidence):
+    issues = []
+
+    def read_json(path, code):
+        try:
+            with open(path, encoding="utf-8") as handle:
+                return json.load(handle)
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            issues.append(f"{code}:{exc}")
+            return None
+
+    online = read_json(os.path.join(evidence, "conda-solve.json"), "ONLINE_SOLVE_EVIDENCE_INVALID")
+    offline = read_json(os.path.join(evidence, "conda-offline-solve.json"), "OFFLINE_SOLVE_EVIDENCE_INVALID")
+    offline_provenance = read_json(os.path.join(evidence, "conda-offline-repodata-provenance.json"),
+                                   "OFFLINE_REPODATA_PROVENANCE_INVALID")
+    cache_root_record = read_json(os.path.join(evidence, "conda-solver-cache-root.json"),
+                                  "CONDA_SOLVER_CACHE_ROOT_INVALID")
+    if not all(isinstance(item, dict) for item in (online, offline, offline_provenance, cache_root_record)):
+        return issues
+
+    online_actions = online.get("actions", {})
+    link_rows = online_actions.get("LINK", []) if isinstance(online_actions, dict) else []
+    channels = {row.get("base_url") for row in link_rows if isinstance(row, dict)}
+    if len(channels) != 1 or not isinstance(next(iter(channels), None), str):
+        issues.append("ONLINE_SOLVE_CHANNEL_NOT_UNIQUE")
+        return issues
+    online_channel = next(iter(channels))
+    online_repodata = {}
+    online_bases = {}
+    for subdir in ("linux-64", "noarch"):
+        filename = f"upstream-repodata-{subdir}-after.json"
+        snapshot_path = os.path.join(evidence, "work", filename)
+        sidecar_path = snapshot_path + ".provenance.json"
+        sidecar = read_json(sidecar_path, f"UPSTREAM_REPODATA_SIDECAR_INVALID:{subdir}")
+        snapshot = read_json(snapshot_path, f"UPSTREAM_REPODATA_SNAPSHOT_INVALID:{subdir}")
+        expected_url = f"{online_channel.rstrip('/')}/{subdir}/repodata.json"
+        if not isinstance(sidecar, dict) or not isinstance(snapshot, dict):
+            continue
+        digest = sha256(snapshot_path)
+        size = os.path.getsize(snapshot_path)
+        if (sidecar.get("snapshot_id") != "after" or sidecar.get("subdir") != subdir or
+                sidecar.get("evidence_file") != filename or sidecar.get("url") != expected_url or
+                sidecar.get("sha256") != digest):
+            issues.append(f"UPSTREAM_REPODATA_SNAPSHOT_PROVENANCE_MISMATCH:{subdir}")
+        online_repodata[subdir] = snapshot
+        online_bases[subdir] = online_channel
+        info = snapshot.get("info", {})
+        if not isinstance(info, dict) or info.get("subdir") not in (None, subdir):
+            issues.append(f"UPSTREAM_REPODATA_SUBDIR_MISMATCH:{subdir}")
+        if not all(isinstance(snapshot.get(key), dict) for key in ("packages", "packages.conda")):
+            issues.append(f"UPSTREAM_REPODATA_SECTIONS_INVALID:{subdir}")
+
+    local_repodata = {}
+    local_channel = os.path.join(bundle, "conda")
+    local_channel_url = Path(local_channel).resolve().as_uri()
+    for subdir in ("linux-64", "noarch"):
+        snapshot = read_json(os.path.join(local_channel, subdir, "repodata.json"),
+                             f"BUNDLE_REPODATA_INVALID:{subdir}")
+        provenance = offline_provenance.get(subdir)
+        path = os.path.join(local_channel, subdir, "repodata.json")
+        if not isinstance(snapshot, dict) or not isinstance(provenance, dict):
+            issues.append(f"OFFLINE_REPODATA_EVIDENCE_MISSING:{subdir}")
+            continue
+        expected_url = f"{local_channel_url}/{subdir}"
+        if (provenance.get("url") != expected_url or provenance.get("sha256") != sha256(path) or
+                provenance.get("size") != os.path.getsize(path)):
+            issues.append(f"OFFLINE_REPODATA_PROVENANCE_MISMATCH:{subdir}")
+        local_repodata[subdir] = snapshot
+
+    cache_path = cache_root_record.get("cache_root")
+    try:
+        cache_root = os.path.realpath(cache_path)
+        workspace_root = os.path.realpath(os.path.dirname(evidence))
+        if os.path.commonpath((workspace_root, cache_root)) != workspace_root:
+            raise ValueError("cache root is outside the external workspace")
+    except (TypeError, ValueError, OSError) as exc:
+        issues.append(f"CONDA_SOLVER_CACHE_PATH_INVALID:{exc}")
+        cache_root = ""
+
+    if cache_root:
+        for subdir in ("linux-64", "noarch"):
+            for label, base, snapshot in (("ONLINE", online_channel, online_repodata.get(subdir)),
+                                          ("OFFLINE", local_channel_url, local_repodata.get(subdir))):
+                if not isinstance(snapshot, dict):
+                    continue
+                expected_url = f"{base.rstrip('/')}/{subdir}"
+                matching = []
+                for info_path in Path(cache_root, "cache").glob("*.info.json"):
+                    record = read_json(str(info_path), f"CONDA_CACHE_INFO_INVALID:{info_path.name}")
+                    if isinstance(record, dict) and record.get("url") == expected_url:
+                        matching.append((info_path, record))
+                if len(matching) != 1:
+                    issues.append(f"CONDA_SOLVER_CACHE_ENTRY_NOT_UNIQUE:{label}:{subdir}:{len(matching)}")
+                    continue
+                info_path, cache_info = matching[0]
+                cache_json = info_path.with_name(info_path.name.removesuffix(".info.json") + ".json")
+                expected_digest = sha256(os.path.join(evidence, "work", f"upstream-repodata-{subdir}-after.json")) if label == "ONLINE" else sha256(os.path.join(local_channel, subdir, "repodata.json"))
+                expected_size = (os.path.getsize(os.path.join(evidence, "work", f"upstream-repodata-{subdir}-after.json"))
+                                 if label == "ONLINE" else os.path.getsize(os.path.join(local_channel, subdir, "repodata.json")))
+                if (not cache_json.is_file() or cache_info.get("size") != expected_size or
+                        cache_json.stat().st_size != expected_size or sha256(cache_json) != expected_digest):
+                    issues.append(f"CONDA_SOLVER_CACHE_BYTES_MISMATCH:{label}:{subdir}")
+                    continue
+                if label == "OFFLINE":
+                    provenance = offline_provenance.get(subdir, {})
+                    if (provenance.get("cache_file") != cache_json.name or
+                            provenance.get("sha256") != expected_digest or
+                            provenance.get("size") != expected_size):
+                        issues.append(f"OFFLINE_CACHE_PROVENANCE_MISMATCH:{subdir}")
+                else:
+                    subdir_links = [row for row in link_rows if isinstance(row, dict) and
+                                    (row.get("subdir") or row.get("platform")) == subdir]
+                    for row in subdir_links:
+                        upstream = row.get("pma_upstream_repodata", {})
+                        solver_cache = upstream.get("solver_cache", {}) if isinstance(upstream, dict) else {}
+                        if not isinstance(solver_cache, dict):
+                            solver_cache = {}
+                        if not isinstance(upstream, dict):
+                            issues.append(f"ONLINE_REPODATA_PROVENANCE_MISSING:{subdir}")
+                            break
+                        if (upstream.get("url") != f"{online_channel.rstrip('/')}/{subdir}/repodata.json" or
+                                upstream.get("sha256") != expected_digest or
+                                upstream.get("evidence_file") != f"upstream-repodata-{subdir}-after.json" or
+                                solver_cache.get("url") != expected_url or
+                                solver_cache.get("cache_file") != cache_json.name or
+                                solver_cache.get("sha256") != expected_digest or
+                                solver_cache.get("size") != expected_size):
+                            issues.append(f"ONLINE_CACHE_PROVENANCE_MISMATCH:{subdir}")
+                            break
+
+    online_ids, online_issues = solver_identity_rows(online, online_repodata, online_bases, "ONLINE")
+    issues.extend(online_issues)
+    offline_ids, offline_issues = solver_identity_rows(
+        offline, local_repodata, {subdir: local_channel_url for subdir in ("linux-64", "noarch")}, "OFFLINE")
+    issues.extend(offline_issues)
+    lock_ids = []
+    try:
+        with open(os.path.join(bundle, "conda-explicit-linux-64.lock"), encoding="utf-8") as handle:
+            for line in handle:
+                if not line.strip() or line.lstrip().startswith("#"):
+                    continue
+                fields = line.rstrip("\n").split("\t")
+                if len(fields) != 6:
+                    issues.append("CONDA_LOCK_ROW_INVALID_IN_EVIDENCE")
+                    continue
+                subdir, name, version, build, filename, digest = fields
+                lock_ids.append((name, version, build, subdir, filename, digest.lower()))
+    except OSError as exc:
+        issues.append(f"CONDA_LOCK_EVIDENCE_READ_FAILED:{exc}")
+    if any(row[4].endswith(".conda") for row in lock_ids):
+        extractor_path = os.path.join(evidence, "conda-extractor-provenance.json")
+        extractor = read_json(extractor_path, "CONDA_EXTRACTOR_PROVENANCE_INVALID")
+        expected_versions = {"conda-package-handling": "2.4.0",
+                             "conda-package-streaming": "0.11.0", "zstandard": "0.23.0"}
+        if isinstance(extractor, dict):
+            base_prefix = os.path.realpath(extractor.get("base_prefix", ""))
+            if (not extractor.get("python_isolated") or
+                    extractor.get("extract_api") != "conda_package_handling.api.extract" or
+                    not os.path.isabs(extractor.get("base_prefix", "")) or
+                    not os.path.isdir(os.path.join(base_prefix, "conda-meta"))):
+                issues.append("CONDA_EXTRACTOR_PROVENANCE_BOUNDARY_INVALID")
+            package_records = extractor.get("packages")
+            if not isinstance(package_records, dict):
+                issues.append("CONDA_EXTRACTOR_PACKAGE_RECORDS_INVALID")
+                package_records = {}
+            for package, expected_version in expected_versions.items():
+                record = package_records.get(package)
+                if not isinstance(record, dict):
+                    issues.append(f"CONDA_EXTRACTOR_PACKAGE_PROVENANCE_MISSING:{package}")
+                    continue
+                if record.get("version") != expected_version:
+                    issues.append(f"CONDA_EXTRACTOR_VERSION_NOT_APPROVED:{package}")
+                if record.get("integrity_basis") != "conda-meta paths_data sha256_in_prefix":
+                    issues.append(f"CONDA_EXTRACTOR_INTEGRITY_BASIS_INVALID:{package}")
+                record_file = os.path.join(base_prefix, "conda-meta", record.get("record_file", ""))
+                if (not os.path.isfile(record_file) or sha256(record_file) != record.get("record_sha256")):
+                    issues.append(f"CONDA_EXTRACTOR_CONDA_META_RECORD_MISMATCH:{package}")
+                files = record.get("installed_module_files")
+                if not isinstance(files, list) or not files:
+                    issues.append(f"CONDA_EXTRACTOR_MODULE_FILE_EVIDENCE_MISSING:{package}")
+                    continue
+                for module_file in files:
+                    if not isinstance(module_file, dict):
+                        issues.append(f"CONDA_EXTRACTOR_MODULE_FILE_ROW_INVALID:{package}")
+                        continue
+                    relative = module_file.get("path", "")
+                    path = os.path.realpath(os.path.join(base_prefix, relative))
+                    if (not relative or os.path.isabs(relative) or ".." in relative.split("/") or
+                            os.path.commonpath((base_prefix, path)) != base_prefix or
+                            not os.path.isfile(path) or sha256(path) != module_file.get("sha256")):
+                        issues.append(f"CONDA_EXTRACTOR_INSTALLED_FILE_MISMATCH:{package}:{relative}")
+            manifest = read_json(os.path.join(bundle, "bundle-manifest.json"),
+                                 "BUNDLE_MANIFEST_EXTRACTOR_REFERENCE_INVALID")
+            if (isinstance(manifest, dict) and manifest.get("conda_extractor_provenance_sha256") !=
+                    sha256(extractor_path)):
+                issues.append("CONDA_EXTRACTOR_PROVENANCE_MANIFEST_HASH_MISMATCH")
+    provenance_path = os.path.join(evidence, "conda-offline-repodata-provenance.json")
+    manifest = read_json(os.path.join(bundle, "bundle-manifest.json"),
+                         "BUNDLE_MANIFEST_OFFLINE_REFERENCE_INVALID")
+    if (isinstance(manifest, dict) and manifest.get("conda_offline_repodata_provenance_sha256") !=
+            sha256(provenance_path)):
+        issues.append("OFFLINE_REPODATA_PROVENANCE_MANIFEST_HASH_MISMATCH")
+    for label, observed in (("ONLINE", online_ids), ("OFFLINE", offline_ids)):
+        if sorted(observed) != sorted(lock_ids):
+            issues.append(f"{label}_SOLVER_LOCK_CLOSURE_MISMATCH")
+    if sorted(online_ids) != sorted(offline_ids):
+        issues.append("ONLINE_OFFLINE_SOLVER_CLOSURE_MISMATCH")
+    return issues
+
+
 def main():
-    bundle = os.path.abspath(sys.argv[1])
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("bundle")
+    parser.add_argument("--evidence-dir", required=True)
+    args = parser.parse_args()
+    bundle = os.path.abspath(args.bundle)
+    evidence = os.path.abspath(args.evidence_dir)
     issues = []
 
     def check(condition, message):
@@ -138,6 +448,14 @@ def main():
             check(report.get("python_abi") == "cp311", "RGT_BUILD_ABI_MISMATCH")
             check(report.get("rgt_wheel") == manifest.get("rgt_wheel"), "RGT_BUILD_WHEEL_NAME_MISMATCH")
             check(report.get("rgt_wheel_sha256") == manifest.get("rgt_wheel_sha256"), "RGT_BUILD_WHEEL_HASH_MISMATCH")
+            conda_abi = report.get("conda_abi_audit", {})
+            if not isinstance(conda_abi, dict):
+                check(False, "CONDA_ABI_AUDIT_INVALID")
+            else:
+                check(conda_abi.get("scope") == "static-elf-compatibility-audit",
+                      "CONDA_ABI_SCOPE_MISSING_OR_INVALID")
+                check(conda_abi.get("runtime_linkability_verified") is False,
+                      "CONDA_RUNTIME_LINKABILITY_CLAIM_INVALID")
             try:
                 check(tuple(map(int, report["glibc_symbol_max"].split("."))) <= (2, 23), "RGT_WHEEL_GLIBC_TOO_NEW")
             except (KeyError, ValueError):
@@ -163,6 +481,8 @@ def main():
                 if os.path.isabs(relative) or ".." in relative.split("/"):
                     issues.append(f"ARTIFACT_PATH_INVALID:{relative}")
                     continue
+                if relative in artifacts:
+                    issues.append(f"ARTIFACT_ROW_DUPLICATE:{relative}")
                 artifacts[relative] = digest.lower()
                 path = os.path.join(bundle, relative)
                 if not os.path.isfile(path):
@@ -171,6 +491,29 @@ def main():
                     issues.append(f"ARTIFACT_HASH_MISMATCH:{relative}")
     except OSError as exc:
         issues.append(f"ARTIFACT_INVENTORY_INVALID:{exc}")
+    observed_files = set()
+    try:
+        for root, directories, filenames in os.walk(bundle, followlinks=False):
+            for name in list(directories):
+                path = os.path.join(root, name)
+                if os.path.islink(path):
+                    issues.append(f"BUNDLE_SYMLINK_UNSUPPORTED:{os.path.relpath(path, bundle)}")
+                    directories.remove(name)
+            for name in filenames:
+                path = os.path.join(root, name)
+                relative = os.path.relpath(path, bundle).replace(os.sep, "/")
+                if relative in {"artifacts.sha256", "bundle-manifest.json"}:
+                    continue
+                if os.path.islink(path) or not os.path.isfile(path):
+                    issues.append(f"BUNDLE_NONREGULAR_FILE:{relative}")
+                observed_files.add(relative)
+    except OSError as exc:
+        issues.append(f"BUNDLE_WALK_FAILED:{exc}")
+    if observed_files != set(artifacts):
+        for relative in sorted(observed_files - set(artifacts)):
+            issues.append(f"BUNDLE_FILE_NOT_IN_INVENTORY:{relative}")
+        for relative in sorted(set(artifacts) - observed_files):
+            issues.append(f"INVENTORY_FILE_MISSING_FROM_BUNDLE:{relative}")
     report_relative = manifest.get("rgt_build_report", "")
     if artifacts.get(report_relative) != manifest.get("rgt_build_report_sha256", "").lower():
         issues.append("RGT_BUILD_REPORT_NOT_IN_ARTIFACT_INVENTORY")
@@ -198,6 +541,7 @@ def main():
 
     conda_packages = {}
     repodata_dist_keys = {}
+    expected_repodata_keys = set()
     try:
         with open(conda_path, encoding="utf-8") as handle:
             for line_number, line in enumerate(handle, 1):
@@ -222,6 +566,8 @@ def main():
                 else:
                     package_section = None
                     issues.append(f"CONDA_PACKAGE_FORMAT_UNSUPPORTED:{filename}")
+                if package_section:
+                    expected_repodata_keys.add((subdir, package_section, filename))
                 if artifacts.get(relative) != digest.lower():
                     issues.append(f"CONDA_ARTIFACT_NOT_IN_INVENTORY:{relative}")
                 path = os.path.join(bundle, relative)
@@ -251,6 +597,25 @@ def main():
                             issues.append(f"{issue}:{relative}")
     except OSError as exc:
         issues.append(f"CONDA_LOCK_INVALID:{exc}")
+    observed_repodata_keys = set()
+    for subdir in ("linux-64", "noarch"):
+        parsed = repodata_by_subdir.get(subdir, {})
+        for section in ("packages", "packages.conda"):
+            records = parsed.get(section, {}) if isinstance(parsed, dict) else {}
+            if not isinstance(records, dict):
+                continue
+            expected_suffix = ".tar.bz2" if section == "packages" else ".conda"
+            for filename, record in records.items():
+                observed_repodata_keys.add((subdir, section, filename))
+                if not filename.endswith(expected_suffix):
+                    issues.append(f"REPODATA_FILENAME_SECTION_MISMATCH:{subdir}/{section}/{filename}")
+                if not isinstance(record, dict):
+                    issues.append(f"REPODATA_RECORD_INVALID:{subdir}/{section}/{filename}")
+    if observed_repodata_keys != expected_repodata_keys:
+        for key in sorted(observed_repodata_keys - expected_repodata_keys):
+            issues.append(f"REPODATA_RECORD_NOT_IN_LOCK:{'/'.join(key)}")
+        for key in sorted(expected_repodata_keys - observed_repodata_keys):
+            issues.append(f"LOCK_RECORD_NOT_IN_REPODATA:{'/'.join(key)}")
     for name, expected in (("python", None), ("numpy", "1.26.4"), ("setuptools", "80.9.0")):
         value = conda_packages.get(name)
         if value is None or (expected is not None and value[0] != expected):
@@ -359,6 +724,11 @@ def main():
                     issues.append(f"WHEEL_DEPENDENCY_VERSION_MISMATCH:{key}:{raw_requirement}:{installed[dependency]}")
             except (ValueError, TypeError) as exc:
                 issues.append(f"WHEEL_DEPENDENCY_INVALID:{key}:{raw_requirement}:{exc}")
+
+    try:
+        issues.extend(validate_solver_evidence(bundle, evidence))
+    except (AssertionError, KeyError, OSError, TypeError, ValueError) as exc:
+        issues.append(f"SOLVER_EVIDENCE_VALIDATION_ERROR:{exc}")
 
     if issues:
         print("\n".join(issues), file=sys.stderr)

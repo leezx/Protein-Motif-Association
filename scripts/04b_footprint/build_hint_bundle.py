@@ -41,6 +41,11 @@ EXTRACTOR_PROVENANCE: dict = {}
 EXTRACTOR_PYTHON: Path | None = None
 MAX_EXTRACTED_PACKAGE_BYTES = 8 * 1024 * 1024 * 1024
 MAX_EXTRACTED_PACKAGE_FILES = 250_000
+CONDA_EXTRACTOR_VERSIONS = {
+    "conda-package-handling": "2.4.0",
+    "conda-package-streaming": "0.11.0",
+    "zstandard": "0.23.0",
+}
 CONDA_ISOLATED_ENV_VARS = (
     "PYTHONPATH", "PMA_HINT_EXTERNAL_TOOLCHAIN_PYTHON_ROOT", "PMA_HINT_ALLOWED_WORKSPACE",
 )
@@ -230,7 +235,10 @@ def resolve_solver_artifacts(links: list[dict], repodata_by_subdir: dict[str, di
                              expected_channel: str | None = None) -> list[dict]:
     """Bind distribution-level LINK rows to exactly one provenance-backed artifact."""
     fetches = fetches or []
+    if not isinstance(links, list) or not isinstance(fetches, list):
+        raise RuntimeError("CONDA_SOLVER_ACTIONS_INVALID")
     resolved = []
+    consumed_fetches = set()
     for item in links:
         subdir = _solver_subdir(item)
         name, version = item.get("name"), item.get("version")
@@ -259,15 +267,28 @@ def resolve_solver_artifacts(links: list[dict], repodata_by_subdir: dict[str, di
                 if (record.get("name"), record.get("version"), record.get("build")) == (name, version, build):
                     candidates.append((section, filename, record))
         matching_fetches = []
-        for fetch in fetches:
+        for fetch_index, fetch in enumerate(fetches):
+            if not isinstance(fetch, dict):
+                raise RuntimeError("CONDA_SOLVER_FETCH_ROW_INVALID")
             fetch_subdir = _solver_subdir(fetch)
             fetch_build = fetch.get("build") or fetch.get("build_string")
+            fetch_identity = (fetch.get("name"), fetch.get("version"), fetch_build)
+            link_identity = (name, version, build)
+            if fetch_identity == link_identity and fetch_subdir != subdir:
+                raise RuntimeError(f"CONDA_SOLVER_FETCH_SUBDIR_MISMATCH:{name}")
+            fetch_base = fetch.get("base_url")
+            if (fetch_identity == link_identity and expected_channel is not None and fetch_base and
+                    sanitize_url(fetch_base).rstrip("/") != expected_channel.rstrip("/")):
+                raise RuntimeError(f"CONDA_SOLVER_FETCH_CHANNEL_MISMATCH:{name}")
             if (fetch_subdir, fetch.get("name"), fetch.get("version"), fetch_build) == (subdir, name, version, build):
-                matching_fetches.append(fetch)
+                matching_fetches.append((fetch_index, fetch))
         if len(matching_fetches) > 1:
             raise RuntimeError(f"CONDA_SOLVER_FETCH_DUPLICATE:{name}")
         if matching_fetches:
-            fetch = matching_fetches[0]
+            fetch_index, fetch = matching_fetches[0]
+            if fetch_index in consumed_fetches:
+                raise RuntimeError(f"CONDA_SOLVER_FETCH_REUSED:{name}")
+            consumed_fetches.add(fetch_index)
             fetch_filename = fetch.get("fn")
             fetch_url = fetch.get("url")
             if fetch_url:
@@ -279,6 +300,8 @@ def resolve_solver_artifacts(links: list[dict], repodata_by_subdir: dict[str, di
             fetch_md5 = fetch.get("md5")
             if len(candidates) > 1 and not (fetch_filename and (fetch_sha or fetch_md5)):
                 raise RuntimeError(f"CONDA_SOLVER_FETCH_DISAMBIGUATION_INCOMPLETE:{name}")
+            if not fetch_filename or not (fetch_sha or fetch_md5):
+                raise RuntimeError(f"CONDA_SOLVER_FETCH_ARTIFACT_IDENTITY_INCOMPLETE:{name}")
             if fetch_filename or fetch_sha or fetch_md5:
                 filtered = []
                 for candidate in candidates:
@@ -318,8 +341,8 @@ def resolve_solver_artifacts(links: list[dict], repodata_by_subdir: dict[str, di
                 if sorted(link_value) != sorted(source_value):
                     raise RuntimeError(f"CONDA_SOLVER_REPODATA_METADATA_MISMATCH:{filename}:{key}")
         artifact_url = f"{expected_channel.rstrip('/')}/{subdir}/{filename}" if expected_channel else ""
-        if matching_fetches and matching_fetches[0].get("url") and artifact_url:
-            if sanitize_url(matching_fetches[0]["url"]) != artifact_url:
+        if matching_fetches and matching_fetches[0][1].get("url") and artifact_url:
+            if sanitize_url(matching_fetches[0][1]["url"]) != artifact_url:
                 raise RuntimeError(f"CONDA_SOLVER_FETCH_URL_MISMATCH:{filename}")
         if item.get("url") and sanitize_url(item["url"]) != artifact_url:
             raise RuntimeError(f"CONDA_SOLVER_ARTIFACT_URL_MISMATCH:{filename}")
@@ -337,6 +360,9 @@ def resolve_solver_artifacts(links: list[dict], repodata_by_subdir: dict[str, di
         }
         normalized["pma_upstream_repodata_record"] = source
         resolved.append(normalized)
+    if consumed_fetches != set(range(len(fetches))):
+        extra = len(set(range(len(fetches))) - consumed_fetches)
+        raise RuntimeError(f"CONDA_SOLVER_FETCH_NOT_IN_LINK:{extra}")
     identities = [(row["pma_artifact"]["subdir"], row["name"], row["version"],
                    row["pma_artifact"]["build"], row["pma_artifact"]["filename"],
                    row["pma_artifact"]["sha256"]) for row in resolved]
@@ -401,6 +427,14 @@ def conda_extractor(conda: str, work: Path) -> tuple[Path, dict]:
         details = json.loads(output)
     except json.JSONDecodeError as exc:
         raise RuntimeError(f"CONDA_EXTRACTOR_PROBE_INVALID:{exc}") from exc
+    expected_versions = {
+        "conda-package-handling": ("cph_version", "cph_module"),
+        "conda-package-streaming": ("streaming_version", "streaming_module"),
+        "zstandard": ("zstandard_version", "zstandard_module"),
+    }
+    for package, (version_key, _module_key) in expected_versions.items():
+        if details.get(version_key) != CONDA_EXTRACTOR_VERSIONS[package]:
+            raise RuntimeError(f"CONDA_EXTRACTOR_VERSION_NOT_APPROVED:{package}:{details.get(version_key)}")
     for key in ("cph_module", "streaming_module", "zstandard_module"):
         module_path = Path(details.get(key, "")).resolve()
         if not module_path.is_relative_to(base_prefix.resolve()):
@@ -422,11 +456,33 @@ def conda_extractor(conda: str, work: Path) -> tuple[Path, dict]:
             raise RuntimeError(f"CONDA_EXTRACTOR_PACKAGE_VERSION_MISMATCH:{package}")
         if not re.fullmatch(r"[0-9a-fA-F]{64}", str(record.get("sha256") or "")):
             raise RuntimeError(f"CONDA_EXTRACTOR_PACKAGE_HASH_MISSING:{package}")
+        paths_metadata = record.get("paths_data")
+        paths_data = paths_metadata.get("paths", []) if isinstance(paths_metadata, dict) else []
+        expected_file_hashes = {
+            row.get("_path"): row.get("sha256_in_prefix")
+            for row in paths_data if isinstance(row, dict) and row.get("_path")
+        }
+        module_path = Path(details[version_key.replace("_version", "_module")]).resolve()
+        module_files = [module_path]
+        if module_path.name == "__init__.py":
+            module_files = [path for path in module_path.parent.rglob("*")
+                            if path.is_file() and path.suffix in {".py", ".so", ".pyd", ".dll"}]
+        installed_files = []
+        for module_file in sorted(set(module_files)):
+            relative = module_file.resolve().relative_to(base_prefix.resolve()).as_posix()
+            expected_digest = expected_file_hashes.get(relative)
+            if not re.fullmatch(r"[0-9a-fA-F]{64}", str(expected_digest or "")):
+                raise RuntimeError(f"CONDA_EXTRACTOR_INSTALLED_FILE_HASH_MISSING:{package}:{relative}")
+            actual_digest = sha256(module_file)
+            if actual_digest.lower() != expected_digest.lower():
+                raise RuntimeError(f"CONDA_EXTRACTOR_INSTALLED_FILE_HASH_MISMATCH:{package}:{relative}")
+            installed_files.append({"path": relative, "sha256": actual_digest})
         records[package] = {"record_file": record_path.name, "record_sha256": sha256(record_path),
                             "name": record.get("name"), "version": record.get("version"),
                             "build": record.get("build"), "channel": sanitize_url(record.get("channel", "")),
                             "url": sanitize_url(record.get("url", "")),
-                            "sha256": record["sha256"]}
+                            "sha256": record["sha256"], "installed_module_files": installed_files,
+                            "integrity_basis": "conda-meta paths_data sha256_in_prefix"}
     evidence = {**details, "base_prefix": str(base_prefix), "packages": records,
                 "extract_api": "conda_package_handling.api.extract", "python_isolated": True}
     global EXTRACTOR_PROVENANCE, EXTRACTOR_PYTHON
@@ -464,7 +520,37 @@ def extract_conda_archive(python: Path, archive: Path, destination: Path, work: 
     env = os.environ.copy()
     for key in CONDA_ISOLATED_ENV_VARS:
         env.pop(key, None)
-    preflight = r'''import json, posixpath, sys
+    preflight = CONDA_ARCHIVE_PREFLIGHT
+    run([str(python), "-I", "-c", preflight, str(archive),
+         str(MAX_EXTRACTED_PACKAGE_BYTES), str(MAX_EXTRACTED_PACKAGE_FILES)],
+        capture=True, env=env)
+    code = "from conda_package_handling.api import extract; import sys; extract(sys.argv[1], dest_dir=sys.argv[2])"
+    run([str(python), "-I", "-c", code, str(archive), str(destination)], capture=True, env=env)
+    if not destination.is_dir():
+        raise RuntimeError(f"CONDA_EXTRACT_OUTPUT_MISSING:{archive.name}")
+    total_bytes = 0
+    count = 0
+    root = destination.resolve()
+    for path in destination.rglob("*"):
+        count += 1
+        if count > MAX_EXTRACTED_PACKAGE_FILES:
+            raise RuntimeError(f"CONDA_EXTRACT_FILE_COUNT_LIMIT:{archive.name}")
+        if path.is_symlink():
+            target = Path(os.readlink(path))
+            if target.is_absolute() or not (path.parent / target).resolve().is_relative_to(root):
+                raise RuntimeError(f"CONDA_EXTRACT_SYMLINK_ESCAPE:{archive.name}:{path.name}")
+        elif path.is_file():
+            if not path.resolve().is_relative_to(root):
+                raise RuntimeError(f"CONDA_EXTRACT_PATH_ESCAPE:{archive.name}:{path.name}")
+            total_bytes += path.stat().st_size
+            if total_bytes > MAX_EXTRACTED_PACKAGE_BYTES:
+                raise RuntimeError(f"CONDA_EXTRACT_SIZE_LIMIT:{archive.name}")
+        elif not path.is_dir():
+            raise RuntimeError(f"CONDA_EXTRACT_SPECIAL_FILE:{archive.name}:{path.name}")
+    return destination
+
+
+CONDA_ARCHIVE_PREFLIGHT = r'''import posixpath, sys
 from conda_package_streaming.package_streaming import stream_conda_component
 path = sys.argv[1]
 seen = set()
@@ -535,33 +621,6 @@ for name, target in hardlinks:
     if any(kinds.get("/".join(parts[:i])) not in (None, "dir") for i in range(1, len(parts))):
         raise SystemExit("CONDA_ARCHIVE_HARDLINK_TARGET_THROUGH_NON_DIRECTORY")
 '''
-    run([str(python), "-I", "-c", preflight, str(archive),
-         str(MAX_EXTRACTED_PACKAGE_BYTES), str(MAX_EXTRACTED_PACKAGE_FILES)],
-        capture=True, env=env)
-    code = "from conda_package_handling.api import extract; import sys; extract(sys.argv[1], dest_dir=sys.argv[2])"
-    run([str(python), "-I", "-c", code, str(archive), str(destination)], capture=True, env=env)
-    if not destination.is_dir():
-        raise RuntimeError(f"CONDA_EXTRACT_OUTPUT_MISSING:{archive.name}")
-    total_bytes = 0
-    count = 0
-    root = destination.resolve()
-    for path in destination.rglob("*"):
-        count += 1
-        if count > MAX_EXTRACTED_PACKAGE_FILES:
-            raise RuntimeError(f"CONDA_EXTRACT_FILE_COUNT_LIMIT:{archive.name}")
-        if path.is_symlink():
-            target = Path(os.readlink(path))
-            if target.is_absolute() or not (path.parent / target).resolve().is_relative_to(root):
-                raise RuntimeError(f"CONDA_EXTRACT_SYMLINK_ESCAPE:{archive.name}:{path.name}")
-        elif path.is_file():
-            if not path.resolve().is_relative_to(root):
-                raise RuntimeError(f"CONDA_EXTRACT_PATH_ESCAPE:{archive.name}:{path.name}")
-            total_bytes += path.stat().st_size
-            if total_bytes > MAX_EXTRACTED_PACKAGE_BYTES:
-                raise RuntimeError(f"CONDA_EXTRACT_SIZE_LIMIT:{archive.name}")
-        elif not path.is_dir():
-            raise RuntimeError(f"CONDA_EXTRACT_SPECIAL_FILE:{archive.name}:{path.name}")
-    return destination
 
 
 def load_local_repodata(channel: Path) -> dict[str, dict]:
@@ -990,7 +1049,9 @@ def audit_conda_elf(records: list[dict], bundle: Path, work: Path, conda: str) -
             "needed_libraries": sorted(needed_libraries),
             "package_library_names": sorted(package_libraries),
             "system_runtime_allowlist": sorted(SYSTEM_RUNTIME_LIBS),
-            "method": "readelf machine, version-needs/definitions, and DT_NEEDED resolution across locked package members and explicit system runtime allowlist",
+            "scope": "static-elf-compatibility-audit",
+            "runtime_linkability_verified": False,
+            "method": "readelf machine, version-needs/definitions, and DT_NEEDED basename resolution across locked package members and explicit system runtime allowlist; does not resolve runtime RPATH/RUNPATH",
             "conda_extractor": EXTRACTOR_PROVENANCE if any(row["filename"].endswith(".conda") for row in records) else None}
 
 
@@ -1207,6 +1268,9 @@ def main() -> int:
         package_cache = Path(os.environ["CONDA_PKGS_DIRS"]).resolve()
     else:
         package_cache = work / "conda-package-cache"
+    (evidence / "conda-solver-cache-root.json").write_text(
+        json.dumps({"cache_root": str(package_cache.resolve())}, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8")
     try:
         links, solve_command, solve_json = load_solver_plan(conda, work, package_cache=package_cache)
         parsed_solve = json.loads(solve_json)
@@ -1342,7 +1406,7 @@ def main() -> int:
                     "conda_solve_command": sanitize_evidence(solve_command)}
         (bundle / "bundle-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
         validator = Path(__file__).with_name("validate_hint_bundle.py")
-        run([sys.executable, str(validator), str(bundle)])
+        run([sys.executable, str(validator), str(bundle), "--evidence-dir", str(evidence)])
         shutil.copy2(bundle / "bundle-manifest.json", evidence / "bundle-manifest.json")
         archive_path = evidence / "pma_hint_bundle.tar.gz"
         with tarfile.open(archive_path, "w:gz") as archive:

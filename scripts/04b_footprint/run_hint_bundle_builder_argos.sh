@@ -46,7 +46,10 @@ REPO=$(git -C "$HERE/../.." rev-parse --show-toplevel)
 source "$REPO/config/pma_env.sh"
 CONDA=${PMA_HINT_CONDA:-/home/zz950/softwares/miniforge3/bin/conda}
 TOOLCHAIN="$WORK/toolchain"
-PACKAGE_CACHE="$WORK/conda-pkgs"
+# Keep the solver cache under the outer evidence root. The bundle builder's
+# independent validator verifies that every solver cache path stays in the
+# same protected external workspace as its evidence.
+PACKAGE_CACHE="$EVIDENCE/conda-pkgs"
 DOWNLOADS="$TOOLCHAIN/downloads"
 PYTHON_ROOT="$TOOLCHAIN/python"
 TOOLCHAIN_REPORT="$TOOLCHAIN/host-toolchain.json"

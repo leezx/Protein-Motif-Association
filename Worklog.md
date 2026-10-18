@@ -702,3 +702,19 @@ Same-PR local minimum test correction now unpacks only `sys.argv[1:3]` in that n
 同一 PR 的本地代码现在把 LINK distribution 唯一解析到 upstream `packages` / `packages.conda` 的真实 filename、SHA-256、MD5、size 与 URL；跨格式重复候选只有 FETCH 同时提供 exact filename 和校验值才可消歧，冲突和不足证据均 fail closed。对 solver 实际使用的 online/offline Conda cache 逐字节比对留存 repodata；按真实 `.conda`/`.tar.bz2` section 写本地闭包 repodata，并比较在线与离线六字段闭包。`.conda` archive 通过 ZIP/metadata 校验后，使用已存在且 provenance 可追溯的 Miniforge base Python 官方 extractor；隔离 helper 对 archive 路径、链接、特殊文件、文件数与解包大小先做拒绝式检查，再扫描真实 payload 的 ELF/ABI。validator 和合同 fixtures 已覆盖双格式 repodata、重复候选、FETCH 不充分、`.conda` 容器与 extractor/ABI 路径。
 
 静态 Python 编译及 `git diff --check` PASS；未运行单测或分析（Mac mini 资源不用于本项目），也未向 Argos 发任何命令。新完整 HEAD 尚未提交/推送/审核；此前 9c7410b 的 APPROVE 不适用于此代码。下一步完成本地 diff/文档核对并提交推送同一 PR #5，更新 PR body 与 handoff，向 GPT 请求新完整 HEAD 审核；仅获明确 APPROVE 后才可在 Argos 跑合同套件，全过后才按新的批准范围跑 artifact-only G2。目标 2 目前只在修复 HINT 前置工程门，不是 footprint 结果；目标 1 唯一 BED6 无推进。无环境安装、HINT CLI、smoke、benchmark 或合并。`HUMAN DECISION: PENDING`。
+
+## 2026-10-18 16:27 EDT — GPT 对 2e34f2f REQUEST_CHANGES；按五项 finding 修复
+
+PMA GPT 已通过 GitHub 读取 PR #5 完整 diff，并锁定 HEAD `2e34f2f8a8ce2707e7845f153e74995b68e7d746`、base `6c2e323fc80cc3e05f9de05282d1bbce49ba98fa`，返回 `REQUEST_CHANGES`，明确不授权该 HEAD 的任何 Argos run。五项 finding：B1 validator 未反向拒绝锁外 repodata records 与文件库存外的额外文件；B2 resolver 未证明每条 FETCH 恰好消费一次，也允许无 LINK 的 FETCH；B3 validator 不读取 solver evidence，不能独立复核 online/offline 六字段 closure；B4 `.conda` 实际测试只含正常 payload，未证明恶意 tar/link、跨 component 冲突、损坏 zstd 与资源上限拒绝；B5 extractor 版本未固定，conda-meta artifact hash 不代表当前已安装模块文件内容已核验。另要求把 ABI 结论准确限定为静态 ELF compatibility audit，不能声称 runtime linkability。前次 `.conda` 映射/下载/解包/ABI/local repodata 与 builder 内六字段比较是代码层修复，尚无 Argos 运行验证。
+
+同 PR 的未提交修订：独立 validator 现在要求 artifacts inventory 与 bundle 实际 regular-file 集合双向相等，repodata package identity 集合与 lock 双向相等；resolver 要求 FETCH 有完整 filename+checksum，逐条消费，拒绝重复、未消费、subdir/channel 不匹配；bundle 构建时通过 validator 的 evidence mode 传入外部证据，由独立代码重新从 online/offline solve JSON 和 upstream/local repodata 求解六字段 identities，与 lock exact compare，并复核 snapshots、Conda 在线/离线 repodata cache bytes 与 sidecar provenance。新增合成 archive fixtures 覆盖 symlink 链、前向 hardlink、目录转链接、pkg/info 跨 component 冲突、损坏 zstd、解包大小与文件数限制。Extractor 固定到已核验的 cph 2.4.0、streaming 0.11.0、zstandard 0.23.0，并将实际导入 `.py/.so` 内容逐个比对 conda-meta `paths_data.sha256_in_prefix`；报告明确 integrity basis。ABI 文案边界将在同 PR 的审计材料/报告中标注为静态兼容审计。
+
+本地 Python 编译、embedded preflight 脚本语法与 `git diff --check` PASS；没有运行测试或科学分析，没有向 Argos 发命令。由于 GPT 的 exact-head `REQUEST_CHANGES`，不得继续旧 HEAD 的 Argos 门禁。下一步完成文档与报告措辞、静态复核，提交推送同一 PR #5、同步 PR body，再请 GPT 审核新完整 HEAD；仅新 HEAD 获明确 APPROVE 后才跑合同测试，再按其限定范围和 gate 结果决定是否 G2。目标 1 的 coordinate-unique BED6 未推进；目标 2 仍是 HINT prerequisite 工程修订，无 footprint 数据。没有环境变更、HINT/smoke/benchmark/merge。`HUMAN DECISION: PENDING`。
+
+## 2026-10-18 16:30 EDT — 静态集成复核修正 Argos solver-cache 路径
+
+复核 wrapper/validator 的真实目录层级后发现：Argos wrapper 将 builder evidence 放在 `$WORK/evidence/builder`，独立 validator 以其父目录 `$WORK/evidence` 作为允许的 cache workspace；原 solver cache `$WORK/conda-pkgs` 是该目录的兄弟，获批运行会被 fail-closed 拒绝。故同一 PR 将 `PACKAGE_CACHE` 改为 `$EVIDENCE/conda-pkgs`，留在外部工作区及审计 evidence 根下，同时与 builder evidence 子目录分离。Python 编译、embedded preflight 编译、wrapper `bash -n` 和 `git diff --check` 均 PASS；按 Argos-only 指令未运行合同测试/构建/分析。PR #5 远端尚是被 GPT 拒绝的 `2e34f2f`，所有这些变更仍仅本地，未获 Argos 授权。下一步同 PR 提交/推送这些修订、更新 PR body 并请求新完整 HEAD 审核。目标 1 BED6 与目标 2 footprint benchmark 均无新增科学产物；不改环境、不运行分析、不合并。
+
+## 2026-10-18 16:31 EDT — 五项修订已整理为同一 PR 提交，待推送和复审
+
+同一 PR #5 的代码、合同 fixture 和三份审计记录现已本地提交为 `Harden Argos HINT bundle validation`；提交前 Python/embedded-preflight 编译、Argos wrapper `bash -n` 与 `git diff --check` 均 PASS。没有运行合同测试、bundle build 或 Argos 命令。该提交尚未推送，也未获新 GPT review；PR 远端仍是 `2e34f2f` 的 REQUEST_CHANGES 状态。下一步推送、更新 PR body，并把新完整 HEAD 交给持久 PMA GPT 审核。新 HEAD 获明确 APPROVE 前不得运行 Argos。两项 PI 科学产物均未完成，不合并。

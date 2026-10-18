@@ -35,6 +35,52 @@ DATA_ROOT_SPEC.loader.exec_module(DATA_ROOT_VALIDATOR)
 
 
 class HintBundleBuildContract(unittest.TestCase):
+    def _write_cache_pair(self, cache_root: Path, cache_key: str, url: str, payload: bytes):
+        cache = cache_root / "cache"
+        cache.mkdir(parents=True, exist_ok=True)
+        (cache / f"{cache_key}.json").write_bytes(payload)
+        (cache / f"{cache_key}.info.json").write_text(
+            json.dumps({"url": url, "size": len(payload)}), encoding="utf-8")
+
+    def _make_conda_archive_fixture(self, python: Path, path: Path, *, pkg=(), info=(), corrupt=()):
+        spec = json.dumps({"pkg": list(pkg), "info": list(info), "corrupt": list(corrupt)})
+        code = r'''import io, json, sys, tarfile, zipfile, zstandard
+spec = json.loads(sys.argv[2])
+def component(rows, corrupt=False):
+    if corrupt:
+        return b"invalid-zstd-stream"
+    buffer = io.BytesIO()
+    with tarfile.open(fileobj=buffer, mode="w") as archive:
+        for row in rows:
+            member = tarfile.TarInfo(row["name"])
+            kind = row.get("kind", "file")
+            if kind == "file":
+                body = row.get("data", "fixture").encode()
+                member.size = len(body)
+                archive.addfile(member, io.BytesIO(body))
+            elif kind == "dir":
+                member.type = tarfile.DIRTYPE
+                archive.addfile(member)
+            elif kind == "symlink":
+                member.type = tarfile.SYMTYPE
+                member.linkname = row["target"]
+                archive.addfile(member)
+            elif kind == "hardlink":
+                member.type = tarfile.LNKTYPE
+                member.linkname = row["target"]
+                archive.addfile(member)
+            else:
+                raise ValueError(kind)
+    return zstandard.ZstdCompressor(level=1).compress(buffer.getvalue())
+dist = "pma-archive-fixture-1.0-0"
+with zipfile.ZipFile(sys.argv[1], "w", compression=zipfile.ZIP_STORED) as archive:
+    archive.writestr("metadata.json", '{"conda_pkg_format_version":2}')
+    archive.writestr("info-" + dist + ".tar.zst", component(spec["info"]))
+    archive.writestr("pkg-" + dist + ".tar.zst", component(spec["pkg"], bool(spec["corrupt"])))
+'''
+        subprocess.run([str(python), "-I", "-c", code, str(path), spec], check=True,
+                       stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+
     def _write_import_probe_fixture(self, root: Path, *, metadata_root: Path | None = None,
                                     simulate_pip_spec_side_effect: bool = False):
         metadata_root = metadata_root or root
@@ -778,6 +824,17 @@ fi
         resolved = BUILDER.resolve_solver_artifacts([link], snapshots, fetches=fetch,
                                                      expected_channel=channel)
         self.assertEqual(resolved[0]["pma_artifact"]["filename"], conda_fn)
+        unrelated = {"name": "other", "version": "9.9", "build": "0",
+                     "subdir": "linux-64", "fn": "other-9.9-0.conda", "sha256": "c" * 64}
+        with self.assertRaisesRegex(RuntimeError, "FETCH_NOT_IN_LINK"):
+            BUILDER.resolve_solver_artifacts([link], snapshots, fetches=[*fetch, unrelated],
+                                             expected_channel=channel)
+        with self.assertRaisesRegex(RuntimeError, "FETCH_DUPLICATE"):
+            BUILDER.resolve_solver_artifacts([link], snapshots, fetches=[*fetch, *fetch],
+                                             expected_channel=channel)
+        with self.assertRaisesRegex(RuntimeError, "FETCH_SUBDIR_MISMATCH"):
+            BUILDER.resolve_solver_artifacts([link], snapshots,
+                fetches=[{**fetch[0], "subdir": "noarch"}], expected_channel=channel)
         with self.assertRaisesRegex(RuntimeError, "FETCH_REPODATA_CONFLICT"):
             BUILDER.resolve_solver_artifacts([link], snapshots,
                 fetches=[{**fetch[0], "sha256": "c" * 64}], expected_channel=channel)
@@ -834,8 +891,19 @@ fi
                 "build_number": 0, "depends": []}), encoding="utf-8")
             (prefix / "bin/true").write_bytes(Path("/bin/true").read_bytes())
             archive = root / "pma-conda-fixture-1.0-0.conda"
+            with mock.patch.dict(BUILDER.CONDA_EXTRACTOR_VERSIONS,
+                                 {"conda-package-handling": "0.0.0"}):
+                with self.assertRaisesRegex(RuntimeError, "VERSION_NOT_APPROVED:conda-package-handling"):
+                    BUILDER.conda_extractor(conda, root)
             python, provenance = BUILDER.conda_extractor(conda, root)
             self.assertEqual(provenance["extract_api"], "conda_package_handling.api.extract")
+            self.assertEqual(provenance["packages"]["conda-package-handling"]["version"], "2.4.0")
+            for package_record in provenance["packages"].values():
+                self.assertTrue(package_record["installed_module_files"])
+                for module_file in package_record["installed_module_files"]:
+                    self.assertRegex(module_file["sha256"], r"^[0-9a-f]{64}$")
+                self.assertEqual(package_record["integrity_basis"],
+                                 "conda-meta paths_data sha256_in_prefix")
             create_code = "from conda_package_handling.api import create; import sys; create(sys.argv[1], ['info/index.json', 'bin/true'], sys.argv[2])"
             env = os.environ.copy()
             for key in BUILDER.CONDA_ISOLATED_ENV_VARS:
@@ -856,6 +924,40 @@ fi
             audit = BUILDER.audit_conda_elf([{"subdir": "linux-64", "filename": archive.name}],
                                            bundle, root / "audit", conda)
             self.assertGreater(audit["elf_files_checked"], 0)
+
+    def test_conda_archive_preflight_rejects_malicious_members_and_limits(self):
+        conda = os.environ.get("PMA_HINT_CONDA_EXECUTABLE") or shutil.which("conda")
+        self.assertTrue(conda, "audited Conda executable is required for archive preflight contracts")
+        artifact = {"name": "pma-archive-fixture", "version": "1.0", "build": "0"}
+        cases = [
+            ("symlink-chain", [{"name": "a", "kind": "symlink", "target": "b"},
+                                {"name": "b", "kind": "symlink", "target": "../../outside"}], [], []),
+            ("hardlink-forward-target", [{"name": "link", "kind": "hardlink", "target": "later"}], [], []),
+            ("directory-replaced-by-link", [{"name": "a/child", "kind": "file"},
+                                             {"name": "a", "kind": "symlink", "target": "safe"}], [], []),
+            ("cross-component-collision", [{"name": "shared", "kind": "file"}],
+             [{"name": "shared", "kind": "file"}], []),
+            ("corrupt-zstd", [{"name": "payload", "kind": "file"}], [], ["corrupt"]),
+            ("unpacked-size-limit", [{"name": "payload", "kind": "file", "data": "too-large"}], [], []),
+            ("file-count-limit", [{"name": "one"}, {"name": "two"}, {"name": "three"}], [], []),
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            python, _provenance = BUILDER.conda_extractor(conda, root)
+            for name, pkg, info, corrupt in cases:
+                with self.subTest(case=name):
+                    archive = root / f"{name}.conda"
+                    self._make_conda_archive_fixture(python, archive, pkg=pkg, info=info, corrupt=corrupt)
+                    BUILDER.validate_conda_archive(archive, artifact)
+                    limits = {}
+                    if name == "unpacked-size-limit":
+                        limits["MAX_EXTRACTED_PACKAGE_BYTES"] = 2
+                    if name == "file-count-limit":
+                        limits["MAX_EXTRACTED_PACKAGE_FILES"] = 2
+                    with mock.patch.multiple(BUILDER, **limits):
+                        with self.assertRaises(subprocess.CalledProcessError):
+                            BUILDER.extract_conda_archive(
+                                python, archive, root / f"extract-{name}", root)
 
     def test_conda_unknown_package_format_is_rejected_before_download(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1048,12 +1150,14 @@ Version definition section '.gnu.version_d' contains 1 entry:
                     archive.addfile(info, BytesIO(payload))
                 digest = BUILDER.sha256(archive_path)
                 repodata[subdir]["packages"][filename] = {
-                    "name": name, "version": version, "build": build, "sha256": digest
+                    "name": name, "version": version, "build": build, "sha256": digest,
+                    "size": archive_path.stat().st_size
                 }
                 lock_rows.append("\t".join((subdir, name, version, build, filename, digest)) + "\n")
                 inventory_paths.append(archive_path)
             for subdir in ("linux-64", "noarch"):
                 path = bundle / "conda" / subdir / "repodata.json"
+                repodata[subdir]["info"] = {"subdir": subdir, "repodata_version": 1}
                 path.write_text(json.dumps(repodata[subdir]), encoding="utf-8")
                 inventory_paths.append(path)
             conda_lock = bundle / "conda-explicit-linux-64.lock"
@@ -1077,6 +1181,8 @@ Version definition section '.gnu.version_d' contains 1 entry:
                 "python_abi": "cp311", "glibc_symbol_max": "2.17",
                 "auditwheel_policy": "pure-python-no-ELF", "native_dependencies": [],
                 "rgt_wheel": wheel.name, "rgt_wheel_sha256": BUILDER.sha256(wheel),
+                "conda_abi_audit": {"scope": "static-elf-compatibility-audit",
+                                    "runtime_linkability_verified": False},
             }), encoding="utf-8")
             inventory_paths.append(report)
             inventory = bundle / "artifacts.sha256"
@@ -1097,11 +1203,94 @@ Version definition section '.gnu.version_d' contains 1 entry:
                 "artifacts_sha256": BUILDER.sha256(inventory),
             }
             (bundle / "bundle-manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+            evidence = Path(tmp) / "evidence"
+            work = evidence / "work"
+            work.mkdir(parents=True)
+            cache_root = Path(tmp) / "conda-pkgs"
+            online_channel = "https://example.org/channel"
+            local_channel_url = (bundle / "conda").resolve().as_uri()
+            online_links = []
+            offline_links = []
+            offline_cache = {}
+            online_provenance = {}
+            for subdir in ("linux-64", "noarch"):
+                snapshot = repodata[subdir]
+                snapshot_path = work / f"upstream-repodata-{subdir}-after.json"
+                payload = json.dumps(snapshot).encode()
+                snapshot_path.write_bytes(payload)
+                sidecar = {"snapshot_id": "after", "subdir": subdir,
+                           "url": f"{online_channel}/{subdir}/repodata.json",
+                           "sha256": hashlib.sha256(payload).hexdigest(),
+                           "evidence_file": snapshot_path.name}
+                (work / f"{snapshot_path.name}.provenance.json").write_text(
+                    json.dumps(sidecar), encoding="utf-8")
+                self._write_cache_pair(cache_root, f"online-{subdir}",
+                                       f"{online_channel}/{subdir}", payload)
+                online_provenance[subdir] = {
+                    "url": f"{online_channel}/{subdir}/repodata.json",
+                    "sha256": hashlib.sha256(payload).hexdigest(),
+                    "evidence_file": snapshot_path.name,
+                    "solver_cache": {"url": f"{online_channel}/{subdir}",
+                                     "cache_file": f"online-{subdir}.json",
+                                     "sha256": hashlib.sha256(payload).hexdigest(),
+                                     "size": len(payload)}}
+                local_payload = (bundle / "conda" / subdir / "repodata.json").read_bytes()
+                local_url = f"{local_channel_url}/{subdir}"
+                self._write_cache_pair(cache_root, f"offline-{subdir}", local_url, local_payload)
+                offline_cache[subdir] = {"url": local_url, "cache_file": f"offline-{subdir}.json",
+                                         "sha256": hashlib.sha256(local_payload).hexdigest(),
+                                         "size": len(local_payload)}
+            for subdir, name, version, build in conda_rows:
+                online_links.append({"base_url": online_channel, "name": name, "version": version,
+                                     "build_string": build, "platform": subdir,
+                                     "pma_upstream_repodata": online_provenance[subdir]})
+                offline_links.append({"base_url": local_channel_url, "name": name, "version": version,
+                                      "build_string": build, "platform": subdir})
+            (evidence / "conda-solve.json").write_text(
+                json.dumps({"actions": {"LINK": online_links, "FETCH": []}}), encoding="utf-8")
+            (evidence / "conda-offline-solve.json").write_text(
+                json.dumps({"actions": {"LINK": offline_links, "FETCH": []}}), encoding="utf-8")
+            (evidence / "conda-offline-repodata-provenance.json").write_text(
+                json.dumps(offline_cache), encoding="utf-8")
+            manifest["conda_offline_repodata_provenance_sha256"] = BUILDER.sha256(
+                evidence / "conda-offline-repodata-provenance.json")
+            (bundle / "bundle-manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+            (evidence / "conda-solver-cache-root.json").write_text(
+                json.dumps({"cache_root": str(cache_root)}), encoding="utf-8")
             env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1")
             result = subprocess.run([BUILDER.sys.executable,
                                      str(ROOT / "scripts/04b_footprint/validate_hint_bundle.py"),
-                                     str(bundle)], capture_output=True, text=True, env=env)
+                                     str(bundle), "--evidence-dir", str(evidence)],
+                                    capture_output=True, text=True, env=env)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            offline_solve_path = evidence / "conda-offline-solve.json"
+            offline_solve_bytes = offline_solve_path.read_bytes()
+            offline_solve_path.write_text(json.dumps({"actions": {"LINK": [], "FETCH": []}}),
+                                          encoding="utf-8")
+            rejected_offline_evidence = subprocess.run([BUILDER.sys.executable,
+                str(ROOT / "scripts/04b_footprint/validate_hint_bundle.py"),
+                str(bundle), "--evidence-dir", str(evidence)], capture_output=True, text=True, env=env)
+            self.assertNotEqual(rejected_offline_evidence.returncode, 0)
+            self.assertIn("OFFLINE_SOLVER_LOCK_CLOSURE_MISMATCH", rejected_offline_evidence.stderr)
+            offline_solve_path.write_bytes(offline_solve_bytes)
+            extra_repodata = bundle / "conda/linux-64/repodata.json"
+            extra_payload = json.loads(extra_repodata.read_text(encoding="utf-8"))
+            extra_payload["packages"]["rogue-1.0-0.tar.bz2"] = {
+                "name": "rogue", "version": "1.0", "build": "0",
+                "sha256": "a" * 64, "size": 1}
+            extra_repodata.write_text(json.dumps(extra_payload), encoding="utf-8")
+            rejected_repodata = subprocess.run([BUILDER.sys.executable,
+                str(ROOT / "scripts/04b_footprint/validate_hint_bundle.py"),
+                str(bundle), "--evidence-dir", str(evidence)], capture_output=True, text=True, env=env)
+            self.assertNotEqual(rejected_repodata.returncode, 0)
+            self.assertIn("REPODATA_RECORD_NOT_IN_LOCK", rejected_repodata.stderr)
+            extra_repodata.write_text(json.dumps(repodata["linux-64"]), encoding="utf-8")
+            (bundle / "rogue-output.bin").write_bytes(b"not inventoried")
+            rejected_extra_file = subprocess.run([BUILDER.sys.executable,
+                str(ROOT / "scripts/04b_footprint/validate_hint_bundle.py"),
+                str(bundle), "--evidence-dir", str(evidence)], capture_output=True, text=True, env=env)
+            self.assertNotEqual(rejected_extra_file.returncode, 0)
+            self.assertIn("BUNDLE_FILE_NOT_IN_INVENTORY:rogue-output.bin", rejected_extra_file.stderr)
 
     def test_dockerfile_pins_base_digest_and_tool_versions(self):
         text = (ROOT / "scripts/04b_footprint/Dockerfile.hint-builder").read_text()

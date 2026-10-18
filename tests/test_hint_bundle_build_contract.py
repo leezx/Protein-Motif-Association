@@ -465,7 +465,7 @@ case "$(basename "$1")" in
   build_hint_bundle.py)
     printf '%s|%s|%s|%s\n' "${SETUPTOOLS_USE_DISTUTILS:-}" \
       "${PMA_HINT_EXTERNAL_TOOLCHAIN_PYTHON_ROOT:-}" "${PYTHONPATH:-}" "$PWD" > "$BUILDER_ENV_REPORT"
-    "$WRAPPER_SCRIPT_PYTHON" -c 'import os; print(os.getcwd())' > "$PIP_CHILD_CWD_REPORT"
+    sh -c 'pwd -P' > "$PIP_CHILD_CWD_REPORT"
     echo 'https://user:secret@example.org/pkg?token=secret' >&2
     exit 23
     ;;

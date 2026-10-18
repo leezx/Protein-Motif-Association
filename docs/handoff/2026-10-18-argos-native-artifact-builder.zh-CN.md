@@ -1,5 +1,11 @@
 # Step 4b-1 Argos 原生 bundle builder 交接
 
+## 2026-10-18 14:10 EDT — 69e6d29 复审仅余模拟子进程 fixture
+
+PR #5 当前远端 HEAD `69e6d29817d4ab048faa3f14169e8b11c7e96e32`、base `6c2e323fc80cc3e05f9de05282d1bbce49ba98fa`、OPEN。GPT 对完整 HEAD 给 `REQUEST_CHANGES`：生产 wrapper 在保护检查后切换到 `$WORK`、pip 继承该目录、模块来源收窄到 workspace 内当前 CWD、backend 顶层 `packaging` 来源断言，均已通过静态复核；唯一新 blocker F4-R2 是 fake builder 用真实 Python 检查子进程 CWD 时继承了 sitecustomize 环境，而 fake toolchain 为空，预计启动时 exit 78。该 HEAD 未向 Argos 下发命令。
+
+同一 PR 本地只改 fixture：模拟 child 改用 `sh -c 'pwd -P'` 验证操作系统 CWD 继承；真实 `pip wheel` 后端的 Python startup/provenance 测试保持原样。`git diff --check` PASS；Mac mini 未运行测试、构建或分析。新修订尚未提交/推送/复审，故仍不得在 Argos 运行。下一步提交三份审计与这个单点修复、更新 PR body 到新完整 SHA、请求 GPT 明确 `APPROVE`；获批后在 Argos 跑完整合同与真实 pip-wheel backend，全通过才继续 artifact-only G2/offline preflight。外部失败日志保留，不改环境、不跑 HINT CLI/smoke/full analysis、不合并 PR #5。当前对 PI 目标二仍是 HINT 前置工作；目标一的 human-only unique BED6 待构建。`HUMAN DECISION: PENDING`。
+
 ## 2026-10-18 12:21 EDT — e293deba 复审反馈与当前最小修复
 
 PR #5 远端 HEAD `e293deba9d906b32cc3026adb5b1d2c18fb5bb3c`、base `6c2e323fc80cc3e05f9de05282d1bbce49ba98fa`、状态 OPEN。GPT 对完整 HEAD 给 `REQUEST_CHANGES`：F4-R1 指出生产 wrapper 未把 builder 和继承的 pip 子进程 CWD 固定在 protected external workspace，且模块 allowlist 对整个 workspace 的信任应与当前 CWD 路径规则一致；F5-R1 指出 `root in packaging.__file__.parents` 也会接受 setuptools vendored packaging，必须精确要求锁定的顶层 `root/packaging`。其余任意路径注入负例、backend jaraco/distutils 检查和此前解释器选择修复方向已获认可。该 HEAD 未向 Argos 发命令。

@@ -1,5 +1,13 @@
 # Step 4b-1 Argos 原生 bundle builder 交接
 
+## 2026-10-18 14:14 EDT — fc8cd41 已批准 Argos 合同运行：41 项中 2 项 fixture 失败
+
+GPT 对完整 PR #5 HEAD `fc8cd411fff5e30b90a04ac32d192fb8f4839983` 明确 `APPROVE`，仅放行 Argos 合同测试。已核对 PR 仍 OPEN、base 正确，Argos 在独立 checkout `/home/zz950/PMA_fetch/pma_pr5_code_fc8cd41` 与外部工作区 `/home/zz950/PMA_fetch/pma_pr5_g2_tests_fc8cd41` 运行；完整 SHA 核验通过，使用现有 pmafp Python 3.11、旧 G2 锁定 external toolchain 和 48 GB 虚拟内存限额。Python 编译与 wrapper shell 语法通过。41 项合同测试运行 83.526 秒：39 PASS、2 FAIL，真实 `pip wheel` 后端来源测试 PASS。完整日志：`/home/zz950/PMA_fetch/pma_pr5_g2_tests_fc8cd41/contract-tests-discovery.log`。
+
+两个失败均为测试夹具：非 site-packages 注入负例多传一个参数但把 `sys.argv[1:]` 解包成两个值，先触发 `ValueError`；hosthelper 负例实际被更早的 `ARGOS_TOOLCHAIN_HOST_SITE_PACKAGES_MODULE:hosthelper` 正确拒绝，但断言仍期待后面的 PYTHONPATH 标记。测试结束后 Conda after-inventory 受测试用 PYTHONPATH 污染而无法导入 conda；已只重跑只读清单命令并取消这些环境变量，Conda explicit/pip freeze 前后字节一致，`PMAFP_INTEGRITY_OK`。没有启动 G2 bundle、环境修改、HINT CLI、smoke 或分析，所有日志保留。
+
+同 PR 本地仅修这两项测试：负例只取 `sys.argv[1:3]`；hosthelper 断言匹配实际更早的 fail-closed 标记。生产隔离和真实 pip/backend 测试未改，`git diff --check` PASS；Mac mini 未运行测试/构建/分析。当前修订未提交/复审，不得继续 Argos。下一步提交审计与测试修复、更新 PR body、新 exact-head GPT `APPROVE` 后重跑全部 41 项；全通过才进 artifact-only G2/offline preflight。目标一 unique human ChIP-Atlas BED6 尚未构建，目标二尚未产生 caller benchmark；本次只验证了真实 pip backend 的前置路径。`HUMAN DECISION: PENDING`。
+
 ## 2026-10-18 14:10 EDT — 69e6d29 复审仅余模拟子进程 fixture
 
 PR #5 当前远端 HEAD `69e6d29817d4ab048faa3f14169e8b11c7e96e32`、base `6c2e323fc80cc3e05f9de05282d1bbce49ba98fa`、OPEN。GPT 对完整 HEAD 给 `REQUEST_CHANGES`：生产 wrapper 在保护检查后切换到 `$WORK`、pip 继承该目录、模块来源收窄到 workspace 内当前 CWD、backend 顶层 `packaging` 来源断言，均已通过静态复核；唯一新 blocker F4-R2 是 fake builder 用真实 Python 检查子进程 CWD 时继承了 sitecustomize 环境，而 fake toolchain 为空，预计启动时 exit 78。该 HEAD 未向 Argos 下发命令。

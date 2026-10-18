@@ -224,7 +224,7 @@ def add_shim():
             result = subprocess.run([sys.executable, "-c", "print('must-not-run')"],
                                     env=env, capture_output=True, text=True)
             self.assertEqual(result.returncode, 78)
-            self.assertIn("ARGOS_TOOLCHAIN_UNAPPROVED_PYTHONPATH_SITE_PACKAGES", result.stderr)
+            self.assertIn("ARGOS_TOOLCHAIN_HOST_SITE_PACKAGES_MODULE:hosthelper", result.stderr)
             self.assertNotIn("must-not-run", result.stdout)
 
     def test_external_vendor_follows_locked_root_and_excludes_host_site_packages(self):
@@ -244,7 +244,7 @@ def add_shim():
             script = (
                 "import pathlib, sys\n"
                 "from probe_hint_argos_toolchain import isolate_import_path\n"
-                "root, host = map(pathlib.Path, sys.argv[1:])\n"
+                "root, host = map(pathlib.Path, sys.argv[1:3])\n"
                 "sys.path.insert(0, str(host))\n"
                 "isolate_import_path(root)\n"
                 "import packaging\n"

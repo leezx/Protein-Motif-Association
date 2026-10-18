@@ -52,3 +52,9 @@ GPT 对 PR #4 HEAD `c63bc91` 明确给出 `APPROVE`：FASTA/FAI/marker 完成状
 裸 gDNA fragment 的全量 sort 在写 `/tmp/sortHyH1vI` 时因空间不足退出。Argos 的 `/tmp` 位于 54 GB 根文件系统，sort 临时 spill 需要超过当时可用空间；GNU sort 的失败没有由原来的 shell pipeline 传播，留下 28-byte `gDNA.frags.tsv.gz` 和 75-byte `.tbi`。我立即停止 driver（12074）和 prep（12212）。没有产生 region summary、smoke output 或任何 footprint caller 结果；没有修改 raw 输入。峰值采样 sort RSS 约 4.2 GB，低于 50 GB 上限。
 
 同一 PR 的修复将 sort spill 指向外部 `processed/round1/sort_tmp`，用 Bash `pipefail` 传播任意上游错误，并且只有 pysam 能打开非空 BGZF+tabix 文件时才复用 fragment 缓存；下一次运行会重建上述无效 gDNA 文件。Python bytecode compile、小型 `sort -T` 与 pipefail 检查、`git diff --check` 通过。当前 Mac Python 未安装 pysam，因此 pysam 缓存验证尚未在本地执行。Worklog 同步记录完整故障。更新后的 PR HEAD 必须经 GPT 明确复审后才可再次访问 Argos。
+
+## 2026-10-18 02:24 EDT — gDNA 缓存复审 findings 与 staged 发布修复
+
+GPT 对 PR #4 HEAD `a549dcf` 给出 `REQUEST_CHANGES`：现有 75-byte `.tbi` 会使默认 `tabix` 不覆盖索引；只读首条记录也无法发现后半段 BGZF 截断。GPT 确认 sort 临时盘、`pipefail` 和 `check=True` 修复正确；审计记录通过，scope-control finding 仍解决。GitHub review 再次 HTTP 403。本次复审后没有 Argos 访问。
+
+当前同一 PR 修复把 BGZF 写入唯一临时路径并用 `tabix -f` 建索引；完整 gzip 流读到 EOF、tabix 打开并读到记录后，才归档旧缓存并发布 BGZF/索引，SHA256 marker 最后写入。无效旧缓存归档到外部 `processed/round1/cache_interrupted/`。新增本地测试覆盖 stale 空索引的归档重建，以及首部可读、尾部截断的 gzip 拒绝。两项通过；原四项 reference setup fixture、Python bytecode 编译和 `git diff --check` 也通过。新 HEAD 仍需 GPT 明确批准后才能再访问 Argos。

@@ -15,11 +15,15 @@ Writes to <work_dir>:
 No caller-specific processing happens here.
 """
 import gzip
+import hashlib
 import json
+import os
 import random
 import shlex
 import subprocess
 import sys
+import tempfile
+import time
 from collections import Counter
 from pathlib import Path
 
@@ -29,18 +33,85 @@ CANON = {f"chr{i}" for i in list(range(1, 23)) + ["X", "Y"]}
 SEED = 20261017
 
 
-def indexed_file_ok(path):
+def sha256_file(path):
+    digest = hashlib.sha256()
+    with open(path, "rb") as f:
+        for block in iter(lambda: f.read(8 * 1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def cache_marker(path):
+    return Path(str(path) + ".complete.sha256")
+
+
+def write_cache_marker(path):
     index = Path(str(path) + ".tbi")
+    marker = cache_marker(path)
+    fd, tmp_marker = tempfile.mkstemp(prefix=f".{marker.name}.", dir=marker.parent)
+    with os.fdopen(fd, "w") as f:
+        f.write(f"{sha256_file(path)}  {path.name}\n{sha256_file(index)}  {index.name}\n")
+    os.replace(tmp_marker, marker)
+
+
+def indexed_file_ok(path, write_marker=True):
+    index, marker = Path(str(path) + ".tbi"), cache_marker(path)
     if not path.is_file() or path.stat().st_size == 0 or not index.is_file() or index.stat().st_size == 0:
         return False
+    if marker.is_file():
+        try:
+            expected = {parts[1]: parts[0] for line in marker.read_text().splitlines()
+                        if len(parts := line.split()) == 2}
+            return expected.get(path.name) == sha256_file(path) and expected.get(index.name) == sha256_file(index)
+        except (OSError, ValueError):
+            return False
     try:
+        # Read the complete gzip stream to EOF so a valid first BGZF block
+        # cannot mask truncation or CRC errors in later blocks.
+        has_bytes = False
+        with gzip.open(path, "rb") as f:
+            while True:
+                block = f.read(8 * 1024 * 1024)
+                if not block:
+                    break
+                has_bytes = True
+        if not has_bytes:
+            return False
         with pysam.TabixFile(str(path)) as tb:
             for contig in tb.contigs:
                 if next(tb.fetch(contig), None) is not None:
+                    if write_marker:
+                        write_cache_marker(path)
                     return True
             return False
     except Exception:
         return False
+
+
+def archive_cache(path, work):
+    index, marker = Path(str(path) + ".tbi"), cache_marker(path)
+    existing = [p for p in (path, index, marker) if p.exists()]
+    if not existing:
+        return
+    archive = Path(work) / "cache_interrupted" / f"{path.name}.{time.strftime('%Y%m%dT%H%M%S')}.{os.getpid()}"
+    archive.mkdir(parents=True, exist_ok=False)
+    for item in existing:
+        os.replace(item, archive / item.name)
+
+
+def build_indexed_bgzip(output, work, sort_tmp, command_builder):
+    fd, tmp_name = tempfile.mkstemp(prefix=f".{output.name}.", suffix=".tmp.gz", dir=output.parent)
+    os.close(fd)
+    staged = Path(tmp_name)
+    staged_index = Path(str(staged) + ".tbi")
+    command = command_builder(staged)
+    subprocess.run(["bash", "-o", "pipefail", "-c", command], check=True)
+    if not indexed_file_ok(staged, write_marker=False):
+        raise RuntimeError(f"staged BGZF/tabix output failed validation: {staged}")
+    archive_cache(output, work)
+    os.replace(staged, output)
+    os.replace(staged_index, Path(str(output) + ".tbi"))
+    write_cache_marker(output)
 
 
 def bam_to_frags(bams, out, name, sort_tmp):
@@ -59,9 +130,11 @@ def bam_to_frags(bams, out, name, sort_tmp):
                     continue
                 w.write(f"{r.reference_name}\t{s + 4}\t{e - 5}\t{name}\t1\n")
                 n["fragments"] += 1
-    cmd = (f"LC_ALL=C sort -T {shlex.quote(str(sort_tmp))} -k1,1 -k2,2n -k3,3n -S 4G {shlex.quote(tmp)} "
-           f"| bgzip -@ 4 > {shlex.quote(str(out))} && tabix -p bed {shlex.quote(str(out))} && rm {shlex.quote(tmp)}")
-    subprocess.run(["bash", "-o", "pipefail", "-c", cmd], check=True)
+    def command(staged):
+        return (f"LC_ALL=C sort -T {shlex.quote(str(sort_tmp))} -k1,1 -k2,2n -k3,3n -S 4G {shlex.quote(tmp)} "
+                f"| bgzip -@ 4 > {shlex.quote(str(staged))} && tabix -f -p bed {shlex.quote(str(staged))}")
+    build_indexed_bgzip(out, out.parent.parent, sort_tmp, command)
+    Path(tmp).unlink(missing_ok=True)
     return dict(n)
 
 
@@ -81,10 +154,11 @@ def main(raw, work, blacklist):
     g = work / "frags" / "gDNA.frags.tsv.gz"
     if not indexed_file_ok(g):
         files = " ".join(shlex.quote(str(p)) for p in sorted(geo.glob("GSM859988*_gDNA_*.frags.txt.gz")))
-        cmd = (f"zcat {files} | awk 'BEGIN{{OFS=\"\\t\"}}{{print $1,$2,$3,\"gDNA\",$5}}' "
-               f"| LC_ALL=C sort -T {shlex.quote(str(sort_tmp))} -k1,1 -k2,2n -k3,3n -S 4G "
-               f"| bgzip -@ 4 > {shlex.quote(str(g))} && tabix -p bed {shlex.quote(str(g))}")
-        subprocess.run(["bash", "-o", "pipefail", "-c", cmd], check=True)
+        def command(staged):
+            return (f"zcat {files} | awk 'BEGIN{{OFS=\"\\t\"}}{{print $1,$2,$3,\"gDNA\",$5}}' "
+                    f"| LC_ALL=C sort -T {shlex.quote(str(sort_tmp))} -k1,1 -k2,2n -k3,3n -S 4G "
+                    f"| bgzip -@ 4 > {shlex.quote(str(staged))} && tabix -f -p bed {shlex.quote(str(staged))}")
+        build_indexed_bgzip(g, work, sort_tmp, command)
     bl = []
     with gzip.open(blacklist, "rt") as f:
         bl = [(c, int(s), int(e)) for c, s, e, *_ in (line.split("\t") for line in f)]

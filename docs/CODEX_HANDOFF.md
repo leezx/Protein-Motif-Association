@@ -220,36 +220,15 @@ benchmark. See `docs/STEP1_*`, `docs/STEP2_*`.
   - `reference/hg38.fa.gz`.
 - **Working directory:** `processed/round1/`.
 
-## 6. State at handoff time (check first)
+## 6. Current execution state (2026-10-18 01:12 EDT; verify live before acting)
 
-- **Downloads still running on Argos (nohup):** `fp_download.sh` (the last ENCODE BAM, ENCFF745WLX, plus MD5SUMS)
-  and `fp_refs.sh` (hg38Tn5Bias.tar.gz, 11.2 GB, then MD5SUMS.refs). Logs are in `/home/zz950/PMA_fetch/`.
-  - They write `raw/2026-10-17/download.done` and `refs.done` when finished.
-  - `reference/hg38.fa.gz` is already complete (`hg38.fa.gz.ok`).
-- **The 4b driver was stopped by the user's decision before any analysis ran.** `/home/zz950/PMA_fetch/fp_4b1.log`
-  has a note. **Codex starts round 1.** Once both `.done` files exist, launch the driver from
-  `/home/zz950/PMA_code_4b`: `git pull` first, then run it via nohup as below.
-  ```
-  R=/home/zz950/DATA/2.PROJECTS/PMA/atac_footprint/raw/2026-10-17
-  W=/home/zz950/DATA/2.PROJECTS/PMA/atac_footprint/processed/round1
-  C=/home/zz950/DATA/2.PROJECTS/PMA/occupancy_chipatlas/raw/2026-10-17/reference
-  nohup bash scripts/04b_footprint/run_4b1.sh $R $W /home/zz950/softwares/miniforge3/envs/pmafp \
-    /home/zz950/softwares/src/PRINT $C/hg38.chrom.sizes $C/hg38-blacklist.v2.bed.gz \
-    /home/zz950/PMA_fetch/fp_env6.log > /home/zz950/PMA_fetch/fp_4b1.log 2>&1 &
-  ```
-- **Driver sequence:** it waits for inputs → setup → prep → **smoke test** (20 regions per set) → round 1 (12 parallel
-  jobs × 6 cores). Outputs go to `processed/round1/runs/<gdna|ctrl|aux>/`.
-- **If the smoke test fails,** the driver stops with `SMOKE_FAIL`/`SMOKE_MISSING`. Fix the runner, commit, `git pull`
-  on Argos, then re-run the driver. Setup and prep reuse existing outputs (fragments, BAMs, unpacked resources); the
-  caller runs are redone.
-- **Expect first-run bugs.** None of the four runners has executed end-to-end yet. The most likely failure points:
-  - TraceBIND `get_bias` (reticulate → `pmafp` python, Keras 3 loading the Keras 2 `.h5`);
-  - PRINT `getPrecomputedBias` (h5 layout inside the Zenodo tar, `00_setup.sh` path logic);
-  - the RGT genome config in `~/rgtdata/data.config.user`;
-  - TOBIAS needing an uncompressed, indexed fasta.
-- **The tool environment is complete** (`fp_env6.log`: rgt, tf, tracebind and bsgenome all OK).
-- **Nothing else of ours runs on Argos.** The obsolete Step 2c ENCODE model fetch was stopped on purpose; see
-  `motif_reference/raw/encode_grammar/2026-10-16/FETCH_NOTE.txt`.
+- **User-confirmed preflight:** all downloads finished and source checks passed. On Argos, `download.done`, `refs.done`, `reference/hg38.fa.gz.ok`, `MD5SUMS`, and `MD5SUMS.refs` are present. The user confirmed ENCODE official MD5/byte counts, Zenodo MD5/byte counts, UCSC hg38 MD5, and prior GEO checks.
+- **Environment:** `/home/zz950/PMA_fetch/fp_env6.log` contains `rgt_OK`, `tf_OK`, TraceBIND 0.17.5, Keras 3.15.1, MACS3 3.0.4, pysam 0.24.1, RGT 1.0.2, TOBIAS 0.17.5, `tracebind_OK`, `bsgenome_OK`, and `ENV_DONE`.
+- **Code checkout:** `/home/zz950/PMA_code_4b` was clean on `step4b-atac-footprinting`; `git pull --ff-only` advanced it from `a4cd205` to `7e049f1`.
+- **Driver:** launched per this section's command at 2026-10-17 23:45 EDT, PID 8822, log `/home/zz950/PMA_fetch/fp_4b1.log`. It stopped at setup with `SETUP_FAIL`; no smoke test or round-1 analysis ran. No matching process remained at 2026-10-18 01:12 EDT.
+- **Failure diagnosis:** `00_setup.sh` uses `set -euo pipefail`; its `ls -la precomputedTn5Bias dispModel | head` preview exits 141 on Argos because the long listing makes `ls` receive SIGPIPE. Reproduction under `pipefail` returned `ls_head_pipeline_exit=141`. The PRINT dispersion directory, bias HDF5, and NN model are present. The later `hg38.chrom.sizes` copy and `hg38.fa` decompression/indexing did not run.
+- **Repair in progress:** replace the truncated listing with `ls -ld precomputedTn5Bias dispModel`. Validate shell syntax and review the focused diff; submit the current Step 4b PR for ChatGPT review. **Do not restart setup or dependent analysis until the current PR receives explicit `APPROVE`.**
+- **Next after approval:** sync the reviewed commit on Argos, rerun the driver, and verify setup → input preparation → all smoke outputs (20 regions each for `gdna`, `ctrl`, `aux`) before permitting the 12 round-1 jobs.
 
 ## 7. Next steps (in order)
 

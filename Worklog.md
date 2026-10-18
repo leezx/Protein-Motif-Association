@@ -142,3 +142,26 @@ For Step 3: F16 read collection-specific quality from the membership
 table; F17 experiment count is not cluster size.
 
 **Next**: PR #3 merged 2026-10-16 (a19666f) on user confirmation; Step 3 design on v0.2.1.
+
+
+## 2026-10-17 23:45 EDT — Step 4b-1 driver launched on Argos
+
+**Direction**: run the approved CPU-only, motif-free caller benchmark on the frozen common inputs; do not select a caller from smoke-test output.
+
+**Preflight**: user confirmed all downloads and source checks completed. Read-only Argos checks found `download.done`, `refs.done`, `reference/hg38.fa.gz.ok`, `MD5SUMS`, and `MD5SUMS.refs`; `/home/zz950/PMA_fetch/fp_env6.log` reported `ENV_DONE`, `tracebind_OK`, `bsgenome_OK`, RGT, TF, and TOBIAS readiness. No matching benchmark or download process was running. Checksums were user-confirmed; this session verified the manifests and completion markers were present, not recomputed every large-file checksum.
+
+**Code sync and launch**: `/home/zz950/PMA_code_4b` was clean on `step4b-atac-footprinting`, initially at `a4cd205` (two commits behind). The first combined background command did not complete the pull or start a driver; a follow-up read confirmed the checkout was still behind and no process existed. Ran `git pull --ff-only` synchronously; it fast-forwarded to `7e049f1`. Then launched the §6 `run_4b1.sh` command with `nohup` (PID 8822), logging to `/home/zz950/PMA_fetch/fp_4b1.log`.
+
+**Observed at 23:45 EDT**: `run_4b1.sh` and `00_setup.sh` were active; the driver log showed extraction at `dispModel/dispModel/dispersionModel10bp.rds`. `runs_smoke/` did not yet exist. No smoke-test or round-1 result is claimed. All raw inputs and generated outputs remain outside this repository.
+
+**Next**: monitor the setup and prep stages; require every smoke output for `gdna`, `ctrl`, and `aux` before the driver proceeds to 12 round-1 jobs. On any smoke failure, stop and fix only the failing runner, then repeat smoke before full evaluation.
+
+## 2026-10-18 01:12 EDT — Step 4b-1 setup failure and minimal repair
+
+**Observed failure**: driver PID 8822 exited in `00_setup.sh` with `SETUP_FAIL`. The log ended after listing PRINT shared resources. Read-only checks found the dispersion models, `precomputedTn5Bias/hg38Tn5Bias.h5`, and `Tn5_NN_model.h5`; `hg38.chrom.sizes`, `hg38.fa`, and `hg38.fa.fai` were absent, so setup had stopped before copy/decompression/indexing. No smoke or round-1 analysis ran.
+
+**Diagnosis**: `00_setup.sh` enables `set -euo pipefail` and runs `ls -la precomputedTn5Bias dispModel | head`. Reproduced this exact listing pipeline on Argos; it returned 141 (`ls` received SIGPIPE when `head` closed the pipe). This was the setup failure.
+
+**Repair**: change only the log preview to `ls -ld precomputedTn5Bias dispModel`, which avoids truncating a long listing. No analysis thresholds, input definitions, or outputs changed. Shell syntax validation and PR review are pending.
+
+**Gate**: per the active review gate, do not rerun setup or any dependent external analysis until the current Step 4b PR receives explicit ChatGPT `APPROVE`. The incomplete setup outputs remain under the external DATA path and will be reused by the rerun.

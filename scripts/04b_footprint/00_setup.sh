@@ -13,7 +13,7 @@ if [ ! -s precomputedTn5Bias/hg38Tn5Bias.h5 ]; then
   H=$(find precomputedTn5Bias -name "*.h5" | head -1); [ "$H" != "precomputedTn5Bias/hg38Tn5Bias.h5" ] && mv "$H" precomputedTn5Bias/hg38Tn5Bias.h5
 fi
 cp -n $RAW/print_zenodo/Tn5_NN_model.h5 .
-ls -la precomputedTn5Bias dispModel | head
+ls -ld precomputedTn5Bias dispModel
 cp -n $SIZES $W/hg38.chrom.sizes
 if [ ! -s $RAW/reference/hg38.fa ]; then gunzip -c $RAW/reference/hg38.fa.gz > $RAW/reference/hg38.fa; fi
 [ -s $RAW/reference/hg38.fa.fai ] || $ENV/bin/samtools faidx $RAW/reference/hg38.fa

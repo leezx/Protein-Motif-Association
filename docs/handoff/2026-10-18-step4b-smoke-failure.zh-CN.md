@@ -147,3 +147,7 @@ GPT 对完整 PR #4 HEAD `4a07dc5dfe5a7dd97cae2978e49ca913c96505fa` 返回 `REQU
 同一分支本地最小修复：验证 linux-64/noarch repodata 的存在、哈希 inventory 覆盖和 JSON 结构；逐个比对 lock 的文件名、name/version/build/SHA 与 repodata 记录；拒绝重复 dist；比较 solver LINK 可提供的 subdir/filename；solver 闭包通过后生成并在安装时使用锁定的本地 `@EXPLICIT` URL 清单。Wheel 增加 CPython 3.11 `Requires-Python` 检查、显式 Linux/CPython marker 值；未知内核 release/version marker 和裸 `linux_x86_64` tag fail closed。新增 negative fixtures 覆盖 repodata inventory 缺项、repodata/lock SHA 不一致和 solver filename 不一致，并验证安装使用 exact URLs。
 
 验证：shell syntax、validator compile-in-memory、`tests/test_hint_env_builder.sh`、`tests/test_step4b_runner_contract.sh`、`git diff --check` 均通过。远端 PR HEAD 仍是 `4a07dc5`；本地修复未提交，需与同步后的审计一起提交并推送，再请 GPT 审核完整新 HEAD。没有 Argos 连接/命令、bundle 传输、环境变更、HINT/benchmark 运行、数据更改或合并；保持审核门禁关闭。
+
+## 2026-10-18 04:52 EDT — F1/F2 修复提交到本地分支
+
+上述 F1/F2 修复已提交为 `6c59bd4`，仍在 `task_20261018_step4b_setup_fix`，尚未推送。提交不包含无关未跟踪 `design/protein_binding_resources.md`。origin/PR #4 暂仍为 `4a07dc5`。接下来同步本次提交状态后推送同一分支，刷新 PR 描述并请 GPT 复审新完整 HEAD；明确通过前不连接 Argos。

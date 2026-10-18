@@ -9,6 +9,7 @@ import zipfile
 from email.parser import Parser
 
 from packaging.requirements import Requirement
+from packaging.specifiers import SpecifierSet
 from packaging.utils import parse_wheel_filename
 from packaging.version import Version
 
@@ -21,7 +22,7 @@ def wheel_targets_hint(wheel_tags):
     Do not use sys_tags(): this validator runs from pmafp, whose Python ABI may
     differ from the isolated HINT target being built.
     """
-    platform_tags = {"any", "linux_x86_64", "manylinux1_x86_64",
+    platform_tags = {"any", "manylinux1_x86_64",
                      "manylinux2010_x86_64", "manylinux2014_x86_64"}
     platform_tags.update(f"manylinux_2_{minor}_x86_64" for minor in range(5, 24))
     for tag in wheel_tags:
@@ -30,6 +31,33 @@ def wheel_targets_hint(wheel_tags):
         if python_ok and abi_ok and tag.platform in platform_tags:
             return True
     return False
+
+
+def wheel_requires_hint_python(requires_python, target_version):
+    return not requires_python or SpecifierSet(requires_python).contains(
+        Version(target_version), prereleases=True
+    )
+
+
+def hint_marker_environment(python_full_version):
+    return {
+        "implementation_name": "cpython",
+        "implementation_version": python_full_version,
+        "os_name": "posix",
+        "platform_machine": "x86_64",
+        "platform_python_implementation": "CPython",
+        "platform_release": "",
+        "platform_system": "Linux",
+        "platform_version": "",
+        "python_full_version": python_full_version,
+        "python_version": ".".join(python_full_version.split(".")[:2]),
+        "sys_platform": "linux",
+        "extra": "",
+    }
+
+
+def marker_environment_supported(raw_requirement):
+    return not re.search(r"\b(?:platform_release|platform_version)\b", raw_requirement)
 
 
 def fail(message):
@@ -126,7 +154,28 @@ def main():
     if artifacts.get(report_relative) != manifest.get("rgt_build_report_sha256", "").lower():
         issues.append("RGT_BUILD_REPORT_NOT_IN_ARTIFACT_INVENTORY")
 
+    repodata_by_subdir = {}
+    for subdir in ("linux-64", "noarch"):
+        relative = f"conda/{subdir}/repodata.json"
+        if relative not in artifacts:
+            issues.append(f"REPODATA_NOT_IN_ARTIFACT_INVENTORY:{relative}")
+        path = os.path.join(bundle, relative)
+        try:
+            with open(path, encoding="utf-8") as handle:
+                parsed_repodata = json.load(handle)
+            if not isinstance(parsed_repodata, dict):
+                issues.append(f"REPODATA_ROOT_INVALID:{relative}")
+                repodata_by_subdir[subdir] = {}
+            elif not isinstance(parsed_repodata.get("packages"), dict):
+                issues.append(f"REPODATA_PACKAGES_INVALID:{relative}")
+                repodata_by_subdir[subdir] = parsed_repodata
+            else:
+                repodata_by_subdir[subdir] = parsed_repodata
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            issues.append(f"REPODATA_INVALID:{relative}:{exc}")
+
     conda_packages = {}
+    repodata_dist_keys = {}
     try:
         with open(conda_path, encoding="utf-8") as handle:
             for line_number, line in enumerate(handle, 1):
@@ -153,6 +202,19 @@ def main():
                     issues.append(f"MISSING_CONDA_ARTIFACT:{name}={version}={build}")
                 elif sha256(path) != digest.lower():
                     issues.append(f"CONDA_ARTIFACT_HASH_MISMATCH:{relative}")
+                package_record = repodata_by_subdir.get(subdir, {}).get("packages", {}).get(filename)
+                if package_record is None:
+                    issues.append(f"CONDA_LOCK_NOT_IN_REPODATA:{relative}")
+                else:
+                    for field, expected_value in (("name", name), ("version", version), ("build", build), ("sha256", digest.lower())):
+                        observed = package_record.get(field)
+                        if observed is None or str(observed).lower() != str(expected_value).lower():
+                            issues.append(f"CONDA_REPODATA_{field.upper()}_MISMATCH:{relative}")
+                    dist_key = (subdir, key, version, build)
+                    prior = repodata_dist_keys.get(dist_key)
+                    if prior is not None and prior != filename:
+                        issues.append(f"CONDA_REPODATA_DUPLICATE_DIST:{subdir}/{name}/{version}/{build}")
+                    repodata_dist_keys[dist_key] = filename
     except OSError as exc:
         issues.append(f"CONDA_LOCK_INVALID:{exc}")
     for name, expected in (("python", None), ("numpy", "1.26.4"), ("setuptools", "80.9.0")):
@@ -214,6 +276,10 @@ def main():
                 if normalized(metadata.get("Name", "")) != key or Version(metadata.get("Version", "0")) != wheel_version:
                     issues.append(f"WHEEL_IDENTITY_MISMATCH:{filename}")
                     continue
+                target_python = conda_packages.get("python", ("3.11.0", ""))[0]
+                requires_python = metadata.get("Requires-Python")
+                if not wheel_requires_hint_python(requires_python, target_python):
+                    issues.append(f"WHEEL_REQUIRES_PYTHON_MISMATCH:{filename}:{requires_python}:{target_python}")
                 wheel_meta[key] = (filename, metadata)
                 if key == "rgt" and filename != rgt_wheel:
                     issues.append("RGT_WHEEL_NAME_MISMATCH")
@@ -236,11 +302,15 @@ def main():
     installed.update({name: value[0] for name, value in pip_packages.items()})
     python_full_version = conda_packages.get("python", ("3.11.0", ""))[0]
     python_major_minor = ".".join(python_full_version.split(".")[:2])
+    target_marker_environment = hint_marker_environment(python_full_version)
     for key, (_filename, metadata) in wheel_meta.items():
         for raw_requirement in metadata.get_all("Requires-Dist", []):
             try:
                 requirement = Requirement(raw_requirement)
-                if requirement.marker and not requirement.marker.evaluate({"python_version": python_major_minor, "python_full_version": python_full_version, "sys_platform": "linux", "platform_machine": "x86_64", "extra": ""}):
+                if requirement.marker and not marker_environment_supported(raw_requirement):
+                    issues.append(f"UNSUPPORTED_TARGET_MARKER_ENVIRONMENT:{key}:{raw_requirement}")
+                    continue
+                if requirement.marker and not requirement.marker.evaluate(target_marker_environment):
                     continue
                 dependency = normalized(requirement.name)
                 if dependency not in installed:

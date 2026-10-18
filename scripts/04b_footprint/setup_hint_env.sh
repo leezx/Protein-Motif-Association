@@ -13,6 +13,7 @@ PIP_LOCK=${BUNDLE}/pip-requirements.lock
 ARTIFACTS=${BUNDLE}/artifacts.sha256
 BUNDLE_META=${BUNDLE}/bundle-manifest.json
 CONDA_SPECS_TMP=${AUDIT}/conda-specs.generated.txt
+CONDA_EXPLICIT_TMP=${AUDIT}/conda-explicit.generated.txt
 AUDIT_DONE=0
 
 sha256_file() {
@@ -131,19 +132,57 @@ import json, sys
 with open(sys.argv[1], encoding="utf-8") as handle:
     result = json.load(handle)
 with open(sys.argv[2], encoding="utf-8") as handle:
-    expected = {(fields[1].lower(), fields[2], fields[3])
+    expected = {(fields[1].lower(), fields[2], fields[3]): (fields[0], fields[4])
                 for line in handle if line.strip() and not line.lstrip().startswith("#")
                 for fields in [line.rstrip("\n").split("\t")] if len(fields) == 6}
 linked = (result.get("actions") or {}).get("LINK")
 if not isinstance(linked, list):
     raise SystemExit("CONDA_DRY_RUN_ACTIONS_UNVERIFIABLE")
-actual = {(item.get("name", "").lower(), item.get("version", ""),
-           item.get("build_string", item.get("build", ""))) for item in linked}
-if actual != expected:
+actual = {}
+for item in linked:
+    identity = (item.get("name", "").lower(), item.get("version", ""),
+                item.get("build_string", item.get("build", "")))
+    if identity in actual:
+        raise SystemExit(f"CONDA_DRY_RUN_DUPLICATE_LINK:{identity}")
+    if identity not in expected:
+        raise SystemExit(f"CONDA_DEPENDENCY_CLOSURE_MISMATCH unexpected={identity}")
+    expected_subdir, expected_filename = expected[identity]
+    observed_subdir = item.get("subdir", item.get("platform"))
+    if observed_subdir and observed_subdir != expected_subdir:
+        raise SystemExit(f"CONDA_LINK_SUBDIR_MISMATCH:{identity}:{observed_subdir}:{expected_subdir}")
+    observed_filename = item.get("fn", item.get("filename"))
+    if observed_filename and observed_filename != expected_filename:
+        raise SystemExit(f"CONDA_LINK_FILENAME_MISMATCH:{identity}:{observed_filename}:{expected_filename}")
+    actual[identity] = item
+if set(actual) != set(expected):
     raise SystemExit(f"CONDA_DEPENDENCY_CLOSURE_MISMATCH expected={sorted(expected)} actual={sorted(actual)}")
 PY
   then
     echo "CONDA_DEPENDENCY_CLOSURE_UNVERIFIED; inspect $AUDIT/conda-dry-run.json" >&2
+    return 1
+  fi
+  if ! "$PMAFP/bin/python" - "$CONDA_LOCK" "$BUNDLE/conda" "$CONDA_EXPLICIT_TMP" <<'PY'
+from pathlib import Path
+import sys
+lock_path, channel, output_path = sys.argv[1:]
+rows = []
+with open(lock_path, encoding="utf-8") as handle:
+    for line_number, line in enumerate(handle, 1):
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        fields = line.rstrip("\n").split("\t")
+        if len(fields) != 6:
+            raise SystemExit(f"CONDA_LOCK_ROW_INVALID:{line_number}")
+        subdir, _name, _version, _build, filename, _digest = fields
+        rows.append((Path(channel, subdir, filename).resolve().as_uri()))
+if not rows:
+    raise SystemExit("CONDA_LOCK_EMPTY")
+with open(output_path, "w", encoding="utf-8") as handle:
+    handle.write("@EXPLICIT\n")
+    handle.writelines(url + "\n" for url in rows)
+PY
+  then
+    echo "CONDA_EXPLICIT_LOCK_GENERATION_FAIL" >&2
     return 1
   fi
   if ! run_bounded env PIP_NO_CACHE_DIR=1 "$PMAFP/bin/python" -m pip install --dry-run --no-deps --no-index \
@@ -166,8 +205,8 @@ trap on_exit EXIT
 "$PMAFP/bin/python" -m pip freeze --all > "$PMAFP_PIP_BEFORE"
 
 # Create at the final prefix only after preflight has verified every locked artifact.
-run_bounded "$CONDA" create --yes --offline --override-channels --no-default-packages --copy \
-  --channel "$CONDA_CHANNEL_URI" --prefix "$TARGET" --file "$CONDA_SPECS_TMP"
+run_bounded "$CONDA" create --yes --offline --no-default-packages --copy \
+  --prefix "$TARGET" --file "$CONDA_EXPLICIT_TMP"
 run_bounded env PIP_NO_CACHE_DIR=1 "$TARGET/bin/python" -m pip install --no-deps --no-index \
   --find-links "$BUNDLE/wheels" --only-binary=:all: --require-hashes -r "$PIP_LOCK"
 "$TARGET/bin/python" -m pip check

@@ -139,3 +139,11 @@ run_4b1.sh 没有启用 errexit；因此为 HINT_SMALLBED_VALIDATED 的写入和
 ## 2026-10-18 04:42 EDT — 本地实现提交
 
 同一分支将离线 HINT bundle closure/provenance 校验、Conda solver closure 比对、受限安装子进程、独立 small-BED marker、fixture 与留痕提交为 `7ad22d3`。只暂存本任务八个文件；无关未跟踪 `design/protein_binding_resources.md` 未加入。验证在提交前已通过。此时提交只存在本地，origin/PR #4 仍为 `971fdce`；没有 Argos 或外部数据操作。下一步更新精确提交记录后推送原分支、更新 PR 描述并请 GPT 审核当前完整 HEAD，批准前不运行 Argos。
+
+## 2026-10-18 04:52 EDT — GPT 复审 F1/F2 与本地修复
+
+GPT 对完整 PR #4 HEAD `4a07dc5dfe5a7dd97cae2978e49ca913c96505fa` 返回 `REQUEST_CHANGES`。F1：dry-run LINK 只比对包名/版本/build，且未保证两份 repodata 受 inventory/hash 绑定、也未证明 lock 指定的 archive 就是实际安装的包。F2：wheel 校验缺少 `Requires-Python`、完整目标 marker 环境，以及裸 `linux_x86_64` binary wheel 的 glibc 兼容证据。
+
+同一分支本地最小修复：验证 linux-64/noarch repodata 的存在、哈希 inventory 覆盖和 JSON 结构；逐个比对 lock 的文件名、name/version/build/SHA 与 repodata 记录；拒绝重复 dist；比较 solver LINK 可提供的 subdir/filename；solver 闭包通过后生成并在安装时使用锁定的本地 `@EXPLICIT` URL 清单。Wheel 增加 CPython 3.11 `Requires-Python` 检查、显式 Linux/CPython marker 值；未知内核 release/version marker 和裸 `linux_x86_64` tag fail closed。新增 negative fixtures 覆盖 repodata inventory 缺项、repodata/lock SHA 不一致和 solver filename 不一致，并验证安装使用 exact URLs。
+
+验证：shell syntax、validator compile-in-memory、`tests/test_hint_env_builder.sh`、`tests/test_step4b_runner_contract.sh`、`git diff --check` 均通过。远端 PR HEAD 仍是 `4a07dc5`；本地修复未提交，需与同步后的审计一起提交并推送，再请 GPT 审核完整新 HEAD。没有 Argos 连接/命令、bundle 传输、环境变更、HINT/benchmark 运行、数据更改或合并；保持审核门禁关闭。

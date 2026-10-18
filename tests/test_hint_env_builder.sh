@@ -13,12 +13,24 @@ mkdir -p "$MOCK_ROOT/bin" "$PMAFP/bin" "$BUNDLE/conda/linux-64" "$BUNDLE/conda/n
 
 PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$ROOT/scripts/04b_footprint" python3 - <<'PY'
 from packaging.tags import Tag
-from validate_hint_bundle import wheel_targets_hint
+from validate_hint_bundle import (
+    hint_marker_environment, marker_environment_supported,
+    wheel_requires_hint_python, wheel_targets_hint,
+)
 
 assert wheel_targets_hint({Tag("py3", "none", "any")})
 assert wheel_targets_hint({Tag("cp311", "cp311", "manylinux_2_17_x86_64")})
 assert not wheel_targets_hint({Tag("cp310", "cp310", "manylinux_2_17_x86_64")})
 assert not wheel_targets_hint({Tag("cp311", "cp311", "macosx_14_0_arm64")})
+assert not wheel_targets_hint({Tag("cp311", "cp311", "linux_x86_64")})
+assert wheel_requires_hint_python(">=3.11,<3.12", "3.11.17")
+assert not wheel_requires_hint_python(">=3.12", "3.11.17")
+marker_env = hint_marker_environment("3.11.17")
+assert marker_env["platform_system"] == "Linux" and marker_env["implementation_name"] == "cpython"
+assert marker_env["python_version"] == "3.11" and marker_env["sys_platform"] == "linux"
+from packaging.requirements import Requirement
+assert Requirement("demo; platform_system == 'Linux' and implementation_name == 'cpython' and python_version >= '3.11'").marker.evaluate(marker_env)
+assert not marker_environment_supported("somepkg; platform_release == 'x'")
 PY
 
 cat > "$MOCK_ROOT/bin/python" <<'PYTHON'
@@ -64,9 +76,11 @@ set -euo pipefail
 command_name=$1; shift
 prefix=
 dry_run=0
+file_arg=
 while [[ "$#" -gt 0 ]]; do
   case "$1" in
     --prefix) prefix=$2; shift 2 ;;
+    --file) file_arg=$2; shift 2 ;;
     --dry-run) dry_run=1; shift ;;
     *) shift ;;
   esac
@@ -80,13 +94,21 @@ case "$command_name" in
     ;;
   create)
     if [[ "$dry_run" == 1 ]]; then
+      if [[ "${MOCK_CONDA_FILENAME_MISMATCH:-0}" == 1 ]]; then
+        echo '{"success":true,"actions":{"LINK":[{"name":"python","version":"3.11.17","build_string":"mock_0","subdir":"linux-64","fn":"other-python.tar.bz2"},{"name":"numpy","version":"1.26.4","build_string":"mock_0","subdir":"linux-64","fn":"numpy-mock.tar.bz2"},{"name":"setuptools","version":"80.9.0","build_string":"mock_0","subdir":"noarch","fn":"setuptools-mock.tar.bz2"}]}}'
+        exit 0
+      fi
       if [[ "${MOCK_CONDA_CLOSURE_MISMATCH:-0}" == 1 ]]; then
-        echo '{"success":true,"actions":{"LINK":[{"name":"python","version":"3.11.17","build_string":"mock_0"},{"name":"numpy","version":"1.26.4","build_string":"mock_0"}]}}'
+        echo '{"success":true,"actions":{"LINK":[{"name":"python","version":"3.11.17","build_string":"mock_0","subdir":"linux-64","fn":"python-mock.tar.bz2"},{"name":"numpy","version":"1.26.4","build_string":"mock_0","subdir":"linux-64","fn":"numpy-mock.tar.bz2"}]}}'
       else
-        echo '{"success":true,"actions":{"LINK":[{"name":"python","version":"3.11.17","build_string":"mock_0"},{"name":"numpy","version":"1.26.4","build_string":"mock_0"},{"name":"setuptools","version":"80.9.0","build_string":"mock_0"}]}}'
+        echo '{"success":true,"actions":{"LINK":[{"name":"python","version":"3.11.17","build_string":"mock_0","subdir":"linux-64","fn":"python-mock.tar.bz2"},{"name":"numpy","version":"1.26.4","build_string":"mock_0","subdir":"linux-64","fn":"numpy-mock.tar.bz2"},{"name":"setuptools","version":"80.9.0","build_string":"mock_0","subdir":"noarch","fn":"setuptools-mock.tar.bz2"}]}}'
       fi
       exit 0
     fi
+    [[ "$(head -n 1 "$file_arg")" == "@EXPLICIT" ]]
+    grep -q 'python-mock.tar.bz2' "$file_arg"
+    grep -q 'numpy-mock.tar.bz2' "$file_arg"
+    grep -q 'setuptools-mock.tar.bz2' "$file_arg"
     mkdir -p "$prefix/bin"
     cp "$MOCK_HINT_ROOT/bin/python" "$prefix/bin/python"
     cp "$MOCK_HINT_ROOT/bin/rgt-hint" "$prefix/bin/rgt-hint"
@@ -112,6 +134,20 @@ python_sha=$(shasum -a 256 "$BUNDLE/conda/linux-64/python-mock.tar.bz2" | awk '{
 numpy_sha=$(shasum -a 256 "$BUNDLE/conda/linux-64/numpy-mock.tar.bz2" | awk '{print $1}')
 setuptools_sha=$(shasum -a 256 "$BUNDLE/conda/noarch/setuptools-mock.tar.bz2" | awk '{print $1}')
 wheel_sha=$(shasum -a 256 "$BUNDLE/wheels/RGT-1.0.2-py3-none-any.whl" | awk '{print $1}')
+python3 - "$BUNDLE/conda/linux-64/repodata.json" "$BUNDLE/conda/noarch/repodata.json" \
+  "$python_sha" "$numpy_sha" "$setuptools_sha" <<'REPODATA'
+import json, sys
+linux_path, noarch_path, python_sha, numpy_sha, setuptools_sha = sys.argv[1:]
+with open(linux_path, "w", encoding="utf-8") as handle:
+    json.dump({"packages": {
+        "python-mock.tar.bz2": {"name": "python", "version": "3.11.17", "build": "mock_0", "sha256": python_sha},
+        "numpy-mock.tar.bz2": {"name": "numpy", "version": "1.26.4", "build": "mock_0", "sha256": numpy_sha},
+    }, "packages.conda": {}}, handle)
+with open(noarch_path, "w", encoding="utf-8") as handle:
+    json.dump({"packages": {
+        "setuptools-mock.tar.bz2": {"name": "setuptools", "version": "80.9.0", "build": "mock_0", "sha256": setuptools_sha},
+    }, "packages.conda": {}}, handle)
+REPODATA
 mkdir -p "$BUNDLE/reports"
 python3 - "$BUNDLE/reports/rgt-wheel-audit.json" "$wheel_sha" <<'REPORT'
 import json, sys
@@ -282,5 +318,62 @@ if MOCK_HINT_ROOT="$MOCK_ROOT" MOCK_CONDA_CLOSURE_MISMATCH=1 bash "$SETUP" prefl
 fi
 grep -q CONDA_DEPENDENCY_CLOSURE_UNVERIFIED "$TMP/bad-closure.log"
 [[ ! -e "$MOCK_ROOT/pma_hint_bad_closure" ]]
+
+if MOCK_HINT_ROOT="$MOCK_ROOT" MOCK_CONDA_FILENAME_MISMATCH=1 bash "$SETUP" preflight "$CONDA" "$PMAFP" "$MOCK_ROOT/pma_hint_bad_filename" "$BUNDLE" "$AUDIT/bad-filename" \
+  > "$TMP/bad-filename.log" 2>&1; then
+  echo "expected Conda LINK filename mismatch" >&2; exit 1
+fi
+grep -q CONDA_LINK_FILENAME_MISMATCH "$TMP/bad-filename.log"
+[[ ! -e "$MOCK_ROOT/pma_hint_bad_filename" ]]
+
+REPODATA_GAP_BUNDLE="$MOCK_ROOT/repodata-gap-bundle"
+cp -R "$BUNDLE" "$REPODATA_GAP_BUNDLE"
+python3 - "$REPODATA_GAP_BUNDLE" <<'PY'
+import hashlib, json, sys
+from pathlib import Path
+root = Path(sys.argv[1])
+inventory = root / "artifacts.sha256"
+lines = [line for line in inventory.read_text().splitlines() if not line.endswith("conda/linux-64/repodata.json")]
+inventory.write_text("\n".join(lines) + "\n")
+manifest_path = root / "bundle-manifest.json"
+manifest = json.loads(manifest_path.read_text())
+manifest["artifacts_sha256"] = hashlib.sha256(inventory.read_bytes()).hexdigest()
+manifest_path.write_text(json.dumps(manifest))
+PY
+if MOCK_HINT_ROOT="$MOCK_ROOT" bash "$SETUP" preflight "$CONDA" "$PMAFP" "$MOCK_ROOT/pma_hint_repodata_gap" "$REPODATA_GAP_BUNDLE" "$AUDIT/repodata-gap" \
+  > "$TMP/repodata-gap.log" 2>&1; then
+  echo "expected missing repodata inventory failure" >&2; exit 1
+fi
+grep -q REPODATA_NOT_IN_ARTIFACT_INVENTORY "$TMP/repodata-gap.log"
+[[ ! -e "$MOCK_ROOT/pma_hint_repodata_gap" ]]
+
+REPODATA_LOCK_BUNDLE="$MOCK_ROOT/repodata-lock-bundle"
+cp -R "$BUNDLE" "$REPODATA_LOCK_BUNDLE"
+python3 - "$REPODATA_LOCK_BUNDLE" <<'PY'
+import hashlib, json, sys
+from pathlib import Path
+root = Path(sys.argv[1])
+repodata = root / "conda/linux-64/repodata.json"
+value = json.loads(repodata.read_text())
+value["packages"]["python-mock.tar.bz2"]["sha256"] = "0" * 64
+repodata.write_text(json.dumps(value))
+inventory = root / "artifacts.sha256"
+updated = hashlib.sha256(repodata.read_bytes()).hexdigest()
+lines = []
+for line in inventory.read_text().splitlines():
+    _digest, relative = line.split(None, 1)
+    lines.append(f"{updated}  {relative}" if relative == "conda/linux-64/repodata.json" else line)
+inventory.write_text("\n".join(lines) + "\n")
+manifest_path = root / "bundle-manifest.json"
+manifest = json.loads(manifest_path.read_text())
+manifest["artifacts_sha256"] = hashlib.sha256(inventory.read_bytes()).hexdigest()
+manifest_path.write_text(json.dumps(manifest))
+PY
+if MOCK_HINT_ROOT="$MOCK_ROOT" bash "$SETUP" preflight "$CONDA" "$PMAFP" "$MOCK_ROOT/pma_hint_repodata_lock" "$REPODATA_LOCK_BUNDLE" "$AUDIT/repodata-lock" \
+  > "$TMP/repodata-lock.log" 2>&1; then
+  echo "expected repodata/lock SHA mismatch" >&2; exit 1
+fi
+grep -q CONDA_REPODATA_SHA256_MISMATCH "$TMP/repodata-lock.log"
+[[ ! -e "$MOCK_ROOT/pma_hint_repodata_lock" ]]
 
 echo "HINT offline builder fixtures passed"

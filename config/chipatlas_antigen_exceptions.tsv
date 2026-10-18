@@ -1,0 +1,31 @@
+# Step 4a manual antigen exceptions (rules_version 4a.v1), tab-separated.
+# Applied after an exact HGNC approved-symbol match and before previous/alias lookup, so known symbol
+# collisions are resolved here. A single hgnc_symbol is given only when the assignment is unambiguous;
+# complexes, fusions and families list candidates without a single HGNC ID.
+antigen_raw	status	hgnc_symbol	candidates	modification	note
+RNA polymerase II	complex_or_family	.	POLR2A	.	Pol II complex; most ChIP antibodies (8WG16, 4H8, N-20) recognise RPB1/POLR2A
+RNA polymerase III	complex_or_family	.	POLR3A;POLR3B;POLR3D;POLR3G	.	Pol III complex
+TAZ	manual_curated	WWTR1	.	.	ChIP target TAZ = WWTR1 (Hippo co-activator); HGNC previous symbol TAZ = TAFAZZIN
+STRA13	ambiguous	.	BHLHE40;CENPX	.	alias collision
+DEC1	ambiguous	.	BHLHE40;DMBT1	.	alias collision; DEC1 usually BHLHE40 in ChIP but not asserted
+AML1-ETO	complex_or_family	.	RUNX1;RUNX1T1	.	fusion protein RUNX1::RUNX1T1
+MLL-AF4	complex_or_family	.	KMT2A;AFF1	.	fusion protein KMT2A::AFF1
+MLL-AF6	complex_or_family	.	KMT2A;AFDN	.	fusion protein KMT2A::AFDN
+MLL-AF10	complex_or_family	.	KMT2A;MLLT10	.	fusion protein KMT2A::MLLT10
+KSHV LANA	non_gene_target	.	.	.	viral protein (KSHV ORF73)
+LANA	non_gene_target	.	.	.	viral protein (KSHV ORF73)
+EBNA1	non_gene_target	.	.	.	viral protein (EBV)
+EBNA2	non_gene_target	.	.	.	viral protein (EBV)
+EBNA3	non_gene_target	.	.	.	viral protein (EBV)
+EBV-ZEBRA	non_gene_target	.	.	.	viral protein (EBV BZLF1)
+RTA	non_gene_target	.	.	.	viral protein (herpesvirus RTA)
+AAV Rep68	non_gene_target	.	.	.	viral protein (AAV)
+HBcAg	non_gene_target	.	.	.	viral protein (HBV core)
+Hepatitis B Virus X antigen	non_gene_target	.	.	.	viral protein (HBV X)
+HIV1 tat	non_gene_target	.	.	.	viral protein (HIV-1)
+HIV Tat	non_gene_target	.	.	.	viral protein (HIV-1)
+HHV UL87	non_gene_target	.	.	.	viral protein (HCMV)
+MCPV ST	non_gene_target	.	.	.	viral protein (MCPyV small T)
+VSV-G	non_gene_target	.	.	.	viral glycoprotein
+Cas9	non_gene_target	.	.	.	exogenous bacterial protein
+Cpf1	non_gene_target	.	.	.	exogenous bacterial protein

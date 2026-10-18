@@ -1,5 +1,15 @@
 # Step 4b-1 Argos 原生 bundle builder 交接
 
+## 2026-10-18 17:13 EDT — G2 运行以网络超时失败，证据已保留
+
+PR #5 完整代码 HEAD `52a17dc6863216b5f86fcac6d5281e04600a0377` 收到 GPT 对一次 artifact-only G2 的明确批准。Argos 于 16:55:50 EDT 启动，17:11:45 EDT 结束，wrapper exit 1。运行在首次获取 `linux-64` upstream repodata 时失败：`urlopen error [Errno 110] Connection timed out`。builder 未创建预期 repodata 和 provenance 文件，Conda online solver 未调用，没有 bundle、ABI audit 或 offline preflight。
+
+外部证据完整保留在 `/home/zz950/PMA_fetch/pma_pr5_g2_52a17dc/`，runner log 在 `/home/zz950/PMA_fetch/pma_pr5_g2_52a17dc.runner.log`。TCP 多次快照没有 receive 进展并显示重传退避；进程 I/O 计数无变化。该证据支持本次 runtime network stall/timeout，但不能确定底层原因来自 Argos 出口、代理、路由、CDN、远端服务或程序。GPT 的运行后技术复核分类为 `G2_FAILED_RUNTIME_NETWORK_TIMEOUT`，L1 execution FAIL、solver NOT EXERCISED、源环境完整；这是 artifact-only G2 失败，不是 contract suite 失败，也没有证据证明 Conda 求解或 artifact resolver 有缺陷。
+
+`pmafp-integrity.json` 为 `PMAFP_INTEGRITY_OK`；Conda explicit 与 pip freeze 的前后 `cmp` 均 exit 0。未修改 Conda channel 或环境，未运行 HINT CLI、smoke、footprint 分析，也未合并 PR。关键证据 SHA-256：builder log `7293011dda191c012ab16ae2455f1293ae524578aae4b3c498cc68f81345d0f5`；build failure `6f9fb29f040404d3d6c99e4c0baf3025931add559562f43b69ba05e70f1488e6`；runner log `c43b2c11685164c068a1e6734123392d823a06ddd154b662f6b0886b35060044`；integrity report `61c6c918965d23233c583cca20ba0d88470975c621f543098afcf6c5b7ae1fcf`。
+
+GPT 判定仅凭该失败不应修改源代码；缺少应用层 timeout/进度日志属于独立可观测性改进，不是本次故障根因证据。本次 G2 已关闭为失败；不重跑、不换 channel。PR #5 更新后的完整 HEAD 需重新审核；下一科学优先项是产出并 QC human hg38 ChIP-Atlas 坐标唯一 BED6。第一目标仍未交付，四工具比较未开始。
+
 ## 2026-10-18 14:14 EDT — fc8cd41 已批准 Argos 合同运行：41 项中 2 项 fixture 失败
 
 GPT 对完整 PR #5 HEAD `fc8cd411fff5e30b90a04ac32d192fb8f4839983` 明确 `APPROVE`，仅放行 Argos 合同测试。已核对 PR 仍 OPEN、base 正确，Argos 在独立 checkout `/home/zz950/PMA_fetch/pma_pr5_code_fc8cd41` 与外部工作区 `/home/zz950/PMA_fetch/pma_pr5_g2_tests_fc8cd41` 运行；完整 SHA 核验通过，使用现有 pmafp Python 3.11、旧 G2 锁定 external toolchain 和 48 GB 虚拟内存限额。Python 编译与 wrapper shell 语法通过。41 项合同测试运行 83.526 秒：39 PASS、2 FAIL，真实 `pip wheel` 后端来源测试 PASS。完整日志：`/home/zz950/PMA_fetch/pma_pr5_g2_tests_fc8cd41/contract-tests-discovery.log`。

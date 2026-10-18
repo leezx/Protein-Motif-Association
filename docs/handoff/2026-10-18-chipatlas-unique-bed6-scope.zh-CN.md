@@ -1,9 +1,9 @@
 # ChIP-Atlas 坐标唯一 BED6 范围交接
 
-更新时间：2026-10-18 17:20 EDT  
+更新时间：2026-10-18 17:22 EDT
 工作分支：`task_20261018_chipatlas_unique_bed6_design`  
 基线：`origin/step4b-atac-footprinting`  
-状态：仅设计契约草案；尚未推送或取得当前 PR 的 GPT 审核。
+PR：[#6](https://github.com/leezx/Protein-Motif-Association/pull/6)，OPEN；设计-only，当前完整 HEAD 审核待请求。初始提交 `49621ade482fb8fa1b73de8392dd8d65da4c782d`，随后会推送审计同步提交并以新 SHA 送审。
 
 ## PI 目标
 
@@ -30,4 +30,4 @@
 
 这轮只写了设计提案和审计文件，没有 Argos 查询/命令、数据处理、测试、环境变更或 footprint 分析。Step 4b 的 HINT builder G2 上次在 Conda repodata 下载处 OS network timeout，尚未获准重试；没有 benchmark 结果。PR #5 仍 OPEN/unmerged，审核只覆盖 audit-only 文档更新。
 
-下一步：执行 diff/格式检查，提交设计-only PR 并请求 GPT 对完整当前 HEAD 的明确 APPROVE。只有该 HEAD 获批后，才继续按批准范围执行；数据级 Argos 构建需要单独明确授权。两项目标当前完成度仍不可报为完成；本轮可测进展是目标 1 获得一份可审核的修订契约，目标 2 无进展。`HUMAN DECISION: PENDING`。
+下一步：推送本轮 PR/handoff/worklog 审计同步，复核 GitHub 当前完整 HEAD 和 diff，随后请求 GPT 对该 exact HEAD 明确 APPROVE/REQUEST_CHANGES。只有该 HEAD 获批后，才继续按批准范围执行；数据级 Argos 构建需要单独明确授权。两项目标当前完成度仍不可报为完成；本轮可测进展是目标 1 获得一份可审核的修订契约，目标 2 无进展。`HUMAN DECISION: PENDING`。

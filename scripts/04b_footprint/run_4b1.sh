@@ -1,16 +1,18 @@
 #!/bin/bash
 # Step 4b-1 driver (Argos): wait for inputs and environment, then setup -> prep -> smoke test -> round 1.
-# usage: run_4b1.sh <raw_dir> <work_dir> <env_prefix> <print_repo> <chrom.sizes> <hg38_blacklist.bed.gz> <env_done_log>
+# usage: run_4b1.sh <raw_dir> <work_dir> <env_prefix> <print_repo> <chrom.sizes> <hg38_blacklist.bed.gz> <env_done_log> <hint_env_prefix>
 set -uo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
-RAW=$1; W=$2; ENV=$3; PR=$4; SIZES=$5; BLGZ=$6; ENVLOG=$7
+RAW=$1; W=$2; ENV=$3; PR=$4; SIZES=$5; BLGZ=$6; ENVLOG=$7; HINT_ENV=$8
 until [ -f $RAW/download.done ] && [ -f $RAW/refs.done ] && [ -f $RAW/reference/hg38.fa.gz.ok ] \
       && grep -q ENV_DONE $ENVLOG; do sleep 60; done
 grep -q tracebind_OK $ENVLOG || { echo "TRACEBIND_NOT_INSTALLED"; }
-# RGT 1.0.2 imports pkg_resources at startup; fail before setup/prep unless the reviewed runtime pin is present.
-"$ENV/bin/python" -c 'from importlib.metadata import version; assert version("setuptools") == "80.9.0"; import pkg_resources, rgt' \
-  || { echo "HINT_ENV_FAIL: require setuptools==80.9.0 and importable RGT/pkg_resources"; exit 1; }
-"$ENV/bin/rgt-hint" --help >/dev/null 2>&1 || { echo "HINT_CLI_PREFLIGHT_FAIL"; exit 1; }
+# HINT's RGT 1.0.2 needs NumPy 1.x; keep TOBIAS and the other callers in pmafp's NumPy 2.x runtime.
+"$HINT_ENV/bin/python" -c 'from importlib.metadata import version; import numpy, pkg_resources, rgt; from numpy import mat; assert version("RGT") == "1.0.2"; assert version("setuptools") == "80.9.0"; assert numpy.__version__ == "1.26.4"' \
+  || { echo "HINT_ENV_FAIL: require isolated RGT==1.0.2, setuptools==80.9.0, numpy==1.26.4"; exit 1; }
+"$HINT_ENV/bin/python" -m pip check || { echo "HINT_DEPENDENCY_CHECK_FAIL"; exit 1; }
+"$HINT_ENV/bin/rgt-hint" --help >/dev/null 2>&1 || { echo "HINT_CLI_PREFLIGHT_FAIL"; exit 1; }
+"$HINT_ENV/bin/rgt-hint" footprinting --help >/dev/null 2>&1 || { echo "HINT_FOOTPRINTING_PREFLIGHT_FAIL"; exit 1; }
 source /home/zz950/softwares/miniconda3/etc/profile.d/conda.sh
 if ! (
   set +u
@@ -38,7 +40,7 @@ for prior in "$W/runs_smoke" "$W/bam/smoke"; do
     mv "$prior" "$ARCHIVE/$(basename "$prior")" || { echo "SMOKE_ARCHIVE_FAIL $prior"; exit 1; }
   fi
 done
-SMOKE=1 bash $HERE/run_round1.sh $RAW $W $ENV $PR $ENV/bin/python 4 || { echo SMOKE_CALLER_FAIL; exit 1; }
+SMOKE=1 bash $HERE/run_round1.sh $RAW $W $ENV $PR $ENV/bin/python 4 "$HINT_ENV/bin" || { echo SMOKE_CALLER_FAIL; exit 1; }
 echo SMOKE_DONE
 ok=1
 for d in gdna ctrl aux; do
@@ -50,4 +52,4 @@ for d in gdna ctrl aux; do
   [ ! -s $W/runs_smoke/$d/hint/failed.txt ] || { echo "SMOKE_HINT_CHUNK_FAIL $d"; ok=0; }
 done
 [ $ok = 1 ] || { echo "SMOKE_FAIL: fix runners before round 1"; exit 1; }
-bash $HERE/run_round1.sh $RAW $W $ENV $PR $ENV/bin/python 6
+bash $HERE/run_round1.sh $RAW $W $ENV $PR $ENV/bin/python 6 "$HINT_ENV/bin"

@@ -1,17 +1,19 @@
 #!/bin/bash
 # Step 4b-1 round 1: every caller x {naked gDNA tiles, HCT116 ctrl 2k peaks, HCT116 auxin 2k peaks}, all jobs in
 # parallel on Argos (background processes; each wrapped in /usr/bin/time -v for wall time and peak RSS).
-# usage: run_round1.sh <raw_dir> <work_dir> <env_prefix> <print_repo> <python_for_tracebind> <cores_per_job>
+# usage: run_round1.sh <raw_dir> <work_dir> <env_prefix> <print_repo> <python_for_tracebind> <cores_per_job> <hint_env_bin>
 # env SMOKE=1: first 20 regions of each set, outputs under runs_smoke/ (fast end-to-end check of every runner)
 set -uo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
-RAW=$1; W=$2; ENV=$3; PRINTREPO=$4; TBPY=$5; C=$6
+RAW=$1; W=$2; ENV=$3; PRINTREPO=$4; TBPY=$5; C=$6; HINT_ENV_BIN=$7
 B=$ENV/bin
 FA=$RAW/reference/hg38.fa
 BL=$W/hg38-blacklist.v2.bed
 SH=$W/print_shared
 RUNS=$W/runs; [ "${SMOKE:-0}" = 1 ] && RUNS=$W/runs_smoke
 source "$HERE/prepare_bams.sh"
+source "$HERE/hint_env.sh"
+HINT_BIN=$(select_hint_bin "$HINT_ENV_BIN") || { echo "HINT_ENV_BIN_INVALID $HINT_ENV_BIN" >&2; exit 1; }
 BAM_DIR=$(select_bam_cache_dir "$W" "${SMOKE:-0}")
 mkdir -p $RUNS $BAM_DIR
 [ -s $BL ] || zcat $RAW/../../../occupancy_chipatlas/raw/2026-10-17/reference/hg38-blacklist.v2.bed.gz | cut -f1-3 > $BL
@@ -54,7 +56,7 @@ for d in gdna ctrl aux; do
       ) > $O/tracebind.log 2>&1 &
   pids+=("$!")
   labels+=("$d/TraceBIND")
-  ( export PATH=$B:$PATH; /usr/bin/time -v bash $HERE/run_hint.sh $B "$BAM_DIR/$d.bam" ${REG[$d]} $O/hint $C \
+  ( export PATH=$HINT_BIN:$B:$PATH; /usr/bin/time -v bash $HERE/run_hint.sh "$HINT_BIN" "$BAM_DIR/$d.bam" ${REG[$d]} $O/hint $C \
       > $O/hint.log 2>&1 ) &
   pids+=("$!")
   labels+=("$d/HINT")

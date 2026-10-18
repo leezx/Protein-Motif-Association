@@ -38,8 +38,14 @@ bash "$HELPER" "$TMP/bin/python" "$TMP/bin/samtools" "$TMP/frags_to_bam.py" "$TM
 [ "$(wc -l < "$CONVERSION_LOG")" -eq 2 ]
 
 source "$ROOT/scripts/04b_footprint/prepare_bams.sh"
+source "$ROOT/scripts/04b_footprint/hint_env.sh"
 [ "$(select_bam_cache_dir "$TMP/work" 1)" = "$TMP/work/bam/smoke" ]
 [ "$(select_bam_cache_dir "$TMP/work" 0)" = "$TMP/work/bam/full" ]
+mkdir -p "$TMP/hint_env/bin" "$TMP/main_env/bin"
+touch "$TMP/hint_env/bin/rgt-hint" "$TMP/main_env/bin/rgt-hint"
+chmod +x "$TMP/hint_env/bin/rgt-hint" "$TMP/main_env/bin/rgt-hint"
+[ "$(select_hint_bin "$TMP/hint_env/bin")" = "$TMP/hint_env/bin" ]
+if select_hint_bin "$TMP/missing/bin"; then echo "expected invalid HINT env" >&2; exit 1; fi
 before=$(wc -l < "$CONVERSION_LOG")
 if FAIL_FRAG="$TMP/ctrl.frag" prepare_bams "$TMP/bin/python" "$TMP/bin/samtools" "$TMP/frags_to_bam.py" "$TMP/sizes" "$TMP/prepared" \
   gdna "$TMP/gdna.frag" "$TMP/gdna.bed" ctrl "$TMP/ctrl.frag" "$TMP/ctrl.bed" aux "$TMP/aux.frag" "$TMP/aux.bed"; then

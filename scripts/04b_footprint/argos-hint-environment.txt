@@ -1,0 +1,6 @@
+Dedicated Argos HINT runtime (do not install these pins into pmafp):
+Python 3.11 (cloned from the validated pmafp environment)
+RGT==1.0.2
+setuptools==80.9.0
+numpy==1.26.4
+TOBIAS must not be installed in this environment; TOBIAS 0.17.5 requires NumPy >=2 and remains in pmafp.

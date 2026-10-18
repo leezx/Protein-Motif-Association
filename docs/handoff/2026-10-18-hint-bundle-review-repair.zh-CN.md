@@ -13,13 +13,14 @@
 - GPT 对完整 HEAD `2bf931c34727137a161a93224725db1c897c70e9` 复审结果为 `REQUEST_CHANGES`：F1 已解决；F2 尚有 extras 依赖 fail-open，即 validator 没有递归展开类似 `A → B[foo] → C` 的依赖。
 - 本地已实施 fail-closed 修复：只要某条依赖在目标 marker 下生效且声明非空 `Requirement.extras`，validator 报 `UNSUPPORTED_PIP_EXTRAS` 并失败；新增带真实 wheel metadata 的 A → B[foo] → C mock bundle，确认缺少 C 时 preflight 不能通过且不创建 prefix。
 - 最新本地验证：shell syntax、validator compile-in-memory、`tests/test_hint_env_builder.sh`、`tests/test_step4b_runner_contract.sh`、`git diff --check` 均通过；HINT bundle/runner 测试通过。均为本地/mock 验证。
+- GPT 对完整 HEAD `b76da4d9f2bb8a32126cc83b55537e1325f6e060` 已明确 `APPROVE`，确认 F1/F2/F2-B/F3 均解决、无剩余代码阻断项。该 approval 仅针对代码和审计，不是执行或合并授权。用户此前对 Step 4b §6 的独立执行授权仍有效。
 
 ## 当前状态与门禁
 
-- 已知远端 PR HEAD 为 `2bf931c34727137a161a93224725db1c897c70e9`。GPT 对其给出 `REQUEST_CHANGES`（extras 依赖 closure，及审计当前状态同步）。
-- Extras fail-closed 修正和 mock fixture 已在 `e5149b2` 推送。GPT 对该 HEAD 确认 extras finding 已解决，但指出当前状态文件仍滞后。此 handoff 和 `CODEX_HANDOFF.md` 正在同步 `e5149b2` review finding 与本地状态；本审计更新推送后，需重新读取远端 HEAD、确认 PR 描述一致，并请求 GPT 审核精确完整 SHA。
-- 在 GPT 对当前完整 HEAD 明确 `APPROVE` 前，禁止任何 Argos 命令或外部分析。既有部分 `pma_hint` 和源 `pmafp` 必须保留；无 HINT CLI/small-BED/smoke/round-1 结果；不合并。
-- 获批后才按用户此前 §6 授权，先构建/审计外置 Linux 离线包并做 Argos preflight、安装至新前缀、确认源环境不变，再验证真实 HINT CLI 与 small-BED，之后重试 smoke。所有 smoke caller 通过及输出检查后才可运行 12 个 round-1 jobs。
+- 最后实时核验的远端 PR HEAD 为 `b76da4d9f2bb8a32126cc83b55537e1325f6e060`，PR #4 OPEN、未合并；GPT 已 APPROVE 该完整头。
+- 在任何 Argos 命令之前，先将拟执行动作及停止条件加入同一 PR 的 Worklog、handoff 和 PR 描述，推送后获取对精确 audit-only HEAD 的 GPT 审核。通过后，才能在既有 §6 授权范围内执行：在仓库外准备并审计 Linux CPython 3.11/glibc ≤2.23 bundle；Argos preflight 全通过才可创建全新 `pma_hint_v2`；缺包/哈希/closure/platform 任何失败都在创建前停止，不回退联网；安装失败保留 partial prefix、日志与源 `pmafp`，不写 READY、不启动 caller；安装成功且审计通过后才验证真实 CLI/reference、small-BED/smoke。所有数据和结果留在仓库外；smoke 每个 caller 通过后才进入 12 个全量 jobs；合并仍须用户单独确认。
+- 此前最后一次 Argos 操作是离线 `pma_hint` clone 失败。部分 `pma_hint` 与源 `pmafp` 必须保留；无 HINT CLI/small-BED/smoke/round-1 结果；不合并。
+- GPT 已批准代码 HEAD `b76da4d9f2bb8a32126cc83b55537e1325f6e060`。在 Argos 前仍须将计划中的外部动作和停止条件记入同一 PR 并获得对 audit-only 新 HEAD 的 GPT approval；只有该审计门禁通过后，才按用户此前 §6 授权执行。先在仓库外准备/审核 Linux 离线包，再依序执行 Argos preflight、安装到新前缀、确认源环境完整性、验证真实 HINT CLI/small-BED、smoke；所有 smoke caller 通过且输出检查合格后才可运行 12 个 round-1 jobs。
 
 ## L1/L2/L3 快速评估
 

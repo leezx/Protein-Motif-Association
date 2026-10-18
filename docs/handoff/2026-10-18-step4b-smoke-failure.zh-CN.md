@@ -135,3 +135,7 @@ run_4b1.sh 没有启用 errexit；因此为 HINT_SMALLBED_VALIDATED 的写入和
 ## 2026-10-18 04:41 EDT — 目标 ABI 的 wheel 标签判定
 
 代码复核发现 validator 的 wheel tag 判定依赖调用它的 pmafp Python ABI，而目标 HINT 环境要求 CPython 3.11/Linux x86_64。已改为按目标 ABI 和 glibc 2.23 上限验证，并从 Conda lock 读取 Python 版本计算 Requires-Dist markers；新增兼容/不兼容 wheel tag fixture。shell syntax、validator compile-in-memory、builder fixtures、runner contract fixtures、git diff --check 均通过。远端 PR #4 HEAD 仍为 `971fdce`，修正尚未提交。没有 Argos 操作、外部 bundle 构建、HINT/benchmark 运行或数据更改；此项须和完整审计一起提交并请 GPT 审核。
+
+## 2026-10-18 04:42 EDT — 本地实现提交
+
+同一分支将离线 HINT bundle closure/provenance 校验、Conda solver closure 比对、受限安装子进程、独立 small-BED marker、fixture 与留痕提交为 `7ad22d3`。只暂存本任务八个文件；无关未跟踪 `design/protein_binding_resources.md` 未加入。验证在提交前已通过。此时提交只存在本地，origin/PR #4 仍为 `971fdce`；没有 Argos 或外部数据操作。下一步更新精确提交记录后推送原分支、更新 PR 描述并请 GPT 审核当前完整 HEAD，批准前不运行 Argos。

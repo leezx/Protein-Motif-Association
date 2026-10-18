@@ -74,3 +74,9 @@ prep 随后在查询 `chrY:18991433-18994432` 时因 gDNA Tabix 索引不含 chr
 已向 GPT 咨询，GPT 批准修复设计（但这不是新 HEAD 的 PR approval，也不是新增 Argos 授权）：区分 contig 缺失与可查询但零覆盖，只接受预期缺失 chrY，保留完整 HCT116 peak 集；只有 gDNA 覆盖 >0 的区域能进入 B1 tiles；若其他 peak contig 缺失则显式失败。禁止宽泛捕获 `ValueError` 并把索引错误吞掉。
 
 本地同 PR 新增 coverage/eligibility/contig-reconciliation helpers 与四项 fixture。Python 编译通过，prep cache 测试 6/6 通过，reference setup fixture 4/4 通过，`git diff --check` 通过。下一步把代码和本次外部运行记录加入同一 PR #4、更新描述并请求 GPT 审核新 HEAD；明确 `APPROVE` 之前不再访问 Argos。无需扩展 datasets、methods、thresholds，也不合并。
+
+## 2026-10-18 03:00 EDT — dba5da3 复审要求固定 2,000 个 B1 tiles
+
+GPT 对 PR #4 HEAD `dba5da3` 给出 `REQUEST_CHANGES`，唯一 blocking finding 是：虽已过滤掉缺失 contig 和零覆盖区域，但若正覆盖区域少于 2,000，`select_gdna_tiles()` 会静默返回不足 2,000 个的 B1 集合。missing-contig 行为、保留全部 peaks、拒绝其他缺失染色体、测试和审计记录均通过。GitHub review 继续返回 HTTP 403。
+
+已在同一 PR 中进行最小修复：必须凑齐固定的 2,000 个有效 tiles，否则抛出带有可用正覆盖区域数的错误；`inputs_summary.json` 明确记录 `gdna_missing_peak_contigs`、`gdna_missing_contig_peak_count`、`gdna_positive_coverage_regions` 和 `gdna_selected_tiles`。新增固定数量与不足时报错、以及 summary JSON 中记录 contig/eligibility 指标的测试。Python 编译通过，8 个 prep-cache 测试通过，4 个 setup recovery fixture 通过，`git diff --check` 通过。数据、方法和阈值未变。将这些最小修复留在同一 PR 并请求新 HEAD 复审；审批前不再向 Argos 发命令。

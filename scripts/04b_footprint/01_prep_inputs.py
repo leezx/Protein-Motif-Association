@@ -158,6 +158,10 @@ def count_gdna_coverage(tb, contig, start, end, available_contigs):
 def select_gdna_tiles(cov, limit=2000):
     """Choose only callable peak regions with observed naked-gDNA coverage."""
     eligible = [t for t in cov if t[0] > 0]
+    if len(eligible) < limit:
+        raise RuntimeError(
+            f"Insufficient gDNA-covered regions: {len(eligible)} eligible, {limit} required"
+        )
     eligible.sort(key=lambda t: -t[0])
     return sorted(eligible[:limit], key=lambda t: (t[1], t[2]))
 
@@ -168,6 +172,28 @@ def missing_peak_contigs(peak_contigs, available_contigs):
     if unexpected:
         raise RuntimeError(f"gDNA Tabix index is missing expected peak contigs: {unexpected}")
     return missing
+
+
+def gdna_coverage_summary(cov, selected_tiles, available_contigs, missing_contigs):
+    absent_regions = sum(c not in available_contigs for _, c, _, _ in cov)
+    positive_coverage_regions = sum(k > 0 for k, _, _, _ in cov)
+    observed_zero_regions = sum(c in available_contigs and k == 0 for k, c, _, _ in cov)
+    return {
+        "gdna_missing_peak_contigs": missing_contigs,
+        "gdna_missing_contig_peak_count": absent_regions,
+        "gdna_positive_coverage_regions": positive_coverage_regions,
+        "gdna_selected_tiles": len(selected_tiles),
+        "gdna_observed_zero_regions": observed_zero_regions,
+        "gdna_insertions_per_tile": {
+            "min": min(t[0] for t in selected_tiles),
+            "median": sorted(t[0] for t in selected_tiles)[len(selected_tiles) // 2],
+        },
+    }
+
+
+def write_inputs_summary(work, summary):
+    path = Path(work) / "inputs_summary.json"
+    path.write_text(json.dumps(summary, indent=1) + "\n")
 
 
 def main(raw, work, blacklist):
@@ -238,15 +264,9 @@ def main(raw, work, blacklist):
     top = select_gdna_tiles(cov)
     (work / "regions" / "gdna_tiles_1kb.bed").write_text(
         "".join(f"{c}\t{s}\t{e}\tG{i:05d}\t{k}\n" for i, (k, c, s, e) in enumerate(top)))
-    absent_regions = sum(c not in available_contigs for _, c, _, _ in cov)
-    observed_zero_regions = sum(c in available_contigs and k == 0 for k, c, _, _ in cov)
-    summ.update(regions=len(keep), sub=len(sub), gdna_tiles=len(top),
-                gdna_missing_contigs=missing_contigs,
-                gdna_contig_absent_regions=absent_regions,
-                gdna_observed_zero_regions=observed_zero_regions,
-                gdna_insertions_per_tile=dict(min=min(t[0] for t in top) if top else None,
-                                              median=sorted(t[0] for t in top)[len(top) // 2] if top else None))
-    (work / "inputs_summary.json").write_text(json.dumps(summ, indent=1) + "\n")
+    summ.update(regions=len(keep), sub=len(sub))
+    summ.update(gdna_coverage_summary(cov, top, available_contigs, missing_contigs))
+    write_inputs_summary(work, summ)
     print(json.dumps(summ, indent=1))
 
 

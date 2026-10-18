@@ -1,5 +1,6 @@
 import gzip
 import importlib.util
+import json
 import pathlib
 import sys
 import tempfile
@@ -95,12 +96,36 @@ class PrepInputCacheTests(unittest.TestCase):
 
     def test_gdna_tile_selection_excludes_zero_coverage_regions(self):
         cov = [(0, "chrY", 100, 200), (0, "chr1", 300, 400), (3, "chr1", 100, 200)]
-        self.assertEqual(PREP.select_gdna_tiles(cov), [(3, "chr1", 100, 200)])
+        self.assertEqual(PREP.select_gdna_tiles(cov, limit=1), [(3, "chr1", 100, 200)])
+
+    def test_gdna_tile_selection_requires_fixed_requested_count(self):
+        cov = [(2, "chr1", i, i + 1) for i in range(2001)]
+        cov.extend([(0, "chrY", i, i + 1) for i in range(10)])
+        exact = PREP.select_gdna_tiles(cov[:2000])
+        self.assertEqual(len(exact), 2000)
+        selected = PREP.select_gdna_tiles(cov)
+        self.assertEqual(len(selected), 2000)
+        self.assertTrue(all(record[0] > 0 for record in selected))
+        with self.assertRaisesRegex(RuntimeError, "1999 eligible, 2000 required"):
+            PREP.select_gdna_tiles(cov[:1999])
 
     def test_only_chrY_may_be_absent_from_gdna_peak_contigs(self):
         self.assertEqual(PREP.missing_peak_contigs({"chr1", "chrY"}, {"chr1"}), ["chrY"])
         with self.assertRaisesRegex(RuntimeError, "chr2"):
             PREP.missing_peak_contigs({"chr1", "chr2"}, {"chr1"})
+
+    def test_inputs_summary_records_missing_and_eligible_gdna_regions(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            cov = [(1, "chr1", 10, 20), (0, "chrY", 30, 40), (0, "chr1", 50, 60)]
+            selected = [(1, "chr1", 10, 20)]
+            metrics = PREP.gdna_coverage_summary(cov, selected, {"chr1"}, ["chrY"])
+            PREP.write_inputs_summary(tmp, metrics)
+            observed = json.loads((pathlib.Path(tmp) / "inputs_summary.json").read_text())
+            self.assertEqual(observed["gdna_missing_peak_contigs"], ["chrY"])
+            self.assertEqual(observed["gdna_missing_contig_peak_count"], 1)
+            self.assertEqual(observed["gdna_positive_coverage_regions"], 1)
+            self.assertEqual(observed["gdna_selected_tiles"], 1)
+            self.assertEqual(observed["gdna_observed_zero_regions"], 1)
 
 
 if __name__ == "__main__":

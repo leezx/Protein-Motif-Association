@@ -38,3 +38,9 @@ GPT 对 PR #4 当前 HEAD `1333434` 给出 `REQUEST_CHANGES`。已知的“部�
 在同一 PR 中新增 `setup_reference.sh`：仅当 FASTA、FAI 与最后写入的 SHA256 完成标记相互匹配才复用；否则将既有 FASTA、FAI 和标记归档到外部工作目录，从原始 gzip 解压到同目录临时文件、在临时 FASTA 上建索引，再安装 FASTA/FAI 并最后原子写入标记。新增小型本地 fixture 覆盖部分 FASTA、部分 FAI、有效 pair 复用、FASTA 缺失但 stale FAI 存在四种情况，均通过。`bash -n`、`git diff --check` 通过。未访问 Argos，未执行外部分析。
 
 GPT 还指出 PR 描述没有概括 interruption recovery；提交前将更新 PR 描述反映完整修复范围。当前代码和审计改动仍需在本 PR 获取新 HEAD 的明确 `APPROVE` 后，才可同步或在 Argos 上运行。完整 benchmark 仍按用户此前授权范围执行，PR approval 不扩大该范围；合并另需用户确认。
+
+## 2026-10-18 01:50 EDT — GPT 批准 c63bc91；记录外部运行前门禁
+
+GPT 对 PR #4 HEAD `c63bc91` 明确给出 `APPROVE`：FASTA/FAI/marker 完成状态、四种恢复 fixture、失败产物保留和审计记录均通过；此前 scope-control finding 保持解决。GPT 未发现新 finding。GitHub 的 review 集成仍返回 HTTP 403，因此 approval 保存在持久审核对话，没有登记到 PR 页面。
+
+本次批准只覆盖 `c63bc91` 的 setup 修复与审计内容。它没有授权扩大分析范围或合并。第一轮 benchmark 的独立执行授权来自用户此前要求 Codex 按本文件 §6 在门禁满足后启动。按仓库规则，现先把 GPT 结论及计划中的 Argos driver 执行登记在本 PR，再对更新后的审计 diff 请求复审；复审前不向 Argos 发命令。若复审通过，按已批准方法和既有用户授权恢复 `run_4b1.sh`，运行 setup、prep、smoke、12 个 round-1 jobs；任何失败即停下并修复，不扩展范围。

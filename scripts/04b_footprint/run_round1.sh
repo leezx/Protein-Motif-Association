@@ -11,7 +11,8 @@ FA=$RAW/reference/hg38.fa
 BL=$W/hg38-blacklist.v2.bed
 SH=$W/print_shared
 RUNS=$W/runs; [ "${SMOKE:-0}" = 1 ] && RUNS=$W/runs_smoke
-BAM_DIR=$W/bam/full; [ "${SMOKE:-0}" = 1 ] && BAM_DIR=$W/bam/smoke
+source "$HERE/prepare_bams.sh"
+BAM_DIR=$(select_bam_cache_dir "$W" "${SMOKE:-0}")
 mkdir -p $RUNS $BAM_DIR
 [ -s $BL ] || zcat $RAW/../../../occupancy_chipatlas/raw/2026-10-17/reference/hg38-blacklist.v2.bed.gz | cut -f1-3 > $BL
 declare -A REG=( [gdna]=$W/regions/gdna_tiles_1kb.bed [ctrl]=$W/regions/hct116_peaks_1kb.sub2000.bed
@@ -22,10 +23,10 @@ if [ "${SMOKE:-0}" = 1 ]; then
   mkdir -p $RUNS/regions
   for d in gdna ctrl aux; do head -20 ${REG[$d]} > $RUNS/regions/$d.bed; REG[$d]=$RUNS/regions/$d.bed; done
 fi
-for d in gdna ctrl aux; do  # identical inputs for BAM-only callers
-  [ -s "$BAM_DIR/$d.bam" ] || $B/python $HERE/frags_to_bam.py ${FR[$d]} $W/hg38.chrom.sizes ${REG[$d]} "$BAM_DIR/$d.bam"
-done
-source /home/zz950/softwares/miniconda3/etc/profile.d/conda.sh
+prepare_bams "$B/python" "$B/samtools" "$HERE/frags_to_bam.py" "$W/hg38.chrom.sizes" "$BAM_DIR" \
+  gdna "${FR[gdna]}" "${REG[gdna]}" ctrl "${FR[ctrl]}" "${REG[ctrl]}" \
+  aux "${FR[aux]}" "${REG[aux]}" || exit 1
+source "${CONDA_PROFILE:-/home/zz950/softwares/miniconda3/etc/profile.d/conda.sh}"
 pids=(); labels=()
 for d in gdna ctrl aux; do
   O=$RUNS/$d; mkdir -p $O
@@ -62,12 +63,6 @@ for d in gdna ctrl aux; do
   pids+=("$!")
   labels+=("$d/TOBIAS")
 done
-jobs_ok=1
-for i in "${!pids[@]}"; do
-  if ! wait "${pids[$i]}"; then
-    echo "CALLER_FAILURE ${labels[$i]} pid=${pids[$i]}"
-    jobs_ok=0
-  fi
-done
-[ "$jobs_ok" = 1 ] || { echo "CALLER_FAILURE"; exit 1; }
+source "$HERE/wait_all_jobs.sh"
+wait_all_jobs || { echo "CALLER_FAILURE" >&2; exit 1; }
 echo ROUND1_DONE

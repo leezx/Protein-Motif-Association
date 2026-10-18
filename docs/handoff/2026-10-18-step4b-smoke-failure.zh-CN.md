@@ -26,7 +26,7 @@ Smoke 最后输出 `SMOKE_FAIL`，未启动 full round 12 个 caller jobs。没�
 1. 增加 `setuptools==80.9.0` 约束，并在 setup/prep 前检查其版本、`pkg_resources` 和 RGT 是否可导入；此依赖尚未安装到 Argos 环境。
 2. HINT 每个 chunk 单独等待、检查退出码和输出路径；失败时不合并，非零退出。
 3. `run_round1.sh` 逐项等待并汇总所有 callers 状态；任一失败即返回非零。
-4. R conda activate 前安全初始化 GDAL 环境变量，并显式传播激活失败。
+4. R conda activate 在子 shell 中局部关闭 `nounset` 后恢复，并显式传播激活失败；不覆盖 GDAL 配置变量。
 5. Smoke driver 要求 smoke 成功并检查预期产物及 HINT failed marker，失败绝不进入 full round。
 
 这些修复不改变数据、caller 方法、阈值或 benchmark 范围。修复和本交接记录需经当前 PR HEAD 的 GPT 明确 `APPROVE` 后，才能更新 Argos 环境或再次执行命令。下一次仅在既有用户授权内修复环境、验证 HINT/R caller smoke；smoke 全部通过前不得启动 full round。PR merge 仍需用户单独确认。
@@ -52,3 +52,12 @@ follow-up 尚未验证或推送，也没有代码 approval。仅完成 shell 语
 同一 PR #4 的修复已推送：`b811005` 增加 setuptools/HINT preflight 与失败传播，`147d778` 进一步加入 R 环境预检、局部 nounset 处理、caller PID/label 状态聚合、smoke/full BAM 缓存隔离以及旧 smoke output/cache 归档。PRINT score track 要求非空且 gzip 可读；事件 BED 允许合法的 0 行。当前 PR HEAD `147d778` 尚未获 GPT review/APPROVE。
 
 本次代码修改后 `bash -n scripts/04b_footprint/run_4b1.sh scripts/04b_footprint/run_round1.sh scripts/04b_footprint/run_hint.sh` 与 `git diff --check` 通过；没有添加/运行 tests。PR description 已更新为 smoke failure + runner fixes。Argos 自 `229ad96` 停止后未再访问，无环境安装或分析任务；full round 1 未启动，PR 未合并。任何后续 Argos 操作继续等待当前 HEAD 的明确 GPT `APPROVE`。
+
+## 2026-10-18 03:32 EDT — GPT review of `97a6adc` found two blocking issues
+
+GPT reviewed the full PR #4 HEAD `97a6adc51a50a5bb052531095d9c2d29eb8c95fd` and returned `REQUEST_CHANGES`. It approved the setuptools/RGT preflight, local `set +u` activation, HINT/caller status propagation, smoke/full BAM directory separation, stale smoke archiving, and valid zero-event handling. Audit/scope-control passed; review did not authorize Argos execution or merge.
+
+- **F1 — BAM cache/build integrity:** `run_round1.sh` had neither `set -e` nor explicit status handling around `frags_to_bam.py`. A failed conversion could continue to caller launch, and reuse only checked nonempty BAM (not a valid index). Fixed by `ensure_bam_cache.sh`: validate cached BAM with samtools quickcheck and pysam index check; build to a unique temporary BAM; validate BAM+index before publishing; archive invalid prior cache; return nonzero on conversion/validation failure. `prepare_bams.sh` stops immediately on a failed sample before callers are launched.
+- **F2 — behavior-level runner regression checks:** added `tests/test_step4b_runner_contract.sh` with mocked tools, covering cache build/reuse/corruption recovery, conversion failure stopping later BAM preparation, a successful HINT run with a valid empty events BED, HINT chunk failure propagation and stale event removal, and caller aggregation that reports one failure while waiting for all started jobs.
+
+Local validation: the fixture passed under the available macOS Bash 3.2; it covers distinct smoke/full BAM paths, `bash -n` passed for all modified/new shell scripts, and `git diff --check` passed. The fixture uses mocks and does not replace real Argos pysam/tabix/RGT or R caller smoke validation. No Argos access, environment changes, benchmark run, or merge occurred after GPT's `REQUEST_CHANGES`. Next: review the exact diff, update PR/audit records in the same PR, push, request GPT review of the new HEAD, and only resume the already-authorized §6 Argos smoke if the new HEAD is explicitly approved.

@@ -65,7 +65,8 @@ possible:
 | 1e-10 | ≥ 100 |
 | 1e-20 | ≥ 200 |
 
-The pilot checks on a sample that these filters reproduce the 10 and 20 archives.
+These are views of the q < 1e-5 calls only. The pilot (§7.1) showed they do not reproduce the 10 and
+20 archives.
 
 **Out of scope for Step 4a:**
 - peak merging across experiments, consensus peaks, summit recentering, width normalisation;
@@ -226,6 +227,57 @@ Run on the first chunk of the archive (a valid gzip prefix) and on the full meta
 - antibody parsing (manual review of a stratified sample);
 - antigen mapping coverage, including the list of unmapped and ambiguous antigens;
 - that 05 filtered at score ≥ 100 / ≥ 200 equals the 10 / 20 archives within a shared prefix window.
+
+### 7.1 Pilot results (2026-10-17)
+
+**Metadata (full table).**
+- 39,099 in-scope experiments (38,566 SRX, 312 ERX, 221 DRX); no duplicate or malformed IDs.
+
+| Antigen mapping | Experiments |
+|---|---|
+| approved_exact | 31,118 |
+| previous_symbol | 287 |
+| manual_curated | 37 |
+| complex_or_family (mostly RNA polymerase II) | 4,465 |
+| tag_only | 2,619 |
+| non_gene_target | 548 |
+| ambiguous | 9 |
+| unmapped | 16 |
+
+| Antibody status | Experiments |
+|---|---|
+| catalog_resolved | 17,363 |
+| clone_resolved | 1,129 |
+| description_only | 13,361 |
+| ambiguous (several reagents) | 388 |
+| not_reported | 6,858 |
+
+- A stratified manual review led to these rule fixes (rules 4a.v1, before any release):
+  - `NA` values count as not_reported, not as a control;
+  - secondary-antibody keys are excluded;
+  - new patterns for RRID, Roche, Covance, legacy Santa Cruz product names and CST clone IDs;
+  - vehicle and non-targeting controls count as untreated;
+  - `hESC derived` counts as stem_cell_derived.
+- Exception table addition: PAD2 → PADI2.
+
+**Peaks (first 400 MB of the archive, chr1).**
+- 8,156,733 of 43,092,967 rows are in scope.
+- 0 rejected rows, 0 sort violations.
+- tabix retrieval works.
+- 334,215 rows (4.1 %) have blacklist_majority_overlap.
+
+**Threshold views (shared window chr1:0–21.3 Mb).** Filtering the 05 archive at score ≥ 100 / ≥ 200
+is **not** equivalent to the 10 / 20 archives: ChIP-Atlas calls peaks separately at each threshold,
+and only 110 / 41 intervals are identical.
+
+| Cutoff | 10/20-archive peaks overlapped by a same-experiment 05 peak with score ≥ cutoff | Filtered-05 peaks overlapped by a 10/20-archive peak |
+|---|---|---|
+| ≥ 100 | 99.99 % | 62.6 % |
+| ≥ 200 | 99.99 % | 56.3 % |
+
+So a score filter on Output A is a peak-score view of the q < 1e-5 calls. Analyses that need the
+stricter ChIP-Atlas calls must use the 10 / 20 archives, which can be built as separate releases
+with the same pipeline. §2 is amended accordingly.
 
 ## 8. Release and provenance
 

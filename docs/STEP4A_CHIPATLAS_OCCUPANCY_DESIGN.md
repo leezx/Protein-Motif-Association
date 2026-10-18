@@ -1,6 +1,88 @@
 # Step 4a — ChIP-Atlas hg38 protein occupancy atlas: design
 
-Status: **contract approved** (ChatGPT, 2026-10-17: APPROVE WITH REVISIONS; the revisions are
+## PI target revision — coordinate-unique BED6 (2026-10-18; design gate)
+
+The previously approved v1 below remains a valid **TF/RNA-polymerase subset** and must not be
+described as all human ChIP-seq. The PI's final target is a coordinate-unique, losslessly
+traceable hg38 reference of all eligible ChIP-Atlas ChIP-seq peak records. This revision is a
+proposed build contract; no new Argos processing is authorized until this contract and its
+implementation have passed the current-HEAD review gate.
+
+### Scope
+
+- Use the already staged `allPeaks_light.hg38.05.bed.gz` archive and matching metadata snapshot;
+  do not redownload or overwrite raw inputs.
+- Include metadata `genome=hg38` experiments whose exact `antigen class` is `TFs and others`,
+  `RNA polymerase`, or `Histone`.
+- Exclude `Input control`, `ATAC-Seq`, `DNase-seq`, and `Bisulfite-Seq`. Also exclude
+  `Unclassified`, `No description`, annotation/aggregate tracks, and any unrecognized class from
+  the primary reference; report each class and row count separately. Missing metadata is a
+  separate quarantine category, not an inferred inclusion.
+- The deliverable is specifically **all eligible hg38 ChIP-seq peaks**. It does not silently
+  include hg19 or liftover coordinates. Report that assembly boundary in the manifest.
+- ChIP-Atlas exposes hg38 and hg19 as separate human reference assemblies and classifies tracks
+  by experiment class; the exact class strings and available assemblies must be checked against
+  the pinned metadata snapshot, with the official [ChIP-Atlas Peak Browser](https://chip-atlas.org/peak_browser)
+  and [Agent Guide](https://chip-atlas.org/agents) as reference sources.
+- Preserve the source q < 1e-5 call set. Do not apply a new q threshold, blacklist filter,
+  canonical-chromosome filter, or biological-quality filter during this aggregation.
+
+### Primary output and identity
+
+`PMA_chipatlas_hg38_unique_regions.bed.gz` is exactly BED6, 0-based half-open, with no header:
+
+| Column | Contract |
+|---|---|
+| chrom, start, end | Exact source coordinates; coordinate key is `(hg38, chrom, start, end)`. |
+| name | Stable `region_id = PMA_hg38_<full SHA-256>`. Hash the UTF-8 serialization of `PMA-region-v1`, `hg38`, source `chrom`, decimal `start`, and decimal `end`, joined by literal U+0009 TAB bytes with no spaces or trailing newline. Preserve source `chrom` spelling. Verify no hash collision. ID must not depend on input order or experiment membership. |
+| score | `min(1000, number of distinct supporting experiment IDs)` for BED compatibility; exact uncapped count is in the region summary. This is support count, not binding strength or biological replicate count. |
+| strand | `.`; the source intervals are unstranded. |
+
+Only exact `(chrom,start,end)` duplicates collapse. Overlapping, nested, or nearby intervals with
+different boundaries remain separate records; do not merge intervals or recenter summits.
+Duplicate source rows from one experiment contribute one region–experiment pair, while every
+source row remains represented in provenance.
+
+### External linkage outputs
+
+All large outputs remain outside this repository under the PMA external data workspace:
+
+1. `region_experiment.tsv.gz`: unique `(region_id, experiment_id)` many-to-many links.
+2. `peak_provenance.tsv.gz`: one row per included source peak row, including stable source-record
+   identity (archive SHA-256 plus source row ordinal), `region_id`, `experiment_id`, and original
+   peak fields. This preserves duplicate source rows without duplicating BED6 regions.
+3. `region_summary.tsv.gz`: `region_id`, exact coordinates, distinct supporting experiment count,
+   and source peak-row count.
+4. `experiment_metadata.tsv.gz`: included experiment IDs and source metadata needed to interpret
+   antigen, class, cell type, assay, genome, and source release.
+5. Reconciliation/QC reports for included, excluded-by-class, other-genome, missing-metadata,
+   malformed/rejected, and metadata-without-peaks records.
+
+### Required acceptance checks before declaring the target complete
+
+- Every source archive row is assigned exactly once to a documented mutually exclusive status;
+  no unexplained loss. The old v1 arithmetic reconciliation is not proof that the revised class
+  selection or provenance is correct.
+- Included rows join to a unique metadata record with `genome=hg38` and one of the three included
+  classes. Report class-level experiments, source rows, and resulting unique regions.
+- BED6 has exactly six columns, valid hg38 half-open coordinates, no duplicate coordinate keys,
+  and one unique `region_id` per coordinate. Its row count equals the number of unique included
+  coordinate keys.
+- The number of distinct `(region_id, experiment_id)` pairs in linkage equals the independently
+  computed cardinality; every included source row maps to exactly one region and experiment, with
+  no orphan links or omitted provenance.
+- Deterministic chromosome-order sorting, bgzip/tabix indexing, and random interval queries agree
+  with the unindexed sorted source output.
+- Record immutable input hashes, metadata release, code commit, rules/schema versions, command,
+  and output hashes. A repeat build from the same inputs and code must reproduce normalized
+  content hashes.
+
+The precise class inventory and all counts must be read from the pinned metadata and archive
+during the later, separately approved Argos run. The previously reported 1,843,573,973
+`out_of_scope_class` rows are **not** assumed to be all Histone; class-level counts remain
+unverified until that run.
+
+Historical v1 status: **contract approved** (ChatGPT, 2026-10-17: APPROVE WITH REVISIONS; the revisions are
 already applied below). A small pilot must validate the implementation assumptions (§7) before the
 full archive is processed.
 

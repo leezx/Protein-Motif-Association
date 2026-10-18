@@ -1,5 +1,32 @@
 # PMA — handoff to Codex (2026-10-17, written by Claude Code)
 
+## Live status update — 2026-10-18
+
+This update supersedes conflicting status statements in the historical handoff below. PR #4 was merged at
+`2026-10-18T13:13:02Z` as merge commit `6c2e323fc80cc3e05f9de05282d1bbce49ba98fa` into
+`step4b-atac-footprinting`. The current task branch is `task_20261018_argos_artifact_builder`, based on that merge.
+It adds an Argos-native, external-only HINT bundle builder; the code and contract changes are in progress and have
+not yet been committed or reviewed. No bundle build, environment change, HINT CLI, smoke gate, or analysis has run.
+
+Argos itself is available. Read-only SSH confirmed the host `rcGPUs.dfci.harvard.edu` has 72 CPUs and about 1 TiB
+RAM. The Docker CLI exists, but the account cannot access `/var/run/docker.sock`; `/usr/games/singularity` is a
+Debian game launcher rather than a container runtime. The current `pmafp` prefix is CPython 3.11.17, but has no
+`auditwheel` or `pyelftools`; its RGT install also fails to import against NumPy 2.4.6 (`numpy.mat` was removed).
+The partial `pma_hint` prefix has no Python interpreter or Conda metadata and remains preserved. These findings
+block the old Docker-image route, not access to Argos compute.
+
+The new branch adds a hash-pinned external pure-Python audit toolchain, host provenance capture, local Conda
+repodata from the frozen upstream solver closure, offline Conda dry-run identity comparison, URL credential/query
+scrubbing, and a wrapper that keeps the checkout, all Conda prefixes, data root, and existing round-1 outputs out of
+the write set. This is a new PR and must receive GPT `APPROVE` on its exact full HEAD before any Argos artifact
+download or bundle construction. Current authorization is limited to artifact preparation and offline preflight;
+installing a new prefix, HINT CLI/smoke, and full analysis remain behind their own stage gate. Do not merge the new
+PR without a separate user instruction.
+
+Current code checks performed: Python compilation, wrapper `bash -n`, and `git diff --check` pass. The contract test
+file has new fixtures but the test suite has not been run in this task. Real Conda repodata/solver behavior and
+external wheel/ELF audit remain unverified.
+
 **Read this first, then `docs/PROJECT_CHARTER.md`, the workspace `AGENTS.md` and `HANDOFF.md`, and the step design
 doc for whatever you touch.** Everything below was true at handoff time; verify live state before acting.
 

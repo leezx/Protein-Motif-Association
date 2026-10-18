@@ -22,6 +22,31 @@ SPEC.loader.exec_module(BUILDER)
 
 
 class HintBundleBuildContract(unittest.TestCase):
+    def test_solver_evidence_removes_url_credentials_and_queries(self):
+        payload = {"url": "https://user:secret@example.org/linux-64/pkg.tar.bz2?token=hidden",
+                   "nested": ["https://example.org/noarch/pkg.tar.bz2?sig=hidden"]}
+        cleaned = BUILDER.sanitize_evidence(payload)
+        self.assertEqual(cleaned["url"], "https://example.org/linux-64/pkg.tar.bz2")
+        self.assertEqual(cleaned["nested"][0], "https://example.org/noarch/pkg.tar.bz2")
+        self.assertNotIn("secret", json.dumps(cleaned))
+        self.assertNotIn("hidden", json.dumps(cleaned))
+
+    def test_argos_local_repodata_requires_frozen_solver_dependencies(self):
+        record = {"subdir": "linux-64", "name": "python", "version": "3.11.9",
+                  "build": "h955ad1f_0", "filename": "python-3.11.9-h955ad1f_0.tar.bz2",
+                  "sha256": "a" * 64, "md5": "b" * 32, "size": 123,
+                  "index_record": {"name": "python", "version": "3.11.9", "build": "h955ad1f_0"},
+                  "source_record": {"name": "python", "version": "3.11.9",
+                                    "build_string": "h955ad1f_0", "depends": ["libc >=2.17"]}}
+        with self.assertRaisesRegex(RuntimeError, "REPODATA_UPSTREAM_DEPENDS_MISSING"):
+            BUILDER.build_local_repodata([{**record, "source_record": {"name": "python"}}], "linux-64")
+        record["source_record"]["build"] = record["build"]
+        result = BUILDER.build_local_repodata([record], "linux-64")
+        pkg = result["packages"][record["filename"]]
+        self.assertEqual(pkg["depends"], ["libc >=2.17"])
+        self.assertEqual(pkg["sha256"], "a" * 64)
+        self.assertEqual(pkg["md5"], "b" * 32)
+
     def test_glibc_version_max_is_numeric(self):
         self.assertEqual(BUILDER.version_max(["2.9", "2.23", "2.17"]), "2.23")
 

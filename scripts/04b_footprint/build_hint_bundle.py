@@ -3,11 +3,13 @@
 
 This program is intentionally limited to artifact construction. It never
 creates an Argos environment. Bundle and evidence directories must both be
-outside the repository. Run only in a reviewed, digest-pinned linux/amd64 image.
+outside the repository. Run only after review in the configured Docker or
+Argos-native Linux environment.
 """
 from __future__ import annotations
 
 import argparse
+import importlib.metadata
 import hashlib
 import json
 import os
@@ -20,6 +22,7 @@ import shlex
 import tarfile
 import urllib.request
 import zipfile
+from urllib.parse import urlsplit, urlunsplit
 from datetime import datetime, timezone
 from email.parser import Parser
 from pathlib import Path
@@ -44,13 +47,51 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def run(argv: list[str], *, capture: bool = False) -> str:
-    result = subprocess.run(argv, check=False, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+def md5(path: Path) -> str:
+    digest = hashlib.md5(usedforsecurity=False)
+    with path.open("rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def sanitize_url(value: str) -> str:
+    parsed = urlsplit(value)
+    host = parsed.hostname or ""
+    if parsed.port:
+        host += f":{parsed.port}"
+    return urlunsplit((parsed.scheme, host, parsed.path, "", ""))
+
+
+def sanitize_evidence(value):
+    """Remove URL credentials and query strings before writing solver evidence."""
+    if isinstance(value, dict):
+        cleaned = {}
+        for key, item in value.items():
+            if key in {"url", "base_url", "channel", "channel_url"} and isinstance(item, str):
+                cleaned[key] = sanitize_url(item)
+            else:
+                cleaned[key] = sanitize_evidence(item)
+        return cleaned
+    if isinstance(value, list):
+        return [sanitize_evidence(item) for item in value]
+    if isinstance(value, str) and value.startswith(("https://", "http://")):
+        return sanitize_url(value)
+    return value
+
+
+def sanitize_text(value: str) -> str:
+    return re.sub(r"https?://[^\s\"'<>]+", lambda match: sanitize_url(match.group(0)), value)
+
+
+def run(argv: list[str], *, capture: bool = False, env: dict[str, str] | None = None) -> str:
+    result = subprocess.run(argv, check=False, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                            env=env)
     output = result.stdout or ""
     if RUN_LOG:
         with RUN_LOG.open("a", encoding="utf-8") as log:
-            log.write(f"\n[{datetime.now(timezone.utc).isoformat()}] $ {shlex.join(argv)}\n")
-            log.write(output)
+            log.write(f"\n[{datetime.now(timezone.utc).isoformat()}] $ {sanitize_text(shlex.join(argv))}\n")
+            log.write(sanitize_text(output))
             log.write(f"\n[exit={result.returncode}]\n")
     if result.returncode:
         raise subprocess.CalledProcessError(result.returncode, argv, output=output)
@@ -59,11 +100,17 @@ def run(argv: list[str], *, capture: bool = False) -> str:
     return output
 
 
-def conda_dry_run(conda: str, prefix: Path, options: list[str], specs: tuple[str, ...]) -> str:
+def conda_dry_run(conda: str, prefix: Path, options: list[str], specs: tuple[str, ...],
+                  package_cache: Path | None = None) -> str:
     if prefix.exists():
         raise RuntimeError(f"CONDA_DRY_RUN_TARGET_ALREADY_EXISTS:{prefix}")
-    output = run([conda, "create", "--dry-run", "--json", "--yes", *options,
-                  "-p", str(prefix), *specs], capture=True)
+    command = [conda, "create", "--dry-run", "--json", "--yes", *options,
+               "-p", str(prefix), *specs]
+    env = os.environ.copy()
+    if package_cache is not None:
+        package_cache.mkdir(parents=True, exist_ok=True)
+        env["CONDA_PKGS_DIRS"] = str(package_cache.resolve())
+    output = run(command, capture=True, env=env)
     if prefix.exists():
         raise RuntimeError(f"CONDA_DRY_RUN_CREATED_PREFIX:{prefix}")
     return output
@@ -77,31 +124,75 @@ def require_builder() -> tuple[str, str]:
     libc, version = platform.libc_ver()
     if libc != "glibc" or tuple(map(int, version.split(".")[:2])) > (2, 23):
         raise RuntimeError(f"BUILDER_GLIBC_MUST_BE_LE_2_23:{libc}:{version}")
-    image = os.environ.get("PMA_HINT_BUILDER_IMAGE", "")
-    if not re.fullmatch(r"[^\s]+@sha256:[0-9a-f]{64}", image):
-        raise RuntimeError("PMA_HINT_BUILDER_IMAGE_MUST_BE_DIGEST_PINNED")
-    for path in (Path("/opt/conda/build-toolchain-explicit.txt"),
-                 Path("/opt/conda/build-toolchain-pip.json")):
-        if not path.is_file() or path.stat().st_size == 0:
-            raise RuntimeError(f"PREPROVISIONED_TOOLCHAIN_LOCK_MISSING:{path}")
+    mode = os.environ.get("PMA_HINT_BUILDER_MODE", "docker-image")
+    if mode == "docker-image":
+        image = os.environ.get("PMA_HINT_BUILDER_IMAGE", "")
+        if not re.fullmatch(r"[^\s]+@sha256:[0-9a-f]{64}", image):
+            raise RuntimeError("PMA_HINT_BUILDER_IMAGE_MUST_BE_DIGEST_PINNED")
+        for path in (Path("/opt/conda/build-toolchain-explicit.txt"),
+                     Path("/opt/conda/build-toolchain-pip.json")):
+            if not path.is_file() or path.stat().st_size == 0:
+                raise RuntimeError(f"PREPROVISIONED_TOOLCHAIN_LOCK_MISSING:{path}")
+    elif mode == "argos-native":
+        report = Path(os.environ.get("PMA_HINT_HOST_TOOLCHAIN_REPORT", ""))
+        if not report.is_file() or report.stat().st_size == 0:
+            raise RuntimeError("ARGOS_HOST_TOOLCHAIN_REPORT_MISSING")
+        toolchain = Path(os.environ.get("PMA_HINT_EXTERNAL_TOOLCHAIN", ""))
+        if not toolchain.is_dir():
+            raise RuntimeError("ARGOS_EXTERNAL_TOOLCHAIN_MISSING")
+        package_cache = Path(os.environ.get("CONDA_PKGS_DIRS", ""))
+        if not package_cache.is_absolute():
+            raise RuntimeError("ARGOS_CONDA_PACKAGE_CACHE_MUST_BE_EXPLICIT_EXTERNAL_PATH")
+        try:
+            expected = {"pip": "25.2", "packaging": "25.0", "setuptools": "80.9.0",
+                        "wheel": "0.45.1", "auditwheel": "6.0.0", "pyelftools": "0.31"}
+            import packaging, pip, setuptools, wheel, auditwheel, elftools
+            modules = {"pip": pip, "packaging": packaging, "setuptools": setuptools,
+                       "wheel": wheel, "auditwheel": auditwheel, "pyelftools": elftools}
+            for name, module in modules.items():
+                module_path = Path(module.__file__).resolve()
+                if toolchain.resolve() not in module_path.parents:
+                    raise RuntimeError(f"ARGOS_TOOLCHAIN_IMPORT_OUTSIDE_EXTERNAL_DIRECTORY:{name}:{module_path}")
+                observed = importlib.metadata.version(name)
+                if observed != expected[name]:
+                    raise RuntimeError(f"ARGOS_TOOLCHAIN_VERSION_MISMATCH:{name}:{observed}:{expected[name]}")
+        except ImportError as exc:
+            raise RuntimeError(f"ARGOS_EXTERNAL_TOOLCHAIN_MODULE_MISSING:{exc.name}") from exc
+    else:
+        raise RuntimeError(f"BUILDER_MODE_UNSUPPORTED:{mode}")
     conda = shutil.which("conda")
     if not conda:
         raise RuntimeError("CONDA_EXECUTABLE_MISSING")
-    for executable, code in (("readelf", "READELF_MISSING_CANNOT_PROVE_CONDA_ABI"),
-                             ("auditwheel", "AUDITWHEEL_MISSING_CANNOT_PROVE_WHEEL_ABI"),
-                             ("gcc", "GCC_MISSING_FOR_CONTROLLED_RGT_BUILD")):
+    executables = [("readelf", "READELF_MISSING_CANNOT_PROVE_CONDA_ABI"),
+                   ("gcc", "GCC_MISSING_FOR_CONTROLLED_RGT_BUILD")]
+    if mode == "docker-image":
+        executables.append(("auditwheel", "AUDITWHEEL_MISSING_CANNOT_PROVE_WHEEL_ABI"))
+    for executable, code in executables:
         if not shutil.which(executable):
             raise RuntimeError(code)
     return conda, version
 
 
-def load_solver_plan(conda: str, work: Path) -> tuple[list[dict], str, str]:
+def auditwheel_command(*args: str) -> list[str]:
+    if os.environ.get("PMA_HINT_BUILDER_MODE", "docker-image") == "argos-native":
+        return [sys.executable, "-m", "auditwheel", *args]
+    return ["auditwheel", *args]
+
+
+def load_solver_plan(conda: str, work: Path, package_cache: Path | None = None) -> tuple[list[dict], str, str]:
     plan_path = work / "conda-solve.json"
     solve_prefix = work / "solve-prefix"
-    options = ["--no-default-packages", "--override-channels", "-c", "conda-forge"]
+    channel = os.environ.get("PMA_HINT_ARGOS_CONDA_CHANNEL", "conda-forge")
+    if os.environ.get("PMA_HINT_BUILDER_MODE") == "argos-native" and not channel.startswith("https://"):
+        raise RuntimeError("ARGOS_CONDA_CHANNEL_MUST_BE_EXPLICIT_HTTPS_URL")
+    if os.environ.get("PMA_HINT_BUILDER_MODE") == "argos-native":
+        parsed_channel = urlsplit(channel)
+        if not parsed_channel.netloc or parsed_channel.username or parsed_channel.password or parsed_channel.query or parsed_channel.fragment:
+            raise RuntimeError("ARGOS_CONDA_CHANNEL_MUST_NOT_CONTAIN_CREDENTIALS_OR_QUERY")
+    options = ["--no-default-packages", "--override-channels", "-c", channel]
     command = [conda, "create", "--dry-run", "--json", "--yes", *options,
                "-p", str(solve_prefix), *TARGET_SPECS]
-    output = conda_dry_run(conda, solve_prefix, options, TARGET_SPECS)
+    output = conda_dry_run(conda, solve_prefix, options, TARGET_SPECS, package_cache=package_cache)
     plan_path.write_text(output, encoding="utf-8")
     try:
         parsed = json.loads(output)
@@ -136,13 +227,65 @@ def copy_conda_closure(links: list[dict], bundle: Path) -> list[dict]:
         with tarfile.open(destination, "r:bz2") as archive:
             index = json.load(archive.extractfile("info/index.json"))
         record = {"subdir": subdir, "name": index["name"], "version": index["version"],
-                  "build": index["build"], "filename": filename, "sha256": digest.lower(), "url": url}
+                  "build": index["build"], "filename": filename, "sha256": digest.lower()}
         plan_build = item.get("build") or item.get("build_string")
         if (record["name"], record["version"], record["build"]) != (
                 item.get("name"), item.get("version"), plan_build):
             raise RuntimeError(f"CONDA_PACKAGE_IDENTITY_MISMATCH:{filename}")
+        record["md5"] = md5(destination)
+        record["size"] = destination.stat().st_size
+        record["source_url"] = sanitize_url(url)
+        record["index_record"] = index
+        record["source_record"] = {key: value for key, value in item.items()
+                                   if key not in {"url", "base_url", "channel", "channel_url"}}
         records.append(record)
     return records
+
+
+def build_local_repodata(records: list[dict], subdir: str) -> dict:
+    if subdir not in ("linux-64", "noarch"):
+        raise RuntimeError(f"REPODATA_SUBDIR_UNSUPPORTED:{subdir}")
+    packages = {}
+    for row in records:
+        if row["subdir"] != subdir:
+            continue
+        source = row.get("source_record") or {}
+        index = row.get("index_record") or {}
+        filename = row["filename"]
+        if not filename.endswith(".tar.bz2"):
+            raise RuntimeError(f"REPODATA_ARCHIVE_UNSUPPORTED:{filename}")
+        if not isinstance(source.get("depends"), list):
+            raise RuntimeError(f"REPODATA_UPSTREAM_DEPENDS_MISSING:{filename}")
+        record = {key: value for key, value in source.items()
+                  if key in {"name", "version", "build", "build_number", "depends", "constrains",
+                             "track_features", "features", "noarch", "arch", "platform", "license",
+                             "license_family", "timestamp", "subdir"}}
+        for key in ("name", "version", "build"):
+            expected = row[key]
+            observed = index.get(key, source.get(key))
+            if observed != expected:
+                raise RuntimeError(f"REPODATA_ARCHIVE_IDENTITY_MISMATCH:{filename}:{key}:{observed}:{expected}")
+            record[key] = expected
+        if record.get("subdir", subdir) != subdir:
+            raise RuntimeError(f"REPODATA_UPSTREAM_SUBDIR_MISMATCH:{filename}:{record.get('subdir')}:{subdir}")
+        record.update({"subdir": subdir, "fn": filename, "sha256": row["sha256"],
+                       "md5": row["md5"], "size": row["size"]})
+        if filename in packages:
+            raise RuntimeError(f"REPODATA_DUPLICATE_FILENAME:{filename}")
+        packages[filename] = record
+    if not packages:
+        raise RuntimeError(f"REPODATA_SUBDIR_EMPTY:{subdir}")
+    return {"info": {"subdir": subdir, "repodata_version": 1},
+            "packages": packages, "packages.conda": {}, "removed": []}
+
+
+def write_local_repodata(records: list[dict], channel: Path) -> None:
+    for subdir in ("linux-64", "noarch"):
+        directory = channel / subdir
+        directory.mkdir(parents=True, exist_ok=True)
+        payload = json.dumps(build_local_repodata(records, subdir), sort_keys=True, separators=(",", ":")) + "\n"
+        (directory / "repodata.json").write_text(payload, encoding="utf-8")
+        (directory / "current_repodata.json").write_text(payload, encoding="utf-8")
 
 
 def version_max(values: list[str]) -> str:
@@ -321,10 +464,9 @@ def audit_rgt_wheel(wheel: Path, builder: str, work: Path, sdist_digest: str,
     elf_members = wheel_elf_members(wheel)
     if elf_members:
         elf_audit = audit_native_wheel_elf(wheel, work, available_libraries, conda_abi)
-        auditwheel = shutil.which("auditwheel")
-        if not auditwheel:
+        if os.environ.get("PMA_HINT_BUILDER_MODE", "docker-image") == "docker-image" and not shutil.which("auditwheel"):
             raise RuntimeError("AUDITWHEEL_MISSING_FOR_NATIVE_RGT_WHEEL")
-        output = run([auditwheel, "show", str(wheel)], capture=True)
+        output = run(auditwheel_command("show", str(wheel)), capture=True)
         (work / "rgt-auditwheel-show.txt").write_text(output, encoding="utf-8")
         glibc = re.findall(r"GLIBC_(\d+(?:\.\d+)+)", output)
         if not glibc:
@@ -347,7 +489,8 @@ def audit_rgt_wheel(wheel: Path, builder: str, work: Path, sdist_digest: str,
 
 
 def audit_pip_wheels(wheels: list[Path], work: Path, conda_abi: dict) -> dict:
-    auditwheel = shutil.which("auditwheel")
+    auditwheel_available = (bool(shutil.which("auditwheel")) if
+                            os.environ.get("PMA_HINT_BUILDER_MODE", "docker-image") == "docker-image" else True)
     audited, glibc, glibcxx, cxxabi = [], [], [], []
     members_by_wheel = {wheel: wheel_elf_members(wheel) for wheel in wheels}
     wheel_library_names = {Path(name).name for members in members_by_wheel.values() for name in members}
@@ -357,10 +500,10 @@ def audit_pip_wheels(wheels: list[Path], work: Path, conda_abi: dict) -> dict:
         if not elf_members:
             audited.append({"wheel": wheel.name, "sha256": sha256(wheel), "type": "pure-python-no-ELF"})
             continue
-        if not auditwheel:
+        if not auditwheel_available:
             raise RuntimeError(f"AUDITWHEEL_MISSING:{wheel.name}")
         elf_audit = audit_native_wheel_elf(wheel, work, available_libraries, conda_abi)
-        output = run([auditwheel, "show", str(wheel)], capture=True)
+        output = run(auditwheel_command("show", str(wheel)), capture=True)
         matches = re.findall(r"GLIBC_(\d+(?:\.\d+)+)", output)
         if not matches:
             raise RuntimeError(f"WHEEL_GLIBC_EVIDENCE_UNPARSEABLE:{wheel.name}")
@@ -387,7 +530,7 @@ def fetch_and_build_rgt(bundle: Path, work: Path, python: Path) -> Path:
     source_dir.mkdir()
     source_log = run([str(python), "-m", "pip", "download", "-v", "--no-deps", "--no-binary=:all:",
                       "--dest", str(source_dir), "RGT==1.0.2"], capture=True)
-    (work / "rgt-sdist-download.log").write_text(source_log, encoding="utf-8")
+    (work / "rgt-sdist-download.log").write_text(sanitize_text(source_log), encoding="utf-8")
     sources = list(source_dir.iterdir())
     if len(sources) != 1 or sha256(sources[0]) != RGT_SHA256:
         raise RuntimeError("RGT_SDIST_SOURCE_OR_HASH_MISMATCH")
@@ -395,7 +538,7 @@ def fetch_and_build_rgt(bundle: Path, work: Path, python: Path) -> Path:
     wheel_dir.mkdir(parents=True, exist_ok=True)
     wheel_log = run([str(python), "-m", "pip", "wheel", "-v", "--no-deps", "--no-build-isolation",
                      "--wheel-dir", str(wheel_dir), str(sources[0])], capture=True)
-    (work / "rgt-wheel-build.log").write_text(wheel_log, encoding="utf-8")
+    (work / "rgt-wheel-build.log").write_text(sanitize_text(wheel_log), encoding="utf-8")
     wheels = [p for p in wheel_dir.glob("*.whl") if str(parse_wheel_filename(p.name)[0]) == "rgt"]
     if len(wheels) != 1:
         raise RuntimeError("RGT_WHEEL_BUILD_NOT_UNIQUE")
@@ -412,7 +555,7 @@ def resolve_pip_closure(rgt_wheel: Path, bundle: Path, work: Path, conda_records
          "--platform", "manylinux2014_x86_64", "--python-version", "3.11",
          "--implementation", "cp", "--abi", "cp311", "--abi", "abi3", "--abi", "none",
          "--constraint", str(constraints), "--dest", str(downloaded), str(rgt_wheel)], capture=True)
-    (work / "pip-wheel-download.log").write_text(pip_log, encoding="utf-8")
+    (work / "pip-wheel-download.log").write_text(sanitize_text(pip_log), encoding="utf-8")
     conda_names = {re.sub(r"[-_.]+", "-", row["name"]).lower() for row in conda_records}
     staged = []
     for wheel in sorted(downloaded.glob("*.whl")):
@@ -462,20 +605,35 @@ def main() -> int:
     global RUN_LOG
     RUN_LOG = evidence / "commands.log"
     RUN_LOG.write_text("PMA HINT bundle builder command log\n", encoding="utf-8")
-    conda, _builder_glibc = require_builder()
+    conda, builder_glibc = require_builder()
+    builder_mode = os.environ.get("PMA_HINT_BUILDER_MODE", "docker-image")
+    builder_id = (os.environ["PMA_HINT_BUILDER_IMAGE"] if builder_mode == "docker-image" else
+                  f"argos-native:{platform.node()}")
+    package_cache = (Path(os.environ["CONDA_PKGS_DIRS"]).resolve()
+                     if builder_mode == "argos-native" else None)
     work = evidence / "work"
     work.mkdir()
     try:
-        links, solve_command, solve_json = load_solver_plan(conda, work)
-        (evidence / "conda-solve.json").write_text(solve_json, encoding="utf-8")
+        links, solve_command, solve_json = load_solver_plan(conda, work, package_cache=package_cache)
+        parsed_solve = json.loads(solve_json)
+        (evidence / "conda-solve.json").write_text(
+            json.dumps(sanitize_evidence(parsed_solve), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        (evidence / "conda-upstream-link-records.json").write_text(
+            json.dumps(sanitize_evidence(links), indent=2, sort_keys=True) + "\n", encoding="utf-8")
         conda_records = copy_conda_closure(links, bundle)
-        run([conda, "index", str(bundle / "conda")])
+        (evidence / "conda-artifact-provenance.json").write_text(
+            json.dumps(sanitize_evidence(conda_records), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        if builder_mode == "argos-native":
+            write_local_repodata(conda_records, bundle / "conda")
+        else:
+            run([conda, "index", str(bundle / "conda")])
         abi = audit_conda_elf(conda_records, bundle, work)
         offline_prefix = work / "offline-solve-prefix"
         offline_options = ["--offline", "--no-default-packages", "--override-channels", "-c",
                            (bundle / "conda").as_uri()]
-        offline = conda_dry_run(conda, offline_prefix, offline_options, TARGET_SPECS)
-        (evidence / "conda-offline-solve.json").write_text(offline, encoding="utf-8")
+        offline = conda_dry_run(conda, offline_prefix, offline_options, TARGET_SPECS,
+                                package_cache=package_cache)
+        (evidence / "conda-offline-solve.json").write_text(sanitize_text(offline), encoding="utf-8")
         try:
             offline_links = json.loads(offline)["actions"]["LINK"]
         except (json.JSONDecodeError, KeyError, TypeError) as exc:
@@ -504,7 +662,7 @@ def main() -> int:
         pip_lock.write_text(render_pip_lock(wheels), encoding="utf-8")
         report_path = bundle / "reports" / "rgt-wheel-audit.json"
         report_path.parent.mkdir(parents=True, exist_ok=True)
-        rgt_report = audit_rgt_wheel(rgt_wheel, os.environ["PMA_HINT_BUILDER_IMAGE"], work,
+        rgt_report = audit_rgt_wheel(rgt_wheel, builder_id, work,
                                      RGT_SHA256, abi, set(wheel_abi["available_library_names"]))
         rgt_report["conda_abi_audit"] = abi
         report_path.write_text(json.dumps(rgt_report, indent=2) + "\n", encoding="utf-8")
@@ -512,20 +670,35 @@ def main() -> int:
         wheel_report_path.write_text(json.dumps(wheel_abi, indent=2) + "\n", encoding="utf-8")
         for log_name in ("rgt-sdist-download.log", "rgt-wheel-build.log", "pip-wheel-download.log"):
             shutil.copy2(work / log_name, evidence / log_name)
-        (evidence / "builder-versions.json").write_text(json.dumps({
-            "builder_image": os.environ["PMA_HINT_BUILDER_IMAGE"], "architecture": platform.machine(),
+        versions_report = {
+            "builder_mode": builder_mode, "builder_identity": builder_id,
+            "architecture": platform.machine(),
             "python": platform.python_version(), "glibc": platform.libc_ver(),
             "conda": run([conda, "--version"], capture=True).strip(),
             "pip": run([str(build_python), "-m", "pip", "--version"], capture=True).strip(),
-            "conda_index_packages": run([conda, "list", "conda-index"], capture=True).strip(),
-            "auditwheel": run(["auditwheel", "--version"], capture=True).strip(),
+            "conda_index_packages": (run([conda, "list", "conda-index"], capture=True).strip()
+                                     if builder_mode == "docker-image" else None),
+            "repodata_generation": ("conda-index" if builder_mode == "docker-image" else
+                                    "pma-local-standard-records-v1"),
+            "auditwheel": run(auditwheel_command("--version"), capture=True).strip(),
             "readelf": run(["readelf", "--version"], capture=True).splitlines()[0],
             "gcc": run(["gcc", "--version"], capture=True).splitlines()[0],
+            "builder_glibc": builder_glibc,
             "build_prefix_python": build_python_version,
-            "conda_solve_command": solve_command, "conda_artifacts": conda_records,
-            "conda_abi_audit": abi, "pip_wheel_abi_audit": wheel_abi}, indent=2) + "\n", encoding="utf-8")
-        shutil.copy2("/opt/conda/build-toolchain-explicit.txt", evidence / "build-toolchain-conda-explicit.txt")
-        shutil.copy2("/opt/conda/build-toolchain-pip.json", evidence / "build-toolchain-pip.json")
+            "conda_solve_command": sanitize_evidence(solve_command),
+            "conda_artifacts": sanitize_evidence(conda_records),
+            "conda_abi_audit": abi, "pip_wheel_abi_audit": wheel_abi}
+        if builder_mode == "docker-image":
+            versions_report["builder_image"] = builder_id
+            shutil.copy2("/opt/conda/build-toolchain-explicit.txt", evidence / "build-toolchain-conda-explicit.txt")
+            shutil.copy2("/opt/conda/build-toolchain-pip.json", evidence / "build-toolchain-pip.json")
+        else:
+            host_report = Path(os.environ["PMA_HINT_HOST_TOOLCHAIN_REPORT"])
+            versions_report["host_toolchain_report"] = host_report.name
+            versions_report["host_toolchain_report_sha256"] = sha256(host_report)
+            shutil.copy2(host_report, evidence / host_report.name)
+        (evidence / "builder-versions.json").write_text(
+            json.dumps(versions_report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         inventory = []
         for path in sorted(bundle.rglob("*")):
             if path.is_file() and path.name != "artifacts.sha256":
@@ -533,16 +706,21 @@ def main() -> int:
         (bundle / "artifacts.sha256").write_text("".join(inventory), encoding="utf-8")
         manifest = {"schema_version": 1, "target_platform": "linux-64", "python_abi": "cp311",
                     "glibc_max": version_max([abi["glibc_max"], wheel_abi["glibc_max"]]),
-                    "builder": os.environ["PMA_HINT_BUILDER_IMAGE"],
+                    "builder": builder_id,
+                    "builder_mode": builder_mode,
+                    "host_toolchain_report_sha256": (sha256(Path(os.environ["PMA_HINT_HOST_TOOLCHAIN_REPORT"]))
+                                                      if builder_mode == "argos-native" else None),
                     "conda_version": run([conda, "--version"], capture=True).strip(),
-            "conda_toolchain_explicit_sha256": sha256(evidence / "build-toolchain-conda-explicit.txt"),
-            "pip_toolchain_inventory_sha256": sha256(evidence / "build-toolchain-pip.json"),
+            "conda_toolchain_explicit_sha256": (sha256(evidence / "build-toolchain-conda-explicit.txt")
+                                                 if builder_mode == "docker-image" else None),
+            "pip_toolchain_inventory_sha256": (sha256(evidence / "build-toolchain-pip.json")
+                                                if builder_mode == "docker-image" else None),
                     "pip_version": run([sys.executable, "-m", "pip", "--version"], capture=True).strip(),
                     "rgt_sdist_sha256": RGT_SHA256, "rgt_wheel": rgt_wheel.name,
                     "rgt_wheel_sha256": sha256(rgt_wheel), "rgt_build_report": "reports/rgt-wheel-audit.json",
                     "rgt_build_report_sha256": sha256(report_path), "conda_lock_sha256": sha256(conda_lock),
                     "pip_lock_sha256": sha256(pip_lock), "artifacts_sha256": sha256(bundle / "artifacts.sha256"),
-                    "conda_solve_command": solve_command}
+                    "conda_solve_command": sanitize_evidence(solve_command)}
         (bundle / "bundle-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
         validator = Path(__file__).with_name("validate_hint_bundle.py")
         run([sys.executable, str(validator), str(bundle)])
@@ -554,7 +732,8 @@ def main() -> int:
             sha256(archive_path) + "  pma_hint_bundle.tar.gz\n", encoding="utf-8")
         return 0
     except Exception as exc:
-        (evidence / "build-failure.txt").write_text(f"{type(exc).__name__}: {exc}\n", encoding="utf-8")
+        (evidence / "build-failure.txt").write_text(
+            sanitize_text(f"{type(exc).__name__}: {exc}\n"), encoding="utf-8")
         raise
 
 
@@ -562,5 +741,5 @@ if __name__ == "__main__":
     try:
         raise SystemExit(main())
     except (OSError, RuntimeError, subprocess.CalledProcessError, ValueError) as exc:
-        print(f"HINT_BUNDLE_BUILD_FAILED:{exc}", file=sys.stderr)
+        print(sanitize_text(f"HINT_BUNDLE_BUILD_FAILED:{exc}"), file=sys.stderr)
         raise SystemExit(1)

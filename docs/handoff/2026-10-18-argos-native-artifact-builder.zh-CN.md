@@ -26,7 +26,7 @@ GPT 对 PR #5 的完整 HEAD `8d3e72d11ad82d4612f0ea4b61dc26b0c882b33b` 给出 `
 
 同一 PR 的定向修复尚未提交：新增 `sitecustomize.py`，通过 builder 子进程继承的 `PYTHONPATH` 与 external Python root 在解释器启动阶段执行 fail-closed startup probe；builder `require_builder()` 直接审计当前进程中的全部已加载模块。来源 allowlist 包括 Python 标准库/runtime、builder 脚本目录和锁定 external toolchain。新增真实 `python -m pip` 子进程启动检查、在 Argos external toolchain 可用时执行真实 `pip wheel --no-build-isolation` 的临时 sdist 测试，以及宿主 site-packages 传递依赖注入负例。
 
-用户要求计算资源使用 Argos，Mac mini 不再跑测试/构建/分析。遵守 exact-head 门禁，本轮没有向 Argos 下发命令；本地未运行测试。已完成 Git 状态/完整 diff 静态检查，`git diff --check` PASS；未运行单元测试、py_compile 或 shell 测试。代码和 handoff 已完成审阅与更新；下一步提交推送同一 PR 并请求 GPT exact-head APPROVE。获批后先在 Argos 运行合同与真实 pip-wheel 子进程测试，再在第三个全新 external workspace 执行已授权的 artifact-only G2 和既有 offline preflight。已有失败 workspace `/home/zz950/PMA_fetch/pma_pr5_g2_ede0f81/`、`/home/zz950/PMA_fetch/pma_pr5_g2_1c60023/` 保持原样；不改环境、不跑 HINT/smoke/full analysis、不合并 PR #5。
+用户要求计算资源使用 Argos，Mac mini 不再跑测试/构建/分析。遵守 exact-head 门禁，本轮没有向 Argos 下发命令；本地未运行测试。已完成 Git 状态/完整 diff 静态检查，`git diff --check` PASS；未运行单元测试、py_compile 或 shell 测试。修复提交 `da8e9b464ead2acde39207ee1e3e69add06f9a39` 已推送到同一 PR #5，PR body 已同步；当前待 GPT exact-head review。获批后先在 Argos 运行合同与真实 pip-wheel 子进程测试，再在第三个全新 external workspace 执行已授权的 artifact-only G2 和既有 offline preflight。已有失败 workspace `/home/zz950/PMA_fetch/pma_pr5_g2_ede0f81/`、`/home/zz950/PMA_fetch/pma_pr5_g2_1c60023/` 保持原样；不改环境、不跑 HINT/smoke/full analysis、不合并 PR #5。
 
 较早的 F9 状态记录：PR #5 当时已推送 HEAD 为 `222a82690ee8e41beab407c6e18c0a41de2b0071`，GPT 要求同步审计摘要。该状态已被后续提交和审查取代；以本文件最新时间戳状态为准。
 
@@ -62,4 +62,4 @@ PR #5 的阶段范围是外部 HINT bundle artifact 构建及既有 offline pref
 
 ### 最新门禁状态（2026-10-18 11:18 EDT）
 
-前述 11:07 记录是 G2-F2 修复前的历史执行和本地测试结果。当前 PR #5 远端 HEAD 为 `8d3e72d11ad82d4612f0ea4b61dc26b0c882b33b`，GPT 对其返回 `REQUEST_CHANGES`（F2.1/F2.2）。随后新增的启动 hook、builder 当前进程来源校验与测试目前尚未提交；本轮未在 Mac mini 跑测试，未向 Argos 发命令。静态审阅已完成，`git diff --check` PASS；其余验证待 Argos 门禁许可。修订推送同一 PR 并再次请求 GPT exact-head review；明确 APPROVE 后才在 Argos 运行合同测试及 G2。不得触碰两个已失败 workspace，不修改 Conda 环境，不运行 HINT/smoke/full analysis，不合并 PR #5。
+前述 11:07 记录是 G2-F2 修复前的历史执行和本地测试结果。PR #5 HEAD `8d3e72d11ad82d4612f0ea4b61dc26b0c882b33b` 的 GPT 结论为 `REQUEST_CHANGES`（F2.1/F2.2）。其后修复已提交并推送为 `da8e9b464ead2acde39207ee1e3e69add06f9a39`；本轮未在 Mac mini 跑测试，未向 Argos 发命令。静态审阅和 `git diff --check` PASS；其余验证待 Argos 门禁许可。当前待对该 SHA 请求 GPT exact-head review；明确 APPROVE 后才在 Argos 运行合同测试及 G2。不得触碰两个已失败 workspace，不修改 Conda 环境，不运行 HINT/smoke/full analysis，不合并 PR #5。

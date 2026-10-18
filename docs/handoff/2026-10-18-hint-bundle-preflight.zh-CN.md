@@ -56,3 +56,12 @@
 - 新增 host-side wrapper：canonicalize 输出路径并拒绝 checkout 内路径/符号链接别名，只挂载两个已核验的外部输出目录，不挂载源码 checkout。ELF 检查现在验证 x86_64 machine、`DT_NEEDED` 仅可解析到 bundle 内真实 ELF/指向 ELF 的 symlink 或明确系统 runtime allowlist，并将 GLIBCXX/CXXABI 需求与 bundle 内 libstdc++ definitions 对照；无法证明则失败关闭。
 - 增加 dry-run prefix、镜像与 pip hashes、ELF 架构/动态库/ABI、仓库内及 symlink 输出路径负向测试，并添加 mocked bundle 通过 `validate_hint_bundle.py` 的正向测试。当前验证：11 项 Python 合同测试、wrapper 测试、既有 `tests/test_hint_env_builder.sh` 和 `tests/test_step4b_runner_contract.sh`、shell syntax、AST parse、`git diff --check` 均通过。runner 输出的 conversion/prep fail 是负向 fixture 的预期内容，测试退出码为 0。
 - 修复仍未提交、未推送、未获 GPT 复审。本次没有 Docker/Linux 构建、bundle 生成、Argos 访问/命令、环境修改、外部数据更改或分析运行。下一步完成静态自审，更新三处审计及 PR body，在同一 PR 显式暂存相关文件后提交推送，申请对精确新完整 HEAD 复审；获批且存在合规 Linux builder 后再构建。无 merge 授权。
+
+
+## 2026-10-18 06:09 EDT 状态更新：修复已推送，等待精确 HEAD 复审
+
+- 已将 GPT 对 `e4826ca599603016cc19a451b64d4f5734c77b3d` 的 F1–F4 / 测试 findings 修复提交到同一 PR：`db5bb33c0df957b464efcf5b24fc7477cd4121d8`。远端 `task_20261018_step4b_setup_fix` 已更新；PR #4 仍 OPEN、未合并。
+- 修复覆盖 builder runtime 不创建 Conda prefix、固定 digest Docker/toolchain、Conda ELF 依赖/架构/ABI fail-closed 检查、宿主机外部输出路径 wrapper，以及负向与 mocked validator 正向 fixtures。
+- 最新验证：11 项 builder Python tests、wrapper tests、`test_hint_env_builder.sh`、`test_step4b_runner_contract.sh`、shell syntax、diff whitespace 检查均通过；runner 失败打印来自预期负向 fixture，退出码为 0。
+- 当前 GPT 持久会话已保留此前 F1 澄清；现在需要它审核 GitHub 当前完整 HEAD `db5bb33c0df957b464efcf5b24fc7477cd4121d8` 相对 `e4826ca599603016cc19a451b64d4f5734c77b3d` 的修复。尚未收到新审核结论。
+- 未构建 Docker 镜像或 bundle；未向 Argos 发命令、未修改环境/数据、未运行分析。获批前保持此状态。Docker daemon 仍不可用；PR 合并仍需用户另行明确确认。

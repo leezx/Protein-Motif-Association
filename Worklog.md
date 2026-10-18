@@ -468,3 +468,12 @@ Applied local, uncommitted repairs for F1–F4 and F5 test gaps in the same PR:
 Validation passed locally: 11 Python builder contract tests (including mocked bundle→validator PASS), `tests/test_hint_bundle_builder_wrapper.sh`, `tests/test_hint_env_builder.sh`, `tests/test_step4b_runner_contract.sh`, shell syntax, AST parse, and `git diff --check`. Expected `BUNDLE_OUTPUT_MUST_BE_OUTSIDE_GIT_CHECKOUT` and runner conversion/prep failure messages are negative-fixture outputs; all suites exit 0. This is mock/static evidence only. No Docker build, Linux wheel/ELF audit on a real image, bundle generation, Argos access, prefix/environment change, data change, HINT analysis, or merge occurred. Work remains uncommitted; next finish static self-review, synchronize Worklog/CODEX_HANDOFF/stage handoff/PR description, explicitly stage task files, push the same PR, and request GPT review of the exact full new HEAD. Preserve unrelated `design/protein_binding_resources.md`.
 
 Sources used to pin the builder base/tool artifacts: [Pypa manylinux image](https://github.com/pypa/manylinux), [Miniforge release 25.3.1-0](https://github.com/conda-forge/miniforge/releases/tag/25.3.1-0), and the exact PyPI release wheel metadata for each pinned build dependency (hashes stored in `scripts/04b_footprint/hint-builder-requirements.lock`).
+
+
+## 2026-10-18 06:09 EDT — 修复提交推送并请求当前 HEAD 复审
+
+完成 GPT 对 `e4826ca599603016cc19a451b64d4f5734c77b3d` 所提 F1–F4 和 F5 行为测试缺口的定向修复。推送同一 PR #4 分支提交 `db5bb33c0df957b464efcf5b24fc7477cd4121d8`；GitHub 确认 PR OPEN、未合并、远端 HEAD 与该完整 SHA 一致。保留不相关未跟踪文件 `design/protein_binding_resources.md`，未纳入提交。
+
+在推送前复跑 11 项 `test_hint_bundle_build_contract.py`、`test_hint_bundle_builder_wrapper.sh`、`test_hint_env_builder.sh`、`test_step4b_runner_contract.sh`、shell syntax 和 diff whitespace 检查，全部通过。负向 runner fixtures 会打印 `BAM_CONVERSION_FAIL` / `BAM_PREP_FAIL`，但测试退出码为 0。以上均为 mock/static 测试，不证明真实 Docker/Linux build 或 ABI。
+
+已同步 CODEX_HANDOFF、dated stage handoff 和 PR description，随后在持久 PMA GPT 会话中请求对 GitHub 当前完整 HEAD `db5bb33c0df957b464efcf5b24fc7477cd4121d8` 相对 `e4826ca599603016cc19a451b64d4f5734c77b3d` 的精确复审；明确请求 APPROVE 或 REQUEST_CHANGES。该审核尚待回复。没有 Docker 镜像/bundle 构建、Argos 命令、环境或外部数据更改、分析运行或 PR merge。审核获批与具备合规 Linux builder 前不运行任何外部步骤。

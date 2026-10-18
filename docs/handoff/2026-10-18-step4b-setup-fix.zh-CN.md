@@ -80,3 +80,9 @@ prep 随后在查询 `chrY:18991433-18994432` 时因 gDNA Tabix 索引不含 chr
 GPT 对 PR #4 HEAD `dba5da3` 给出 `REQUEST_CHANGES`，唯一 blocking finding 是：虽已过滤掉缺失 contig 和零覆盖区域，但若正覆盖区域少于 2,000，`select_gdna_tiles()` 会静默返回不足 2,000 个的 B1 集合。missing-contig 行为、保留全部 peaks、拒绝其他缺失染色体、测试和审计记录均通过。GitHub review 继续返回 HTTP 403。
 
 已在同一 PR 中进行最小修复：必须凑齐固定的 2,000 个有效 tiles，否则抛出带有可用正覆盖区域数的错误；`inputs_summary.json` 明确记录 `gdna_missing_peak_contigs`、`gdna_missing_contig_peak_count`、`gdna_positive_coverage_regions` 和 `gdna_selected_tiles`。新增固定数量与不足时报错、以及 summary JSON 中记录 contig/eligibility 指标的测试。Python 编译通过，8 个 prep-cache 测试通过，4 个 setup recovery fixture 通过，`git diff --check` 通过。数据、方法和阈值未变。将这些最小修复留在同一 PR 并请求新 HEAD 复审；审批前不再向 Argos 发命令。
+
+## 2026-10-18 03:02 EDT — GPT 批准 812df5b；重试前审计门禁
+
+GPT 对 PR #4 HEAD `812df5b` 明确给出 `APPROVE`：固定 2,000 个 B1 tiles 的 eligibility gate、正覆盖数量短缺报错、边界测试、summary JSON 字段以及其他已通过的修复均无 blocking findings。GPT 提醒 `gdna_selected_tiles` 替代旧 `gdna_tiles` 键；仓库内无脚本依赖旧的 `inputs_summary.json` 字段，而且先前失败没有生成 summary。GitHub review 集成仍 HTTP 403，结论保存在持久审核对话。
+
+本次 approval 覆盖已审代码/测试/记录，不构成新的 Argos 执行授权或 PR 合并授权。首轮 benchmark 的独立执行依据仍是用户此前 §6 指示。按外部运行审计门禁，先将 approval 与计划中的 retry 追加到同一 PR 的 Worklog/handoff 并请求 audit-only 复审；该审计增量获批之前不再发送 Argos 命令。

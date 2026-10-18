@@ -495,3 +495,10 @@ GPT reviewed exact PR #4 HEAD `18c12617ff2cdfd04bcd906a9fe9d9d4132904b8` against
 显式暂存并提交 F3 修复及本轮 Worklog/CODEX_HANDOFF/stage handoff 为 `ba26845f57dcdb3a7ea6585f70a7897c03c484e7`，推送至同一 PR #4 分支。GitHub 当前确认 PR OPEN，远端 HEAD 与完整提交一致。此时 PR body 尚未同步新的 HEAD；下一步更新 PR body，再请求 GPT 审核新完整 tip。保留未跟踪 `design/protein_binding_resources.md`，未加入提交。
 
 F3 新增 native wheel readelf 检查及两个行为失败 fixture；本地 13 项 builder contract、wrapper、既有 HINT builder/runner 测试、shell syntax、AST parse 和 diff whitespace 均通过。无 Docker/Linux build、bundle、Argos 命令、环境/数据更改、分析或 merge。GPT 对 `18c1261` 的 REQUEST_CHANGES 仍为当前最新 verdict；仅新 HEAD review 可解除代码 gate。
+
+
+## 2026-10-18 06:20 EDT — GPT APPROVE exact builder HEAD; no Linux builder available
+
+GPT reviewed exact PR #4 HEAD `b43b8772b5c357a05125428e6c997b4e3d299fbf` against `18c12617ff2cdfd04bcd906a9fe9d9d4132904b8` and returned `APPROVE`; F1–F5 resolved, audit consistency/scope control pass, zero code blockers. GitHub confirmed PR OPEN/unmerged and exact HEAD. Formal GitHub review registration returned HTTP 403; the persistent PMA conversation retains approval.
+
+Checked local build capability read-only: host is Darwin arm64, Docker CLI exists with `desktop-linux` selected, no Podman/Buildah/nerdctl/Lima executable was found, and checked Docker socket paths were absent. No usable authorized Linux x86_64 builder is currently available. No Docker build, bundle, Argos command, environment/data change, analysis, or merge occurred. The code approval does not authorize accepting the previous Docker administrator request or building on Argos. External construction is blocked pending user-provided/authorized Linux builder access.

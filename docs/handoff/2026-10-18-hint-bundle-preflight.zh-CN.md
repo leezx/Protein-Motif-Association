@@ -80,3 +80,11 @@
 - F3 native wheel ABI 审计修复和两条行为测试已提交并推送至 PR #4，代码提交 `ba26845f57dcdb3a7ea6585f70a7897c03c484e7`；GitHub 当前仍为 OPEN、未合并。此前 `18c1261` 的 GPT review 已返回 REQUEST_CHANGES，修复只针对该 F3 finding。
 - 当前完整 PR HEAD 为 `ba26845f57dcdb3a7ea6585f70a7897c03c484e7`，GPT 复审尚待提出/返回；PR body 和审计记录需同步当前 tip。
 - 13 项 builder 测试、wrapper、HINT env builder 与 Step 4b runner fixtures、shell syntax、AST parse、diff 检查均通过。未构建 Docker/bundle，未向 Argos 发命令，未修改环境或数据，未运行分析。
+
+
+## 2026-10-18 06:20 EDT 状态更新：GPT 已批准 builder 代码，构建主机仍阻塞
+
+- GPT 对精确完整 HEAD `b43b8772b5c357a05125428e6c997b4e3d299fbf` 返回 `APPROVE`；F1–F5 均解决，审计一致性和 scope-control 通过，剩余代码 blocker 为 0。GitHub PR #4 仍 OPEN、未合并；正式 GitHub review 登记因集成 HTTP 403 失败，持久 PMA 对话保留结论。
+- 代码批准不提供 Docker 管理员授权或新的 Argos/环境/benchmark 权限。批准明确保留既有边界：外部 bundle preparation 和 bundle 完整后的 Argos offline preflight；不包含安装、HINT CLI、small-BED、smoke、full jobs 或 PR merge。
+- 本机只发现 Darwin arm64 和 Docker CLI（当前 context `desktop-linux`）；Podman/Buildah/nerdctl/Lima 均未发现，已检查的 Docker socket 路径不存在。没有发现可直接使用的合规 Linux x86_64 builder。未执行 Docker build、未访问 Argos，也未运行分析。
+- 下一步需取得可用、合规的 Linux x86_64 builder。优先由用户解锁/授权 Docker Desktop，或提供一个已获准的外部 Linux builder 连接；不能在 Argos 构建 bundle。

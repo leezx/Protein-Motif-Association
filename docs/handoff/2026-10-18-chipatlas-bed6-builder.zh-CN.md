@@ -1,13 +1,13 @@
 # ChIP-Atlas unique BED6 builder implementation handoff
 
-Updated: 2026-10-18 22:37 EDT
+Updated: 2026-10-18 22:44 EDT
 Branch: `task_20261019_chipatlas_bed6_builder`  
 Parent design PR: [#6](https://github.com/leezx/Protein-Motif-Association/pull/6), exact GPT-approved design HEAD `3c0e48e699073726b9ef7453644cabbe8b277ca4`, OPEN/unmerged.  
 Implementation PR: [#7](https://github.com/leezx/Protein-Motif-Association/pull/7), OPEN/unmerged, stacked on PR #6. Verify the complete live HEAD on GitHub before review or execution; this handoff is a timestamped snapshot.
 
 ## Direction and current progress
 
-GPT reviewed PR #7 exact HEAD `05652f09eef0dc83b6c6c80bee1922dddf11d209` (base `3c0e48e699073726b9ef7453644cabbe8b277ca4`) and returned `APPROVE — Implementation code-review gate`, with zero blockers. This is static code review only and does not authorize Argos, data reads, disk preflight, builder/QC/tests, analysis, or merge. No external data or metadata has been read in this turn and no Argos command has been run.
+GPT reviewed PR #7 exact code HEAD `05652f09eef0dc83b6c6c80bee1922dddf11d209` (base `3c0e48e699073726b9ef7453644cabbe8b277ca4`) and returned `APPROVE — Implementation code-review gate`, with zero blockers. This is static code review only and does not authorize Argos, data reads, disk preflight, builder/QC/tests, analysis, or merge. The subsequent proposed preflight at `23f5f43b8f02c26f8c52863d66620d5cd9a7f105` received `REQUEST_CHANGES` for manifest scope, optional Git index writes, dangling-symlink checks, and overstated disk-feasibility stop conditions. Those exact findings are being repaired in this handoff; no external data or metadata has been read and no Argos command has been run.
 
 The user's two endpoints remain: (1) produce a coordinate-unique, experiment-traceable human hg38 ChIP-Atlas BED6 reference with QC; (2) compare PRINT, TraceBIND, HINT, and TOBIAS on matched motif-free footprint accuracy and genome-wide speed on Argos, then complete B1–B4 and motif integration. Neither endpoint is complete.
 
@@ -40,7 +40,7 @@ WORK=$BASE/processed/unique_bed6_v1_work
 CODE=/home/zz950/PMA_code_4b
 PY=/home/zz950/softwares/miniforge3/envs/pmafp/bin/python
 test -d "$RAW" && test -d "$BASE" && test -d "$CODE" && test -x "$PY"
-git -C "$CODE" status --short --branch
+GIT_OPTIONAL_LOCKS=0 git -c core.fsmonitor=false -C "$CODE" status --short --branch
 git -C "$CODE" rev-parse HEAD
 git ls-remote https://github.com/leezx/Protein-Motif-Association.git refs/heads/task_20261019_chipatlas_bed6_builder
 cd "$RAW"
@@ -48,13 +48,56 @@ test -s allPeaks_light.hg38.05.bed.gz
 test -s experimentList.tab
 test -s reference/hg38.chrom.sizes
 test -s MD5SUMS
-md5sum -c MD5SUMS
+"$PY" - "$RAW/MD5SUMS" "$RAW" <<'PY'
+import hashlib, os, re, sys
+from pathlib import Path, PurePosixPath
+manifest, root = Path(sys.argv[1]), Path(sys.argv[2]).resolve()
+if manifest.is_symlink() or not manifest.is_file() or os.path.commonpath((str(root), str(manifest.resolve()))) != str(root):
+    raise SystemExit("unsafe or missing checksum manifest")
+allowed = {"allPeaks_light.hg38.05.bed.gz", "experimentList.tab", "reference/hg38.chrom.sizes"}
+seen, expected = set(), {}
+for line_no, line in enumerate(manifest.read_text(encoding="ascii").splitlines(), 1):
+    if not line:
+        continue
+    match = re.fullmatch(r"([0-9A-Fa-f]{32}) [ *](.+)", line)
+    if not match:
+        raise SystemExit(f"invalid MD5SUMS row {line_no}")
+    digest, raw_name = match.groups()
+    name_path = PurePosixPath(raw_name)
+    if name_path.is_absolute() or ".." in name_path.parts:
+        raise SystemExit(f"unsafe MD5SUMS path at row {line_no}")
+    name = name_path.as_posix()
+    if name in seen:
+        raise SystemExit(f"duplicate MD5SUMS path: {name}")
+    seen.add(name)
+    if name in allowed:
+        expected[name] = digest.lower()
+if set(expected) != allowed:
+    raise SystemExit(f"required checksum entries missing/ambiguous: {sorted(allowed-set(expected))}")
+for name in sorted(allowed):
+    path = root / name
+    if path.is_symlink() or not path.is_file() or os.path.commonpath((str(root), str(path.resolve()))) != str(root):
+        raise SystemExit(f"unsafe or missing input file: {name}")
+    digest = hashlib.md5()
+    size = 0
+    with path.open("rb") as source:
+        for block in iter(lambda: source.read(8 << 20), b""):
+            digest.update(block)
+            size += len(block)
+    if digest.hexdigest() != expected[name]:
+        raise SystemExit(f"MD5 mismatch: {name}")
+    print(f"MD5_OK {name} {size} bytes {digest.hexdigest()}")
+PY
 stat -c '%n %s bytes %y' allPeaks_light.hg38.05.bed.gz experimentList.tab reference/hg38.chrom.sizes
-test ! -e "$OUT" && test ! -e "$WORK"
-df -B1 -P "$RAW" "$BASE"
-df -i -P "$RAW" "$BASE"
+if [ -e "$OUT" ] || [ -L "$OUT" ] || [ -e "$WORK" ] || [ -L "$WORK" ]; then
+  echo "ERROR: output or work candidate already exists" >&2
+  exit 2
+fi
+if [ -d "$BASE/processed" ]; then TARGET_FS=$BASE/processed; else TARGET_FS=$BASE; fi
+df -B1 -P "$RAW" "$TARGET_FS"
+df -i -P "$RAW" "$TARGET_FS"
 findmnt -T "$RAW"
-findmnt -T "$BASE"
+findmnt -T "$TARGET_FS"
 "$PY" --version
 sort --version | sed -n '1p'
 bgzip --version 2>&1 | sed -n '1p'
@@ -65,10 +108,10 @@ systemd-run --user --scope --quiet --property=MemoryMax=44G --property=MemorySwa
 REMOTE
 ```
 
-This preflight reads source checksums and filesystem/tool status only. It does not create output/work directories, install software, fetch/checkout code, modify data, or run a builder. It must stop if an input/checksum is missing, either candidate path already exists, checksum fails, cgroup cap/swap check fails, or available disk is not demonstrably adequate. Since it does not estimate sort/output peak from decompressed rows, a passing preflight does not authorize the full build; review that separately after evaluating capacity. No SSH command has been run.
+This preflight reads the checksum manifest and hashes exactly the three allowlisted inputs; it rejects malformed, duplicate, or path-traversing manifest entries and does not open other manifest targets. It performs read-only status/path/filesystem/tool queries plus the proposed transient cgroup scope. It does not create output/work directories, install software, fetch/checkout code, modify data, or run a builder. It stops if an input/checksum is missing, either candidate path exists (including dangling symlinks), checksum fails, or cgroup verification fails. Disk values are collected for reporting only: this stage does not establish disk feasibility, and a zero exit code does not open the full-build gate. A separate review must assess estimated sort/output peak before any build. No SSH command has been run.
 
-Any full build is a later stage requiring a separate explicit scope decision after preflight establishes disk feasibility and the correct PR checkout can be prepared on Argos. Keep every task at or below the 44 GiB configured cap and below the user's 50 GB limit. Do not merge PR #6 or PR #7 without the user's separate approval.
+Any full build is a later stage requiring a separate explicit scope decision. The preflight only reports free capacity; a later review must compare that measurement with a defensible temporary-space estimate from the pinned input and algorithm before deciding whether to build. The correct PR checkout must also be prepared on Argos under an approved scope. Keep every task at or below the 44 GiB configured cap and below the user's 50 GB limit. Do not merge PR #6 or PR #7 without the user's separate approval.
 
 ## Next acceptance
 
-Finish static review, update the PR body and this handoff with the final exact HEAD, request exact-head GPT review, and fix only review findings in the same PR. After approval, confirm available disk and the memory cgroup on Argos before the full build; never use Mac mini compute. Then verify full row reconciliation, coordinate and region-ID uniqueness, provenance/linkage cardinality, class-mask counts, tabix queries, and reproducible hashes. Keep all data and results outside the repository.
+Finish static review, update the PR body and this handoff with the final exact HEAD, request exact-head GPT review, and fix only review findings in the same PR. After preflight review, use the reported free capacity plus a defensible temporary-space estimate to request a separate exact-scope review before any build; never use Mac mini compute. Then verify full row reconciliation, coordinate and region-ID uniqueness, provenance/linkage cardinality, class-mask counts, tabix queries, and reproducible hashes. Keep all data and results outside the repository.

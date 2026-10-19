@@ -1,5 +1,11 @@
 # PMA — handoff to Codex (2026-10-17, written by Claude Code)
 
+## Live status update — 2026-10-18 22:44 EDT — repairing GPT preflight-scope findings; no Argos access
+
+GitHub confirms PR #7 is OPEN at `23f5f43b8f02c26f8c52863d66620d5cd9a7f105`, based on approved design PR #6 HEAD `3c0e48e699073726b9ef7453644cabbe8b277ca4`. GPT's review of the exact PR head kept the code-review verdict APPROVE but returned `REQUEST_CHANGES` for the proposed Argos preflight: (P1) `md5sum -c` could read manifest targets outside the three intended inputs; (P2) ordinary `git status` may update optional index state; (P3) output checks missed dangling symlinks and the disk-capacity wording overclaimed feasibility. The dated handoff is being repaired to parse and constrain the manifest, hash only the three allowlisted files, disable optional Git writes, detect dangling symlinks, and report capacity without opening the build gate. No SSH command has been run.
+
+The approval at `05652f09eef0dc83b6c6c80bee1922dddf11d209` remains limited to static implementation code review; it authorizes no Argos action. Current local audit repair is uncommitted and must receive exact-head GPT review before preflight. Outcome 1 remains at reviewed code with no generated BED6 or resource measurements; outcome 2 has no benchmark progress. Neither endpoint is complete.
+
 ## Live status update — 2026-10-18 22:37 EDT — PR #7 code review approved; Argos preflight not yet authorized
 
 GPT reviewed complete PR #7 HEAD `c62c106c6fd238f9540c09b1bff95d971a39265a` against the approved design base and returned `REQUEST_CHANGES`. It accepted the two-sort builder/collision-QC split but blocked on four implementation issues: second-pass provenance did not bind coordinates and source identity strongly enough; entrypoints did not enforce the live cgroup cap when called directly; manifest source/code/tool metadata was incomplete or could refer to the caller's repository; and emitted sidecars lacked independent full sequential reconciliation. It also recommended byte-level tabix comparison with a guaranteed positive control and `LC_ALL=C` for both external sorts.

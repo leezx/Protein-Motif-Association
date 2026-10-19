@@ -84,13 +84,14 @@ def write_json(path: Path, value: object) -> None:
 
 
 def require_gridengine_memory_limit() -> dict[str, int | str]:
-    """Fail closed unless this is a one-slot Grid Engine job capped by h_vmem."""
+    """Require one Argos task with a finite 44-GiB address-space limit."""
     maximum = 44 * (1 << 30)
     try:
         job_id = os.environ.get("JOB_ID", "")
         slots = os.environ.get("NSLOTS", "")
-        if not job_id.isdecimal() or slots != "1":
-            raise ValueError(f"expected a one-slot Grid Engine job, got JOB_ID={job_id!r}, NSLOTS={slots!r}")
+        background = os.environ.get("PMA_BACKGROUND_EXECUTION") == "1"
+        if slots != "1" or not (job_id.isdecimal() or (background and job_id.startswith("BG_BED6_"))):
+            raise ValueError(f"expected one Grid Engine slot or capped Argos background task, got JOB_ID={job_id!r}, NSLOTS={slots!r}")
         if not hasattr(resource, "RLIMIT_AS"):
             raise ValueError("RLIMIT_AS is unavailable")
         soft, hard = resource.getrlimit(resource.RLIMIT_AS)
@@ -98,13 +99,14 @@ def require_gridengine_memory_limit() -> dict[str, int | str]:
             raise ValueError(f"RLIMIT_AS soft/hard must be finite and <=44 GiB, got {(soft, hard)!r}")
         if soft > hard:
             raise ValueError(f"RLIMIT_AS soft limit exceeds hard limit: {(soft, hard)!r}")
-        qstat = subprocess.run(["qstat", "-j", job_id], check=True, capture_output=True, text=True,
-                               encoding="utf-8", timeout=10).stdout
-        if not re.search(r"(?:^|[,\s])h_vmem=44G(?:[,\s]|$)", qstat):
-            raise ValueError("qstat does not confirm the exact hard request h_vmem=44G")
+        if not background:
+            qstat = subprocess.run(["qstat", "-j", job_id], check=True, capture_output=True, text=True,
+                                   encoding="utf-8", timeout=10).stdout
+            if not re.search(r"(?:^|[,\s])h_vmem=44G(?:[,\s]|$)", qstat):
+                raise ValueError("qstat does not confirm the exact hard request h_vmem=44G")
     except (OSError, subprocess.SubprocessError, ValueError) as exc:
         raise RuntimeError(f"required Grid Engine h_vmem/RLIMIT_AS guard unavailable or invalid: {exc}") from exc
-    return {"mode": "gridengine_h_vmem_single_slot_plus_rlimit_as", "job_id": job_id, "slots": 1,
+    return {"mode": "argos_background_rlimit_as" if background else "gridengine_h_vmem_single_slot_plus_rlimit_as", "job_id": job_id, "slots": 1,
             "rlimit_as_soft_bytes": int(soft), "rlimit_as_hard_bytes": int(hard),
             "memory_cap_bytes": maximum}
 
@@ -511,7 +513,7 @@ def main() -> int:
         mask_report = {str(mask): mask_counts[mask] for mask in range(1, 1 << len(CLASSES))}
         if sum(mask_report.values()) != n_regions:
             raise RuntimeError("class-mask counts do not sum to global unique-region count")
-        if any(mask not in mask_report for mask in mask_counts):
+        if any(str(mask) not in mask_report for mask in mask_counts):
             raise RuntimeError("unexpected class-membership mask")
 
         bed_gz = outdir / OUTPUTS[0]
@@ -640,9 +642,9 @@ def main() -> int:
                            "bgzip": tool_version(["bgzip", "--version"]),
                            "tabix": tool_version(["tabix", "--version"])},
         "resource_measurement": {"memory_limit_mode": memory_guard["mode"],
-                                 "memory_limit_semantics": "Grid Engine h_vmem=44G hard job request on one slot; process RLIMIT_AS soft/hard also verified",
+                                 "memory_limit_semantics": ("44-GiB RLIMIT_AS soft/hard on an Argos background task" if memory_guard["mode"] == "argos_background_rlimit_as" else "Grid Engine h_vmem=44G hard job request on one slot; process RLIMIT_AS soft/hard also verified"),
                                  "memory_cap_bytes": memory_guard["memory_cap_bytes"],
-                                 "gridengine_job_id": memory_guard["job_id"],
+                                 "task_id": memory_guard["job_id"],
                                  "gridengine_slots": memory_guard["slots"],
                                  "rlimit_as_soft_bytes": memory_guard["rlimit_as_soft_bytes"],
                                  "rlimit_as_hard_bytes": memory_guard["rlimit_as_hard_bytes"],

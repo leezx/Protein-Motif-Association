@@ -1,8 +1,8 @@
 # PMA — handoff to Codex (2026-10-17, written by Claude Code)
 
-## Live status update — 2026-10-18 23:22 EDT — one-time manifest diagnostic completed
+## Live status update — 2026-10-18 23:26 EDT — checksum provenance discovery scoped locally
 
-PR #7 was OPEN at exact HEAD `1478fb71bfe7b8e4dce19d4b3360ee4a6d8697da` (base `3c0e48e699073726b9ef7453644cabbe8b277ca4`). GPT approved implementation/audit and exactly one execution of the new diagnostic. The single command exited `0`: `reference/hg38.chrom.sizes` exists as a regular, non-symlink file, but the parser emitted no matching MD5SUMS candidate. It did not hash/read source data or inspect storage/tools/cgroup. Complete logs and hashes are preserved outside the repository in `/tmp/pma_pr7_manifest_diag_1478fb7.RLXv0N/`; interpretation and scope limits are in the dated handoff. That one-time approval is consumed. Any further Argos operation needs its own fresh exact-head/scope review. No BED6 build/QC or footprint comparison has completed.
+PR #7 was OPEN at exact HEAD `d3faa723733de18062ca293e01fdd2c9684a00f5` (base `3c0e48e699073726b9ef7453644cabbe8b277ca4`). GPT approved its audit with zero blockers and confirmed the one-time diagnostic record is accurate. It advised checking local staging/download evidence first, then proposing a separate read-only filename/type discovery for checksum-like entries in the fixed ChIP-Atlas RAW root and `reference/` if local evidence is insufficient. The local repository/session search found no checksum provenance for the ChIP-Atlas chrom.sizes file; the separate ATAC reference `MD5SUMS.refs` mention does not establish an occupancy reference manifest. A narrowly scoped candidate-name query is drafted in the dated handoff but has not been reviewed or run. No further Argos action is authorized. The earlier diagnostic established only that the file entry exists and no expected-format candidate appeared in MD5SUMS; it did not verify file contents/checksum. No BED6 build/QC or footprint comparison has completed.
 
 ## Live status update — 2026-10-18 23:10 EDT — recovered preflight result; manifest gate failed
 

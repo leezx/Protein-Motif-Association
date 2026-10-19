@@ -73,6 +73,72 @@ REMOTE
 
 **Observed result (one invocation):** exit code `0`. stdout contained one line: `REFERENCE_CANDIDATE name='hg38.chrom.sizes' symlink=False regular_file=True`. No `MANIFEST_CANDIDATE` line was emitted, meaning the streaming parser found no MD5SUMS line in the expected GNU-style form with a chromosome/size-like path. This establishes that the named reference file exists as a regular, non-symlink entry and that the query found no matching manifest candidate; it does not establish why the manifest differs, verify the file checksum/content, or prove other manifest formats absent. stderr contained only the SSH post-quantum key-exchange warning. Complete local stdout/stderr and exit status are retained outside the repository at `/tmp/pma_pr7_manifest_diag_1478fb7.RLXv0N/` (SHA-256 stdout `f800af4128b3ce247863b197ef628bc6040a905d3e26a1fa2980a83976e31b78`; stderr `048e2ba89ae430962e02f5341cf60c694fb7e131cb417790075a56b32ca09992`). No input checksum, source-content, output-capacity, tool, or cgroup check was performed. The one-time diagnostic authorization is consumed. No additional remote command is authorized by this result; a next query or full preflight requires fresh exact-head/scope review. Builder, QC, tests, benchmark, install, and merge remain outside this scope.
 
+## Local evidence review and proposed next remote query — not approved or run
+
+GPT's technical recommendation was to check existing local staging/download records first, then—only if those do not establish checksum provenance—request a new narrow remote discovery operation that lists checksum-like names and types in the fixed RAW root and `reference/`, without reading their contents. The following local-only search was performed: repository docs, Worklog, handoffs, and retained local Codex session JSONL for `MD5SUMS.refs` and `hg38.chrom.sizes`. It confirmed the design identifies `reference/hg38.chrom.sizes` as a UCSC source with 455 contigs, and older Step 4b logs mention `MD5SUMS.refs` for the separate ATAC raw dataset. It found no local record showing the ChIP-Atlas reference checksum manifest path or checksum. The ATAC manifest mention is not evidence that an occupancy-ChIP-Atlas companion manifest exists.
+
+If a fresh exact-head GPT review approves, the proposed independent query below will only list candidate manifest/checksum-like entry names and non-following type metadata in the fixed RAW root and its `reference/` child. It will not read file contents, source data, hashes, output/storage/tool/cgroup state, and will create no files. This is not yet authorized or run.
+
+```bash
+ssh -o BatchMode=yes zz950@rcapps3.dfci.harvard.edu 'bash -s' <<'REMOTE'
+set -euo pipefail
+RAW=/home/zz950/DATA/2.PROJECTS/PMA/occupancy_chipatlas/raw/2026-10-17
+PY=/home/zz950/softwares/miniforge3/envs/pmafp/bin/python
+"$PY" - "$RAW" <<'PY'
+import os, stat, sys
+from pathlib import Path
+logical_root = Path(os.path.abspath(sys.argv[1]))
+logical_parent = logical_root.parent.parent.resolve(strict=True)
+raw_parent = logical_parent / logical_root.parent.name
+root = raw_parent / logical_root.name
+if raw_parent.is_symlink() or not raw_parent.is_dir():
+    raise SystemExit("RAW parent is missing or symlinked")
+if root.is_symlink() or not root.is_dir() or root.resolve(strict=True) != root:
+    raise SystemExit("RAW root is missing, symlinked, or resolves unexpectedly")
+def safe_path(value):
+    logical = Path(os.path.abspath(value))
+    try:
+        relative = logical.relative_to(logical_root)
+    except ValueError:
+        raise SystemExit(f"path outside logical RAW: {logical}")
+    if not relative.parts or ".." in relative.parts:
+        raise SystemExit(f"invalid relative path: {relative}")
+    current = root
+    for part in relative.parts:
+        current = current / part
+        if current.is_symlink():
+            raise SystemExit(f"symlink inside RAW: {current}")
+    resolved = current.resolve(strict=True)
+    if os.path.commonpath((str(root), str(resolved))) != str(root) or resolved != current:
+        raise SystemExit(f"path escapes canonical RAW: {current}")
+    return current
+reference = safe_path(logical_root / "reference")
+if not reference.is_dir():
+    raise SystemExit("reference is not a directory")
+candidate_count = 0
+tokens = ("md5", "sha256", "checksum", "checksums", "manifest")
+def scan_candidates(label, directory):
+    global candidate_count
+    with os.scandir(directory) as entries:
+        for entry in entries:
+            if not any(token in entry.name.lower() for token in tokens):
+                continue
+            candidate_count += 1
+            if candidate_count > 100:
+                raise SystemExit("candidate limit exceeded; report incomplete")
+            mode = entry.stat(follow_symlinks=False).st_mode
+            kind = ("symlink" if stat.S_ISLNK(mode) else
+                    "regular_file" if stat.S_ISREG(mode) else
+                    "directory" if stat.S_ISDIR(mode) else "other")
+            print(f"CHECKSUM_CANDIDATE dir={label} name={entry.name!r} type={kind}")
+scan_candidates("RAW", root)
+scan_candidates("reference", reference)
+PY
+REMOTE
+```
+
+The proposed query is read-only, but it would create one SSH session and enumerate two directories. Any path/type error or candidate overflow must stop with a nonzero exit; no follow-up command is implied. A fresh full-HEAD review and separate one-time scope approval are required before execution.
+
 ## Direction and current progress
 
 **Live update — 2026-10-18 22:55 EDT.** GPT approved PR #7 exact HEAD `1432f6211b3e3411bf62a6f5e5f951bf9df17863` for implementation static review and for one execution of the exact read-only preflight below. The command was run once and exited `1` when the path guard found `/home` is a symlink. Captured stdout before exit: Argos checkout `task_20261018_step4b_setup_fix`, HEAD `4d099df44dc4bb48a93e110241168fadea1b1de6`, and remote PR branch ref `1432f6211b3e3411bf62a6f5e5f951bf9df17863`. It stopped before opening MD5SUMS or any input, checking output paths/filesystem/tools, or creating the transient cgroup. No checksum, disk, or cgroup result was obtained. Stderr included the SSH post-quantum key-exchange warning. No retry or other Argos command has been run. GPT's final scope approval is recorded in the persistent PMA review conversation; it excludes all build/QC/benchmark work.

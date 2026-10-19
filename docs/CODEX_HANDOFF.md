@@ -1,5 +1,13 @@
 # PMA — handoff to Codex (2026-10-17, written by Claude Code)
 
+## Live status update — 2026-10-18 22:51 EDT — exact-head code review approved; preflight finding under repair
+
+GPT verified PR #7 at HEAD `e61fccda1fc03c2b0326a09def3d5ea1b206757d`, base `3c0e48e699073726b9ef7453644cabbe8b277ca4`, and approved the full static implementation code review with zero blockers. It returned `REQUEST_CHANGES` for the one-time read-only Argos preflight because a symlinked intermediate source directory (including the RAW directory itself) could still pass. I added a component-level check locally and moved all source-file checks/stat calls after it; the exact new HEAD must be reviewed before any SSH. No Argos command has been run. Both project outcomes remain incomplete.
+
+## Live status update — 2026-10-18 22:50 EDT — tightening source-path symlink guard; no Argos access
+
+GPT's in-progress exact-head review of PR #7 found that the first repair rejected symlink files but did not reject symlinked intermediate directories such as `reference/`. I added a component-by-component symlink guard for the absolute manifest and each allowlisted input path. This repair is local and pending static checks and a new exact-head review. No SSH command has been run. Full build and footprint benchmark remain unstarted; neither final outcome is complete.
+
 ## Live status update — 2026-10-18 22:46 EDT — preflight findings repaired; exact-head review pending
 
 GitHub confirms PR #7 is OPEN at `23e19339bb1b7b8f1281f8b72d97f262e8aca81c`, based on approved design PR #6 HEAD `3c0e48e699073726b9ef7453644cabbe8b277ca4`. GPT's review of prior exact head `23f5f43b8f02c26f8c52863d66620d5cd9a7f105` kept the code-review verdict APPROVE but returned `REQUEST_CHANGES` for the proposed Argos preflight: (P1) `md5sum -c` could read manifest targets outside the three intended inputs; (P2) ordinary `git status` may update optional index state; (P3) output checks missed dangling symlinks and the disk-capacity wording overclaimed feasibility. Commit `23e19339bb1b7b8f1281f8b72d97f262e8aca81c` repairs those exact findings in the handoff: the manifest is constrained to the three allowlisted inputs, optional Git writes are disabled, dangling symlinks are detected, and disk capacity is report-only. No SSH command has been run.

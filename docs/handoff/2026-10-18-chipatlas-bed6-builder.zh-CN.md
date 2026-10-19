@@ -1,6 +1,6 @@
 # ChIP-Atlas unique BED6 builder implementation handoff
 
-Updated: 2026-10-18 22:46 EDT
+Updated: 2026-10-18 22:51 EDT
 Branch: `task_20261019_chipatlas_bed6_builder`  
 Parent design PR: [#6](https://github.com/leezx/Protein-Motif-Association/pull/6), exact GPT-approved design HEAD `3c0e48e699073726b9ef7453644cabbe8b277ca4`, OPEN/unmerged.  
 Implementation PR: [#7](https://github.com/leezx/Protein-Motif-Association/pull/7), OPEN/unmerged, stacked on PR #6. Verify the complete live HEAD on GitHub before review or execution; this handoff is a timestamped snapshot.
@@ -8,6 +8,8 @@ Implementation PR: [#7](https://github.com/leezx/Protein-Motif-Association/pull/
 ## Direction and current progress
 
 GPT reviewed PR #7 exact code HEAD `05652f09eef0dc83b6c6c80bee1922dddf11d209` (base `3c0e48e699073726b9ef7453644cabbe8b277ca4`) and returned `APPROVE — Implementation code-review gate`, with zero blockers. This is static code review only and does not authorize Argos, data reads, disk preflight, builder/QC/tests, analysis, or merge. The subsequent preflight proposal at `23f5f43b8f02c26f8c52863d66620d5cd9a7f105` received `REQUEST_CHANGES` for manifest scope, optional Git index writes, dangling-symlink checks, and overstated disk-feasibility stop conditions. Commit `23e19339bb1b7b8f1281f8b72d97f262e8aca81c` repairs those exact findings in the audit proposal. The complete current PR head is pending exact-head review; no external data or metadata has been read and no Argos command has been run.
+
+GPT subsequently verified full PR #7 HEAD `e61fccda1fc03c2b0326a09def3d5ea1b206757d` against base `3c0e48e699073726b9ef7453644cabbe8b277ca4`; the implementation code review remained `APPROVE`, zero blockers. For the separate preflight scope, it returned `REQUEST_CHANGES` with one blocker: the prior symlink guard did not reject symlinked intermediate directories or the RAW root itself. A component-by-component guard has been drafted locally for all source-path components, and file existence/hash/stat checks were moved after that guard. The updated proposal is not yet committed or reviewed; no SSH or Argos command has been run.
 
 The user's two endpoints remain: (1) produce a coordinate-unique, experiment-traceable human hg38 ChIP-Atlas BED6 reference with QC; (2) compare PRINT, TraceBIND, HINT, and TOBIAS on matched motif-free footprint accuracy and genome-wide speed on Argos, then complete B1–B4 and motif integration. Neither endpoint is complete.
 
@@ -39,21 +41,27 @@ OUT=$BASE/processed/unique_bed6_v1
 WORK=$BASE/processed/unique_bed6_v1_work
 CODE=/home/zz950/PMA_code_4b
 PY=/home/zz950/softwares/miniforge3/envs/pmafp/bin/python
-test -d "$RAW" && test -d "$BASE" && test -d "$CODE" && test -x "$PY"
+test -d "$CODE" && test -x "$PY"
 GIT_OPTIONAL_LOCKS=0 git -c core.fsmonitor=false -C "$CODE" status --short --branch
 git -C "$CODE" rev-parse HEAD
 git ls-remote https://github.com/leezx/Protein-Motif-Association.git refs/heads/task_20261019_chipatlas_bed6_builder
-cd "$RAW"
-test -s allPeaks_light.hg38.05.bed.gz
-test -s experimentList.tab
-test -s reference/hg38.chrom.sizes
-test -s MD5SUMS
 "$PY" - "$RAW/MD5SUMS" "$RAW" <<'PY'
 import hashlib, os, re, sys
 from pathlib import Path, PurePosixPath
-manifest, root = Path(sys.argv[1]), Path(sys.argv[2]).resolve()
-if manifest.is_symlink() or not manifest.is_file() or os.path.commonpath((str(root), str(manifest.resolve()))) != str(root):
-    raise SystemExit("unsafe or missing checksum manifest")
+root = Path(os.path.abspath(sys.argv[2]))
+def guarded_path(value):
+    path = Path(os.path.abspath(value))
+    if os.path.commonpath((str(root), str(path))) != str(root):
+        raise SystemExit(f"path outside raw root: {path}")
+    current = Path(path.anchor)
+    for part in path.parts[1:]:
+        current = current / part
+        if current.is_symlink():
+            raise SystemExit(f"symlink path component: {current}")
+    return path
+manifest = guarded_path(sys.argv[1])
+if not manifest.is_file():
+    raise SystemExit("missing checksum manifest")
 allowed = {"allPeaks_light.hg38.05.bed.gz", "experimentList.tab", "reference/hg38.chrom.sizes"}
 seen, expected = set(), {}
 for line_no, line in enumerate(manifest.read_text(encoding="ascii").splitlines(), 1):
@@ -75,8 +83,8 @@ for line_no, line in enumerate(manifest.read_text(encoding="ascii").splitlines()
 if set(expected) != allowed:
     raise SystemExit(f"required checksum entries missing/ambiguous: {sorted(allowed-set(expected))}")
 for name in sorted(allowed):
-    path = root / name
-    if path.is_symlink() or not path.is_file() or os.path.commonpath((str(root), str(path.resolve()))) != str(root):
+    path = guarded_path(root / name)
+    if not path.is_file():
         raise SystemExit(f"unsafe or missing input file: {name}")
     digest = hashlib.md5()
     size = 0
@@ -88,7 +96,7 @@ for name in sorted(allowed):
         raise SystemExit(f"MD5 mismatch: {name}")
     print(f"MD5_OK {name} {size} bytes {digest.hexdigest()}")
 PY
-stat -c '%n %s bytes %y' allPeaks_light.hg38.05.bed.gz experimentList.tab reference/hg38.chrom.sizes
+stat -c '%n %s bytes %y' "$RAW/allPeaks_light.hg38.05.bed.gz" "$RAW/experimentList.tab" "$RAW/reference/hg38.chrom.sizes"
 if [ -e "$OUT" ] || [ -L "$OUT" ] || [ -e "$WORK" ] || [ -L "$WORK" ]; then
   echo "ERROR: output or work candidate already exists" >&2
   exit 2
@@ -108,7 +116,7 @@ systemd-run --user --scope --quiet --property=MemoryMax=44G --property=MemorySwa
 REMOTE
 ```
 
-This preflight reads the checksum manifest and hashes exactly the three allowlisted inputs; it rejects malformed, duplicate, or path-traversing manifest entries and does not open other manifest targets. It performs read-only status/path/filesystem/tool queries plus the proposed transient cgroup scope. It does not create output/work directories, install software, fetch/checkout code, modify data, or run a builder. It stops if an input/checksum is missing, either candidate path exists (including dangling symlinks), checksum fails, or cgroup verification fails. Disk values are collected for reporting only: this stage does not establish disk feasibility, and a zero exit code does not open the full-build gate. A separate review must assess estimated sort/output peak before any build. No SSH command has been run.
+This preflight reads the checksum manifest and hashes exactly the three allowlisted inputs; it rejects malformed, duplicate, or path-traversing manifest entries, any symlink component in the source paths, and does not open other manifest targets. It performs read-only status/path/filesystem/tool queries plus the proposed transient cgroup scope. It does not create output/work directories, install software, fetch/checkout code, modify data, or run a builder. It stops if an input/checksum is missing, either candidate path exists (including dangling symlinks), checksum fails, or cgroup verification fails. Disk values are collected for reporting only: this stage does not establish disk feasibility, and a zero exit code does not open the full-build gate. A separate review must assess estimated sort/output peak before any build. No SSH command has been run.
 
 Any full build is a later stage requiring a separate explicit scope decision. The preflight only reports free capacity; a later review must compare that measurement with a defensible temporary-space estimate from the pinned input and algorithm before deciding whether to build. The correct PR checkout must also be prepared on Argos under an approved scope. Keep every task at or below the 44 GiB configured cap and below the user's 50 GB limit. Do not merge PR #6 or PR #7 without the user's separate approval.
 

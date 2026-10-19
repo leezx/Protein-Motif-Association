@@ -1,14 +1,23 @@
 # PMA — handoff to Codex (2026-10-17, written by Claude Code)
 
-## Current live status — 2026-10-19 15:54 EDT — ten-round ranking protocol
+## Current live status — 2026-10-19 15:58 EDT — ranking contract under same-PR repair
 
 Footprint-only. PR #8 is OPEN, unmerged, on `task_20261019_hint_overlay_smoke`. Fixed PMA conversation
-`PMA｜固定阶段审核` reviewed exact HEAD `a602373a1849588c6bdce2356791afc3ac7a5d72` and returned
-`APPROVE` for the ten-round method document plus repository-only read audit. It explicitly did not
-authorize Argos, experimental data, analysis, environment changes, caller execution, or merge. This
-revision adds concrete continuous-score, event-fallback, fold-isolation and stop-rule contracts to
-the same PR. The user requests a credible answer within ten iterations; round 10 may conclude
-“cannot rank” if independent labels and comparable held-out outputs remain unavailable.
+`PMA｜固定阶段审核` approved exact HEAD `a602373a1849588c6bdce2356791afc3ac7a5d72` for a
+documentation-only ranking contract, then returned `REQUEST_CHANGES` on exact HEAD
+`4f1d2b86e0e15aeda8d5e8766049eff5539150d5`. Its three findings concern (1) keeping hash-assigned
+neighboring blocks separate and using embargo rather than re-folding them, (2) fixing score direction
+from source definitions instead of choosing it from training labels, and (3) not using already
+threshold-truncated HINT/TraceBIND BED files to claim matched-recall or fixed-budget ranking. Minimal
+same-PR documentation corrections are in progress. Neither review authorized Argos, experimental
+data, analysis, environment changes, caller execution, or merge. The user requests a credible answer
+within ten iterations; round 10 may conclude “cannot rank” if independent labels and comparable
+held-out outputs remain unavailable.
+The current local correction keeps neighboring hash-assigned blocks separate and relies on embargo,
+fixes score direction from the pinned tool definition, and limits event-threshold tuning to complete
+score/call spaces. Threshold-truncated native HINT/TraceBIND BED outputs remain fixed operating points
+unless a complete threshold grid is validated; filtering already-emitted rows cannot support
+matched-recall or fixed-budget claims.
 Resolve the live PR head from GitHub for exact-head review; the handoff avoids self-referencing its
 own audit commit. The PR description matches the bounded plan and states that no accuracy winner is
 established.

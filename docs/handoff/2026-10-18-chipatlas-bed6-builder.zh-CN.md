@@ -437,31 +437,38 @@ ssh -o BatchMode=yes zz950@rcapps3.dfci.harvard.edu 'bash -s' <<'REMOTE'
 set -euo pipefail
 UID_NUM="$(id -u)"
 PY=/home/zz950/softwares/miniforge3/envs/pmafp/bin/python
-printf 'UID=%s\\n' "$UID_NUM"
+printf 'UID=%s\n' "$UID_NUM"
 if [ -n "${XDG_RUNTIME_DIR:-}" ]; then echo 'XDG_RUNTIME_DIR_SET=yes'; else echo 'XDG_RUNTIME_DIR_SET=no'; fi
 if [ -n "${DBUS_SESSION_BUS_ADDRESS:-}" ]; then echo 'DBUS_SESSION_BUS_ADDRESS_SET=yes'; else echo 'DBUS_SESSION_BUS_ADDRESS_SET=no'; fi
 for item in "/run/user/$UID_NUM" "/run/user/$UID_NUM/bus" "/run/systemd/system"; do
-  if [ -S "$item" ]; then printf 'RUNTIME_PATH %s socket\\n' "$item"
-  elif [ -d "$item" ]; then printf 'RUNTIME_PATH %s directory\\n' "$item"
-  else printf 'RUNTIME_PATH %s absent_or_other\\n' "$item"; fi
+  if [ -S "$item" ]; then printf 'RUNTIME_PATH %s socket\n' "$item"
+  elif [ -d "$item" ]; then printf 'RUNTIME_PATH %s directory\n' "$item"
+  else printf 'RUNTIME_PATH %s absent_or_other\n' "$item"; fi
 done
 printf 'PID1='; ps -p 1 -o comm=
 echo USER_SYSTEMD_PROCESS_COUNT:
 ps -u "$UID_NUM" -o comm= | awk '$1=="systemd"{n++} END{print n+0}'
 echo SCHEDULER_CLIENTS:
 for cmd in sbatch srun squeue bsub bjobs qsub qstat condor_submit; do
-  if command -v "$cmd" >/dev/null 2>&1; then printf '%s=present\\n' "$cmd"; else printf '%s=absent\\n' "$cmd"; fi
+  if command -v "$cmd" >/dev/null 2>&1; then printf '%s=present\n' "$cmd"; else printf '%s=absent\n' "$cmd"; fi
 done
 echo CGROUP_INSPECTION:
-"$PY" - <<'PY'
+"$PY" -B - <<'PY'
 from pathlib import Path
 
 def read_limited(path, limit=262144):
+    chunks = []
+    total = 0
     with Path(path).open("rb", buffering=0) as f:
-        data = f.read(limit + 1)
-    if len(data) > limit:
+        while total <= limit:
+            block = f.read(min(65536, limit + 1 - total))
+            if not block:
+                break
+            chunks.append(block)
+            total += len(block)
+    if total > limit:
         raise SystemExit(f"oversized inspection input: {path}")
-    return data.decode("utf-8", "replace")
+    return b"".join(chunks).decode("utf-8", "replace")
 
 cg_lines = read_limited("/proc/self/cgroup").splitlines()
 mount_lines = read_limited("/proc/self/mountinfo").splitlines()
@@ -524,3 +531,7 @@ REMOTE
 ```
 
 Next gate: commit/push this proposed diagnostic and its audit trail, synchronize PR #7 description to the resulting exact HEAD, and ask GPT to review this precise command. Do not SSH until that new exact-head review explicitly approves one execution. Even if read-only diagnostics find a scheduler client, its service and hard memory-limit semantics must be established before any computation. Current measurable progress remains: verified source hashes and large free disk, but zero BED6 rows, no output QC, no footprint comparisons; task-level memory cap unresolved.
+
+### GPT exact-head review findings and repair
+
+GPT reviewed HEAD `67a79a6f2de7bc4c24bd6c2a84a7e08c74341817`: implementation/audit `APPROVE` (0 blockers), diagnostic `REQUEST_CHANGES` (3 blockers), no remote execution authorized. Findings: F1 Python imports could write bytecode caches; F2 a single unbuffered `/proc` read may short-read and silently omit mount metadata; F3 shell `printf` strings had doubled backslashes and would print literal `\n`. Minimal repairs in this proposal: run Python with `-B`; read bounded `/proc` files in chunks until EOF or limit+1 and reject overflow; use single-backslash newline escapes in every `printf`. The command remains unrun and needs fresh exact-head approval.

@@ -563,3 +563,7 @@ Inspected TraceBIND's installed `get_bias()` body: it calls BSgenome `getSeq()` 
 ## 2026-10-19 06:22 EDT — HINT whole-sample result and fragment denominator
 
 `BG_HINT_GENOME_ctrl_32_V1` exited 0 after 10:03.94 wall from an aligned/indexed merged BAM and all 91,210 HCT116 peak windows. All 32 chunk outputs exist and the final BED has 927,584 native events, SHA-256 `ea2b730c79e82637a63bf18f0493b689d3ad40f8f6c81b011ebeaee8660225d5`; no failed marker. `/usr/bin/time -v` reports 10,799.55 user + 444.84 system CPU seconds and 239,532 KB maximum RSS for one child; sampled aggregate of 32 HINT processes was ~7.25 million KiB. A separate capped Argos count (`BG_COUNT_CTRL_FRAGMENTS_V1`, exit 0) found 46,158,731 primary proper-pair read1 fragments at MAPQ >=30 (`-f 0x43 -F 0x904`), so this is a whole-sample run but not the preregistered 100-M-fragment speed-gate sample. Launched the same 32-chunk HINT run on the aux whole-sample BAM and an aux fragment count; results pending. Do not extrapolate this 46.2-M sample to claim the 100-M gate. gDNA TOBIAS and TraceBIND V11 still active; no accuracy winner.
+
+## 2026-10-19 06:24 EDT — aux fragment denominator measured
+
+`BG_COUNT_AUX_FRAGMENTS_V1` exited 0 on Argos. The merged aux BAM contains 44,789,228 primary proper-pair read1 fragments at MAPQ >=30 using the same `-f 0x43 -F 0x904` definition as ctrl. The aux 32-chunk HINT run remains active. Both HCT116 conditions are below the registered 100-M-fragment speed-gate input requirement; a genuine deeper ATAC sample is needed for that gate.

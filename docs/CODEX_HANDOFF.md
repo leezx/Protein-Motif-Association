@@ -330,3 +330,7 @@ Installed `tracebind::get_bias()` skips per-region BSgenome sequence extraction 
 ### 2026-10-19 06:22 EDT — HINT whole-sample pilot measured
 
 Ctrl full HINT `BG_HINT_GENOME_ctrl_32_V1` exited 0 in 10:03.94 wall on 91,210 peak windows, 32/32 chunk BEDs present, 927,584 event rows, SHA-256 `ea2b730c79e82637a63bf18f0493b689d3ad40f8f6c81b011ebeaee8660225d5`. Child peak RSS 239,532 KB; sampled aggregate 32-process RSS was about 7.25 million KiB. Independent capped BAM count exited 0 with 46,158,731 primary proper-pair MAPQ>=30 fragments, so this is **not** the 100-M-fragment gate and must not be reported as a gate pass. `BG_HINT_GENOME_aux_32_V1` and `BG_COUNT_AUX_FRAGMENTS_V1` have started with the corresponding aux BAM. Preserve full output/logs outside the repo. Next: wait for aux and first-round V11/gDNA TOBIAS; run the native-density evaluator only after all required files pass, then source a genuine 100-M-fragment ATAC sample for the speed gate.
+
+### 2026-10-19 06:24 EDT — aux depth confirmed
+
+The capped aux fragment-count task exited 0 with 44,789,228 primary proper-pair MAPQ>=30 fragments under the same flags as ctrl. `BG_HINT_GENOME_aux_32_V1` is still active. Neither HCT116 whole-sample condition meets the 100-M-fragment speed-gate input, even though the ctrl full HINT run succeeded. Use these runs as whole-sample pilot and CTCF perturbation coverage, not as a 100-M gate pass.

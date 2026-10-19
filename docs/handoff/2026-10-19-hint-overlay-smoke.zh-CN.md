@@ -77,3 +77,7 @@ Argos 的 ctrl/aux 双重复 BAM 合并和索引均退出 0，分别为 4,960,64
 ## 2026-10-19 06:22 EDT：HINT 全样本实测与片段数
 
 ctrl HINT `BG_HINT_GENOME_ctrl_32_V1` 退出 0：91,210 个预定 peak 窗口、32/32 分块结果齐全，wall 10:03.94，927,584 条原生 footprint 事件，SHA-256 `ea2b730c79e82637a63bf18f0493b689d3ad40f8f6c81b011ebeaee8660225d5`；单子进程最大 RSS 239,532 KB，32 进程抽样合计约 7.25 million KiB。独立 Argos 片段计数任务退出 0，合并 ctrl BAM 中 MAPQ≥30、primary、proper-pair 的 read1 数为 46,158,731。因此此结果是真实全样本运行，但未达到预设 1 亿片段速度门槛，不可声称通过门槛。已启动 aux 的相同 HINT 运行和片段计数；gDNA TOBIAS、三组 TraceBIND V11 仍在运行。需要真实 1 亿片段 ATAC 样本再做正式速度门槛。
+
+## 2026-10-19 06:24 EDT：aux 片段数
+
+`BG_COUNT_AUX_FRAGMENTS_V1` 在 Argos 退出 0，用与 ctrl 相同的 `-f 0x43 -F 0x904 -q 30` 定义得到 44,789,228 个片段。aux HINT 全样本 32 分块仍在运行。两种 HCT116 条件都不足 1 亿片段，不能冒充正式速度门槛。

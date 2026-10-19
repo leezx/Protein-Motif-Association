@@ -2,7 +2,7 @@
 
 更新时间：2026-10-19 15:46 EDT（UTC 19:46）
 范围：仅 footprint→de novo motif；ChIP BED6 / PR #7 由 Claude 负责，本交接不涉及。  
-PR #8：`task_20261019_hint_overlay_smoke`，OPEN、未合并；当前推送 HEAD 为 `6840d837434998f1b0864d3571dd5964263ef5a2`。固定 PMA 对话对前一 HEAD `525f0d4f8e617349836c9ea94870c92cc08fb5ae` 返回 `REQUEST_CHANGES`；同 PR 修订已推送，等待对 `6840d83` 的 exact-head 复审。
+PR #8：`task_20261019_hint_overlay_smoke`，OPEN、未合并。固定 PMA 对话对前一 HEAD `525f0d4f8e617349836c9ea94870c92cc08fb5ae` 返回 `REQUEST_CHANGES`；同 PR 修订和后续 handoff-sync 已推送。提交/复审前从 GitHub 读取当前完整 branch tip；交接文件不自引用更新它自己的 commit SHA。
 审核边界：固定 PMA 项目对话 `PMA｜固定阶段审核` 对 `fd0b041` 的 APPROVE 仅覆盖文档/方法设计，不批准计算。随后针对 `525f0d4` 的反馈要求修正时间、状态来源表述、折外预测/适配边界和事件级备用终点。Argos 队列状态检查属于用户明确要求的 15 分钟监控 heartbeat；该次检查只读取调度队列，不读取实验数据，也不检查 detached processes。该监控授权不扩大为 caller 执行授权。
 
 ## 现在能确定什么
@@ -36,9 +36,9 @@ PR #8：`task_20261019_hint_overlay_smoke`，OPEN、未合并；当前推送 HEA
 
 ## 对 `525f0d4` 审核反馈的修正（本地待提交）
 
-固定 PMA 项目对话对 `525f0d4` 返回 `REQUEST_CHANGES`。同 PR 修订已推送在 `6840d83`：不再把空 `qstat` 解释为无后台任务；把 15:41 队列读取归因于用户的 15 分钟监控指示，并与实验数据访问分开；将 GNU `time` 子进程 28:18.88 与 job 时间戳 28:24 标明为不同口径；允许 held-out 输入用于冻结 caller 的预测，同时禁止用 held-out 标签/分数分布进行拟合、适配或选择；补充连续分数不可用时的事件级备选，并允许第十轮以不可排名结束。HCT116 HINT→STREME 输出改列为探索性 motif 结果，不作为 B4 验证。当前等待固定 PMA 对话复审 `6840d83`。
+固定 PMA 项目对话对 `525f0d4` 返回 `REQUEST_CHANGES`。同 PR 修订及 handoff-sync 已推送：不再把空 `qstat` 解释为无后台任务；把 15:41 队列读取归因于用户的 15 分钟监控指示，并与实验数据访问分开；将 GNU `time` 子进程 28:18.88 与 job 时间戳 28:24 标明为不同口径；允许 held-out 输入用于冻结 caller 的预测，同时禁止用 held-out 标签/分数分布进行拟合、适配或选择；补充连续分数不可用时的事件级备选，并允许第十轮以不可排名结束。HCT116 HINT→STREME 输出改列为探索性 motif 结果，不作为 B4 验证。复审前从 GitHub 确认完整 live branch tip，并在固定 PMA 对话审核该 SHA。
 
-本次审核不放行 Argos、数据、环境变更或分析。它只要求修正文档；本次完整 PR tip `6840d83` 已推送至同一 PR，仍需在同一固定 PMA 对话做 exact-head 复审。即使文档获批，运行依赖任务仍须满足相应人类阶段接受。
+本次审核不放行 Argos、数据、环境变更或分析。它只要求修正文档；修订和 audit sync 已推送至同一 PR，仍需在同一固定 PMA 对话对实时完整 tip 做 exact-head 复审。即使文档获批，运行依赖任务仍须满足相应人类阶段接受。
 
 ## 本轮 Review (Quick)
 

@@ -1,13 +1,13 @@
 # ChIP-Atlas unique BED6 builder implementation handoff
 
-Updated: 2026-10-18 22:38 EDT
+Updated: 2026-10-18 22:37 EDT
 Branch: `task_20261019_chipatlas_bed6_builder`  
 Parent design PR: [#6](https://github.com/leezx/Protein-Motif-Association/pull/6), exact GPT-approved design HEAD `3c0e48e699073726b9ef7453644cabbe8b277ca4`, OPEN/unmerged.  
 Implementation PR: [#7](https://github.com/leezx/Protein-Motif-Association/pull/7), OPEN/unmerged, stacked on PR #6. Verify the complete live HEAD on GitHub before review or execution; this handoff is a timestamped snapshot.
 
 ## Direction and current progress
 
-GPT reviewed PR #7 full HEAD `e54f7ab79def02a01673b52e4f8a1adabe7c81d6` (base `3c0e48e699073726b9ef7453644cabbe8b277ca4`) and returned `REQUEST_CHANGES`. F1, F2, N1 and N2 passed; two blockers remained: metadata release was inferred from a local directory instead of explicitly identified, and `zip(bed, summary)` could consume an extra BED row while the output audit lacked an independent BED ID/bounds check. GPT also recommended that the collision checker require the BED SHA-256 declaration. Focused repairs were committed/pushed on the same branch as `7e16526111f9491fe56a4e3152e3f21a6b769e2c`: required `--metadata-release`, `zip_longest` row-count reconciliation, per-row BED ID/bounds validation, and strict manifest BED hash requirement. Static checks passed. The new full HEAD still awaits GPT review; no external input was read and no Argos operation occurred.
+GPT reviewed PR #7 exact HEAD `05652f09eef0dc83b6c6c80bee1922dddf11d209` (base `3c0e48e699073726b9ef7453644cabbe8b277ca4`) and returned `APPROVE — Implementation code-review gate`, with zero blockers. This is static code review only and does not authorize Argos, data reads, disk preflight, builder/QC/tests, analysis, or merge. No external data or metadata has been read in this turn and no Argos command has been run.
 
 The user's two endpoints remain: (1) produce a coordinate-unique, experiment-traceable human hg38 ChIP-Atlas BED6 reference with QC; (2) compare PRINT, TraceBIND, HINT, and TOBIAS on matched motif-free footprint accuracy and genome-wide speed on Argos, then complete B1–B4 and motif integration. Neither endpoint is complete.
 
@@ -26,7 +26,48 @@ PR #6's current design-only approval does not include implementation or Argos op
 
 ## Review and execution gates
 
-The complete implementation PR and current resulting HEAD require GPT review before Argos access. The second focused repair is pushed on PR #7. Synchronize the PR body to the final complete review HEAD and request GPT review of that exact HEAD. The review request must include the precise read-only preflight and builder commands for consideration; no command has been run. If the PR HEAD is approved only for code review, obtain explicit GPT review of the proposed Argos scope before executing it. Do not merge PR #6 or the implementation PR without the user's separate approval.
+The code review passed for exact HEAD `05652f09eef0dc83b6c6c80bee1922dddf11d209`, but no remote action is approved by that verdict. The next proposed stage is read-only preflight only, to be independently reviewed before use. Planned destination: `ssh -o BatchMode=yes zz950@rcapps3.dfci.harvard.edu`. Planned inputs: `/home/zz950/DATA/2.PROJECTS/PMA/occupancy_chipatlas/raw/2026-10-17/{allPeaks_light.hg38.05.bed.gz,experimentList.tab,reference/hg38.chrom.sizes,MD5SUMS}`. Planned output candidate (not to be created during preflight): `/home/zz950/DATA/2.PROJECTS/PMA/occupancy_chipatlas/processed/unique_bed6_v1/`; scratch candidate: the sibling `unique_bed6_v1_work/`. Preflight will only inspect the PR checkout identity/status, target files and recorded checksums, free bytes/inodes on the data filesystem, existing output-path state, and Python/GNU sort/bgzip/tabix/systemd availability. It will run a tiny no-input `systemd-run --user --scope` probe capped at 44 GiB with swap disabled and read the child cgroup's actual `memory.max`, `memory.swap.max`, and `memory.peak`; it will not create output/work directories, install software, fetch/checkout code, modify data, or run a builder. It must stop if an input/checksum is missing, output path already exists, checksum fails, cgroup cap/swap check fails, or available disk is not demonstrably adequate. The exact command is to be reviewed in the next GPT request before any SSH command is run.
+
+Exact read-only preflight proposal (not yet run):
+
+```bash
+ssh -o BatchMode=yes zz950@rcapps3.dfci.harvard.edu 'bash -s' <<'REMOTE'
+set -euo pipefail
+RAW=/home/zz950/DATA/2.PROJECTS/PMA/occupancy_chipatlas/raw/2026-10-17
+BASE=/home/zz950/DATA/2.PROJECTS/PMA/occupancy_chipatlas
+OUT=$BASE/processed/unique_bed6_v1
+WORK=$BASE/processed/unique_bed6_v1_work
+CODE=/home/zz950/PMA_code_4b
+PY=/home/zz950/softwares/miniforge3/envs/pmafp/bin/python
+test -d "$RAW" && test -d "$BASE" && test -d "$CODE" && test -x "$PY"
+git -C "$CODE" status --short --branch
+git -C "$CODE" rev-parse HEAD
+git ls-remote https://github.com/leezx/Protein-Motif-Association.git refs/heads/task_20261019_chipatlas_bed6_builder
+cd "$RAW"
+test -s allPeaks_light.hg38.05.bed.gz
+test -s experimentList.tab
+test -s reference/hg38.chrom.sizes
+test -s MD5SUMS
+md5sum -c MD5SUMS
+stat -c '%n %s bytes %y' allPeaks_light.hg38.05.bed.gz experimentList.tab reference/hg38.chrom.sizes
+test ! -e "$OUT" && test ! -e "$WORK"
+df -B1 -P "$RAW" "$BASE"
+df -i -P "$RAW" "$BASE"
+findmnt -T "$RAW"
+findmnt -T "$BASE"
+"$PY" --version
+sort --version | sed -n '1p'
+bgzip --version 2>&1 | sed -n '1p'
+tabix --version 2>&1 | sed -n '1p'
+systemd-run --version | sed -n '1p'
+systemd-run --user --scope --quiet --property=MemoryMax=44G --property=MemorySwapMax=0 --property=TasksMax=8 -- \
+  "$PY" -c 'from pathlib import Path; import json; p=next(x.split(":",2)[2] for x in Path("/proc/self/cgroup").read_text().splitlines() if x.startswith("0::")); c=Path("/sys/fs/cgroup")/p.lstrip("/"); v={n:(c/n).read_text().strip() for n in ("memory.max","memory.swap.max","memory.peak")}; print(json.dumps({"cgroup":p,**v})); assert int(v["memory.max"]) <= 44*1024**3 and v["memory.swap.max"] == "0"'
+REMOTE
+```
+
+This preflight reads source checksums and filesystem/tool status only. It does not create output/work directories, install software, fetch/checkout code, modify data, or run a builder. It must stop if an input/checksum is missing, either candidate path already exists, checksum fails, cgroup cap/swap check fails, or available disk is not demonstrably adequate. Since it does not estimate sort/output peak from decompressed rows, a passing preflight does not authorize the full build; review that separately after evaluating capacity. No SSH command has been run.
+
+Any full build is a later stage requiring a separate explicit scope decision after preflight establishes disk feasibility and the correct PR checkout can be prepared on Argos. Keep every task at or below the 44 GiB configured cap and below the user's 50 GB limit. Do not merge PR #6 or PR #7 without the user's separate approval.
 
 ## Next acceptance
 

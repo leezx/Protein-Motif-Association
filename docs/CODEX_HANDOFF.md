@@ -1,12 +1,14 @@
 # PMA — handoff to Codex (2026-10-17, written by Claude Code)
 
-## Live status update — 2026-10-18 22:38 EDT — PR #7 second repair pushed; exact-head review pending
+## Live status update — 2026-10-18 22:37 EDT — PR #7 code review approved; Argos preflight not yet authorized
 
 GPT reviewed complete PR #7 HEAD `c62c106c6fd238f9540c09b1bff95d971a39265a` against the approved design base and returned `REQUEST_CHANGES`. It accepted the two-sort builder/collision-QC split but blocked on four implementation issues: second-pass provenance did not bind coordinates and source identity strongly enough; entrypoints did not enforce the live cgroup cap when called directly; manifest source/code/tool metadata was incomplete or could refer to the caller's repository; and emitted sidecars lacked independent full sequential reconciliation. It also recommended byte-level tabix comparison with a guaranteed positive control and `LC_ALL=C` for both external sorts.
 
-GPT reviewed exact PR #7 HEAD `e54f7ab79def02a01673b52e4f8a1adabe7c81d6` against base `3c0e48e699073726b9ef7453644cabbe8b277ca4` and returned `REQUEST_CHANGES`. F1, F2, N1 and N2 passed static review. It requested an explicit source `--metadata-release` (not a directory-derived value), `zip_longest` with explicit BED ID/bounds checks, and (nonblocking) a mandatory BED SHA declaration in the collision checker.
+GPT reviewed the full PR #7 HEAD `05652f09eef0dc83b6c6c80bee1922dddf11d209` against base `3c0e48e699073726b9ef7453644cabbe8b277ca4` and returned `APPROVE — Implementation code-review gate`, with zero blockers. It confirmed the source-release argument, unequal-row handling/BED ID bounds checks, and mandatory BED hash declaration. This is static code review only; GPT explicitly did not authorize Argos access, data reads, disk preflight, builder/QC/tests, analysis, or merge.
 
-These focused repairs are now committed and pushed to the same PR #7 branch as `7e16526111f9491fe56a4e3152e3f21a6b769e2c`: explicit required release argument; full unequal-row detection and per-record ID/coordinate/bounds checks; and strict manifest BED SHA validation. Static compilation, shell parsing, and diff checks passed. The PR body and handoff still need final synchronization to the new full HEAD, followed by exact-head GPT review. No functional test, external data read, Argos access, builder or QC run, resource measurement, or merge occurred. PR #6 remains open/unmerged; neither project endpoint is complete.
+Next gate: request GPT review of a read-only Argos preflight with the exact host, input/output paths, checksum/resource/cgroup/version commands, and stop conditions documented in the dated handoff. No remote command has been run. Only after that precise preflight scope is approved may it be performed; full building requires a separate decision based on measured disk availability and review of the exact build scope. No functional test, external data read, Argos access, builder/QC run, resource measurement, or merge occurred. PR #6 remains open/unmerged; neither project endpoint is complete.
+
+The dated handoff now contains the complete proposed preflight command for `rcapps3.dfci.harvard.edu`, source checksum verification, read-only storage/tool inspection, and a transient 44 GiB no-swap cgroup probe. It creates no directories and performs no code checkout or build. This command has not been run; GPT must review it against the new complete PR HEAD before any SSH access.
 
 ## Live status update — 2026-10-18 22:12 EDT — PR #6 design approved; PR #7 builder review pending
 

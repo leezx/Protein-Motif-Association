@@ -1,19 +1,73 @@
 # ChIP-Atlas unique BED6 builder implementation handoff
 
-Updated: 2026-10-18 23:04 EDT
+Updated: 2026-10-18 23:10 EDT
 Branch: `task_20261019_chipatlas_bed6_builder`  
 Parent design PR: [#6](https://github.com/leezx/Protein-Motif-Association/pull/6), exact GPT-approved design HEAD `3c0e48e699073726b9ef7453644cabbe8b277ca4`, OPEN/unmerged.  
 Implementation PR: [#7](https://github.com/leezx/Protein-Motif-Association/pull/7), OPEN/unmerged, stacked on PR #6. Verify the complete live HEAD on GitHub before review or execution; this handoff is a timestamped snapshot.
 
-## Live update — 2026-10-18 23:04 EDT / 2026-10-19 03:04 UTC — approved preflight invoked; result unavailable
+## Live update — 2026-10-18 23:10 EDT / 2026-10-19 03:10 UTC — local transcript recovered; preflight stopped at manifest gate
 
-PR #7 remains OPEN at `012b59c35bae3271605b00d8c3a77ed82061e27a` (base `3c0e48e699073726b9ef7453644cabbe8b277ca4`). GPT approved the full implementation/audit static review and exactly one execution of the revised read-only preflight at this HEAD. That approved command was invoked once in this session. Its tool response exceeded the retained output capacity; no reliable stdout, stderr, or exit status is available in the retained record. Therefore this handoff makes no claim that checksums, storage, tools, or cgroup checks passed, and does not infer success or failure. The approval is consumed. No retry, follow-up SSH, builder, QC, test, benchmark, install, or merge has been run. The command's result must be recovered from an already-existing execution transcript if one exists; do not issue another remote command to reconstruct it. Outcomes 1 and 2 remain incomplete.
+PR #7 remains OPEN at `012b59c35bae3271605b00d8c3a77ed82061e27a` (base `3c0e48e699073726b9ef7453644cabbe8b277ca4`). GPT approved the exact static implementation/audit and one execution of this revised read-only preflight. The one-time command ran once; its result was recovered from the local Codex session rollout `01a14d07-a237-7ca2-ae3e-6c61140234bd`, tool call `call_f154707f9548495583f795ac1154580a` (result record ordinal 34954). The recorded tool result has exit code `1`; it reports the existing Argos checkout `task_20261018_step4b_setup_fix` at `4d099df44dc4bb48a93e110241168fadea1b1de6`, remote PR branch ref `012b59c35bae3271605b00d8c3a77ed82061e27a`, and canonical RAW path `/data/sysdir/home/zz950/DATA/2.PROJECTS/PMA/occupancy_chipatlas/raw/2026-10-17`. It then stopped with `required checksum entries missing/ambiguous: ['reference/hg38.chrom.sizes']`. Thus the command read the MD5SUMS manifest but did not hash or stat any of the three data inputs, inspect output paths or filesystems, report tool versions, or create the transient cgroup. No checksum, capacity, tool, or cgroup check passed; neither build nor output was produced. The one-time authorization is consumed. Do not rerun the command. Any manifest investigation or corrected preflight requires a newly reviewed, exact-scope operation. Outcomes 1 and 2 remain incomplete.
+## Proposed next query — not approved or run
+
+Purpose: identify why the approved preflight's MD5SUMS parser did not find the exact `reference/hg38.chrom.sizes` key. This is a new, independent one-time read-only query, not a retry of the consumed preflight. It reads only `MD5SUMS` content and inspects names/type metadata for matching entries in the `reference/` directory; it does not open or hash any ChIP-Atlas data file, inspect output/storage/tool/cgroup state, or create files. It will stop on any path/symlink guard failure. Exact command proposed for GPT review:
+
+```bash
+ssh -o BatchMode=yes zz950@rcapps3.dfci.harvard.edu 'bash -s' <<'REMOTE'
+set -euo pipefail
+RAW=/home/zz950/DATA/2.PROJECTS/PMA/occupancy_chipatlas/raw/2026-10-17
+PY=/home/zz950/softwares/miniforge3/envs/pmafp/bin/python
+"$PY" - "$RAW" <<'PY'
+import os, re, sys
+from pathlib import Path
+logical_root = Path(os.path.abspath(sys.argv[1]))
+logical_parent = logical_root.parent.parent.resolve(strict=True)
+raw_parent = logical_parent / logical_root.parent.name
+root = raw_parent / logical_root.name
+if raw_parent.is_symlink() or not raw_parent.is_dir():
+    raise SystemExit("RAW parent is missing or symlinked")
+if root.is_symlink() or not root.is_dir() or root.resolve(strict=True) != root:
+    raise SystemExit("RAW root is missing, symlinked, or resolves unexpectedly")
+def safe_path(value):
+    logical = Path(os.path.abspath(value))
+    try:
+        relative = logical.relative_to(logical_root)
+    except ValueError:
+        raise SystemExit(f"path outside logical RAW: {logical}")
+    if not relative.parts or ".." in relative.parts:
+        raise SystemExit(f"invalid relative path: {relative}")
+    current = root
+    for part in relative.parts:
+        current = current / part
+        if current.is_symlink():
+            raise SystemExit(f"symlink inside RAW: {current}")
+    resolved = current.resolve(strict=True)
+    if os.path.commonpath((str(root), str(resolved))) != str(root) or resolved != current:
+        raise SystemExit(f"path escapes canonical RAW: {current}")
+    return current
+manifest = safe_path(logical_root / "MD5SUMS")
+reference = safe_path(logical_root / "reference")
+if not manifest.is_file() or not reference.is_dir():
+    raise SystemExit("MD5SUMS or reference directory has unexpected type")
+pattern = re.compile(r"([0-9A-Fa-f]{32}) [ *](.+)")
+for line_no, line in enumerate(manifest.read_text(encoding="ascii").splitlines(), 1):
+    match = pattern.fullmatch(line)
+    if match and "chrom" in match.group(2).lower() and "size" in match.group(2).lower():
+        print(f"MANIFEST_CANDIDATE line={line_no} path={match.group(2)}")
+for entry in sorted(reference.iterdir(), key=lambda p: p.name):
+    if "chrom" in entry.name.lower() and "size" in entry.name.lower():
+        print(f"REFERENCE_CANDIDATE name={entry.name} symlink={entry.is_symlink()} regular_file={entry.is_file()}")
+PY
+REMOTE
+```
+
+This command has not been run. It requires fresh exact-HEAD review and a separate one-time scope approval. A result would only resolve the manifest-name discrepancy; it would not authorize input hashing beyond the original allowlist, a builder, QC, tests, benchmark, install, or merge.
 
 ## Direction and current progress
 
 **Live update — 2026-10-18 22:55 EDT.** GPT approved PR #7 exact HEAD `1432f6211b3e3411bf62a6f5e5f951bf9df17863` for implementation static review and for one execution of the exact read-only preflight below. The command was run once and exited `1` when the path guard found `/home` is a symlink. Captured stdout before exit: Argos checkout `task_20261018_step4b_setup_fix`, HEAD `4d099df44dc4bb48a93e110241168fadea1b1de6`, and remote PR branch ref `1432f6211b3e3411bf62a6f5e5f951bf9df17863`. It stopped before opening MD5SUMS or any input, checking output paths/filesystem/tools, or creating the transient cgroup. No checksum, disk, or cgroup result was obtained. Stderr included the SSH post-quantum key-exchange warning. No retry or other Argos command has been run. GPT's final scope approval is recorded in the persistent PMA review conversation; it excludes all build/QC/benchmark work.
 
-**Fresh-review state — 2026-10-18 22:57 EDT.** GPT recommended canonicalizing only the trusted parent above RAW, while rejecting symlinks at RAW and below and keeping all resolved targets under the canonical RAW root. The command below now follows that proposal and explicitly checks the cgroup result without Python `assert`. Static syntax/AST/diff checks passed. This is a modified SSH command: the earlier one-time permission is consumed, so request fresh exact-head and one-time scope approval before any retry. No new SSH command has run.
+**Historical proposal state — 2026-10-18 22:57 EDT (before later approval/execution).** GPT recommended canonicalizing only the trusted parent above RAW, while rejecting symlinks at RAW and below and keeping all resolved targets under the canonical RAW root. The command below now follows that proposal and explicitly checks the cgroup result without Python `assert`. Static syntax/AST/diff checks passed. This is a modified SSH command: the earlier one-time permission is consumed, so request fresh exact-head and one-time scope approval before any retry. No new SSH command has run.
 
 GPT reviewed PR #7 exact code HEAD `05652f09eef0dc83b6c6c80bee1922dddf11d209` (base `3c0e48e699073726b9ef7453644cabbe8b277ca4`) and returned `APPROVE — Implementation code-review gate`, with zero blockers. This was static code review only. Later preflight reviews resolved the scope blockers; see the live update above for the exact approved head and one failed execution. No MD5SUMS or source data contents were read.
 

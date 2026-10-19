@@ -139,6 +139,22 @@ REMOTE
 
 **Observed result (one invocation):** exit code `0`. stdout listed exactly two candidates: `RAW/MD5SUMS` and `reference/MD5SUMS`, both regular files. It did not find a name containing `MD5SUMS.refs`, `SHA256`, `checksum`, or `manifest` in either scanned top-level directory. stderr contained only the SSH post-quantum warning. Complete stdout/stderr/exit record is outside the repository at `/tmp/pma_pr7_checksum_discovery_b347d8e.ofZvuy/`; stdout SHA-256 `00ee47447c514792aa69a9c1e92d40d91cb1f3133adf0514c09e1baf81006117`, stderr SHA-256 `048e2ba89ae430962e02f5341cf60c694fb7e131cb417790075a56b32ca09992`. This establishes candidate names and file types only. It does not establish the contents, provenance, or expected hash in either manifest. The one-time scope is consumed.
 
+## Live update — 2026-10-18 23:45 EDT — GPT-approved preflight executed once; cgroup probe failed
+
+At exact PR #7 HEAD `04c43397fdcda8cf1bda19edc5ec2c936239e697` / base `3c0e48e699073726b9ef7453644cabbe8b277ca4` / OPEN, GPT approved implementation/audit and exactly one execution of the exact preflight command below. Immediately before running, local HEAD and `gh pr view` matched those values. Extracted the complete SSH heredoc command verbatim; command SHA-256 `1c0b31af18741686a5d93feaefbced6e3287dd1e3b3193922eaf3ca022665d59`. It was invoked once on the fixed host. Exit code `1`, at the final `systemd-run --user --scope` probe, with stderr `Failed to create bus connection: No such file or directory`; no cgroup cap was established. The one-time authorization is consumed.
+
+**Verified input checksums and sizes:**
+
+```text
+MD5_OK allPeaks_light.hg38.05.bed.gz 21398659343 bytes f083092fe133ddcb8b80a04727e23244
+MD5_OK experimentList.tab 359492249 bytes 9cccd909247f0c739dbad537b1917ffe
+MD5_OK reference/hg38.chrom.sizes 11672 bytes c42e9f75fff906c6a7143cb2fac86602
+```
+
+The remote code checkout is still `task_20261018_step4b_setup_fix` at `4d099df44dc4bb48a93e110241168fadea1b1de6`; `git ls-remote` showed this PR branch at `04c43397fdcda8cf1bda19edc5ec2c936239e697`. The fixed source files were statted. The target filesystem is BeeGFS mounted at `/data/sysdir/home`: total 1,583,895,413,784,576 bytes, used 1,340,951,572,774,912, available 242,943,841,009,664 bytes (85%). BeeGFS returned zero/unavailable inode counts. Tool output: Python 3.11.17, GNU sort 8.25, systemd 229; `bgzip --version` and `tabix --version` emitted a `/usr/local/lib/libcurl.so.4` version warning but no version text. Full logs remain outside the repository at `/tmp/pma_pr7_preflight_04c4339.aNwNTU/`; stdout SHA-256 `94997ad0ae22e28fe55c1fb4194c8918c15c7179b0ef9319e376c8f998ef5545`; stderr SHA-256 `d37731a02bcd1b105a99839f556d7f5f6227ef65c81437d7c155482aa3f492ed`; exit-code-file SHA-256 `4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865`.
+
+The preflight reached the final cgroup step after the input MD5s and other reports. Because `systemd-run --user` cannot connect to a user bus, the <=44 GiB cap is not verified. This is a hard execution stop: no builder, collision QC, benchmark, or other analysis can begin until a supported Argos mechanism proves each task stays under 50 GB. No output/work path was created, software installed, or persistent environment changed. Next ask GPT for a minimal read-only Argos memory-control diagnosis; that is a new remote scope and needs its own exact-head/one-time review. Do not retry this command or attempt an alternate controller without that review.
+
 ## Live update — 2026-10-18 23:38 EDT — two-manifest read-only preflight repaired locally
 
 After the one-time approved reference-manifest read, corrected the draft preflight mapping: the two source inputs are matched only against `RAW/MD5SUMS`; `reference/hg38.chrom.sizes` is matched against `RAW/reference/MD5SUMS` using the basename `hg38.chrom.sizes`. The parser uses an explicit three-file map, rejects duplicate/unsafe manifest names, caps manifest reads at 1 MiB, and checks source MD5s only after both required manifest entries are present. Static embedded-Python parsing, `bash -n`, and `git diff --check` pass. This new command has not been reviewed or run. No Argos access, input hashing, storage/tool/cgroup inspection, build, QC, or analysis occurred. It requires a new exact-head review and one-time scope approval.
@@ -263,7 +279,7 @@ PR #6's current design-only approval does not include implementation or Argos op
 
 ## Review and execution gates
 
-The code review passed for PR #7 exact HEAD `1432f6211b3e3411bf62a6f5e5f951bf9df17863`. GPT approved one execution of the read-only preflight at the same SHA. It stopped at the source-path symlink guard (`/home`); see the live update. The remainder of the proposal documents the intended scope and was not reached in that run. No second SSH invocation is authorized by the one-time approval.
+Historical failed attempt at PR #7 HEAD `1432f6211b3e3411bf62a6f5e5f951bf9df17863`: GPT approved one execution, which stopped at the source-path symlink guard (`/home`); that attempt's one-time authorization was consumed. The later corrected command at HEAD `04c4339` was independently approved and run once; its final cgroup failure is recorded in the live update above. Neither authorization permits another SSH invocation.
 
 Corrected read-only Argos preflight proposal — not yet approved; requires fresh exact-head review and one execution approval. It reads `RAW/MD5SUMS` for the two raw inputs and `RAW/reference/MD5SUMS` for chromosome sizes, mapping each basename only to its fixed allowlisted path before hashing.
 

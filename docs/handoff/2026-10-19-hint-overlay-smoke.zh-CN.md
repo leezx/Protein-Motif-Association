@@ -95,3 +95,9 @@ K562 BAM `ENCFF534DCE` 已按官方字节/MD5 校验并通过 quickcheck，SHA-2
 ## 2026-10-19 10:57 EDT：K562 索引与速度搜索空间脚本
 
 K562 BAM 索引任务已退出 0，索引 SHA-256 `9566848400900c465d450bc1c942a61207fc7bb7439403fcbcc86b0c349330d4`。新增 `scripts/04b_footprint/prepare_speed_regions.py`，复用 HCT116 的峰强度优先、summit ±500 bp 去重规则，在同一样本的 K562 IDR peak 上形成窗口，并按固定随机种子加入 2,000 个与原始峰和 blacklist 都不重叠的阴性窗口。脚本记录过滤计数和输入输出 SHA-256，输出只允许在仓库外。代码已通过语法与差异检查，尚未运行全量 K562 区域准备或正式速度比较。
+
+## 2026-10-19 11:01 EDT：K562 速度窗口与非重复输入确认
+
+`BG_K562_SPEED_REGIONS_44B9C11` 在 Argos 退出 0：159,628 个同实验 IDR 峰生成 75,668 个互不重叠的 1-kb 可及窗口，另加 2,000 个种子固定的 off-peak 阴性窗口，共 77,668 个；blacklist 排除 1,929 个，低信号重叠排除 82,031 个。外部 BED `/home/zz950/DATA/2.PROJECTS/PMA/atac_footprint/processed/round1/regions/k562_speed_1kb.bed` 的 SHA-256 为 `472f82c5d7e412a6cac6aa102b92b93bce0b93fd2c78e0e5771ca4a49906819d`，相邻 manifest 固定来源与计数；独立检查确认宽度、唯一 ID 和无重叠。该 BED 是共同速度搜索空间，不代表逐碱基全基因组覆盖。
+
+独立计数任务 `BG_K562_NON_DUP_COUNT_V1` 退出 0：`samtools view -c -f 67 -F 3332 -q 30` 得到 **110,891,952 个非重复**、MAPQ≥30、主比对且正确配对的 read1 片段，因此 1 亿输入门槛在去重后仍满足。`BG_K562_HINT32_V1` 已于 10:56:35 EDT 在全部 77,668 窗口上启动，32 个 HINT 分块，CPU-only、受 40/44 GiB 地址空间门禁约束；结果与 wall/RSS 待检查。其余三个 caller 需用同一冻结 BED。K562 ENCODE 样本有核小体游离片段 QC 警告，只作速度输入，B3 生物学真值另行判断。

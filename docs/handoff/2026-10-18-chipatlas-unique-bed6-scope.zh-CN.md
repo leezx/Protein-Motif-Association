@@ -3,7 +3,7 @@
 更新时间：2026-10-18 19:16 EDT
 工作分支：`task_20261018_chipatlas_unique_bed6_design`
 基线：`origin/step4b-atac-footprinting`
-PR：[#6](https://github.com/leezx/Protein-Motif-Association/pull/6)，OPEN、未合并；分支当前 HEAD `3e15ab23c42a44d8139f3b4fb04038428fa3bc3c`，base `6c2e323fc80cc3e05f9de05282d1bbce49ba98fa`。GPT 对该精确完整 HEAD 给出 `APPROVE — Design-only gate`，零 blocker。批准范围只覆盖设计，不包括实现、Argos 读取、数据处理、资源预检、运行或合并。
+PR：[#6](https://github.com/leezx/Protein-Motif-Association/pull/6)，OPEN、未合并。历史记录：2026-10-18 19:16 EDT 时分支 HEAD 为 `3e15ab23c42a44d8139f3b4fb04038428fa3bc3c`，GPT 对该精确完整 HEAD 给出 `APPROVE — Design-only gate`，零 blocker；此批准仅适用于该历史 HEAD 和设计范围，不自动覆盖后续提交。2026-10-18 22:02 EDT 的 GitHub 核验显示实际 HEAD 为 `13670e57c9ee384fb3a5f9455bae4ff7fc38f019`，base `6c2e323fc80cc3e05f9de05282d1bbce49ba98fa`；该 HEAD 当时尚待 GPT exact-head review。后续实现、Argos 读取、数据处理、资源预检、运行或合并仍须各自通过对应门禁与授权。
 
 ## PI 目标
 

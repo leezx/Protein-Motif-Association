@@ -536,3 +536,73 @@ Read-only Argos status check at 19:15 EDT found no recognizable PMA compute proc
 GPT's implementation-only architecture guidance was added to the dated handoff: two GNU external sorts and three streaming passes; stable source-row ordinals; coordinate→experiment→row reduction; source-row-ordered mapping and final merge-join; a fixed mutually exclusive `primary_status` precedence with secondary QC flags; and reporting the seven disjoint class-membership masks so their counts sum to global unique regions. This is design guidance, not measured feasibility. Disk quota, free space, peak temp, eligible-row fraction, tuple width, sort RSS, full-key input order and metadata uniqueness all remain unknown pending a separately approved Argos preflight. No Argos metadata or data were read; no tests, data transformations, environment changes, footprint analysis or merge occurred.
 
 Updated `docs/CODEX_HANDOFF.md` and the dated PR #6 handoff to correct the stale “review pending” state and preserve the approval scope and technical advice. `git diff --check` and complete PR review remain to be done before committing this audit update; any resulting HEAD must be re-reviewed before dependent implementation or external work. Outcome 1: exact-head design gate now passed and implementation architecture is concrete; zero BED6 rows and zero measured compute feasibility. Outcome 2: no benchmark progress. `HUMAN DECISION: PENDING`.
+
+## 2026-10-18 19:30 EDT — 15-minute gate monitor
+
+Rechecked GitHub and Argos without starting work. PR #6 remains OPEN at remote HEAD `13670e57c9ee384fb3a5f9455bae4ff7fc38f019` (base `6c2e323fc80cc3e05f9de05282d1bbce49ba98fa`); PR #5 remains OPEN at `c1f9329cd395eff82d2374184c3e1f7cc674922c`. Argos `ps` shows no PMA computation; no PMA log changed in the last hour. The long-lived `singularity help build` probe remains and was not touched. The persistent “PMA项目” GPT conversation remains at maximum length; no review of current PR #6 HEAD is available. No Argos data/metadata read, run, environment change, test, analysis or merge. Implementation and all dependent Argos work remain held at the exact-current-HEAD review gate.
+
+## 2026-10-18 19:45 EDT — 15-minute gate monitor
+
+Live state is unchanged: PR #6 OPEN at `13670e57c9ee384fb3a5f9455bae4ff7fc38f019`; PR #5 OPEN at `c1f9329cd395eff82d2374184c3e1f7cc674922c`. Argos process and recent-log checks show no PMA run; the old `singularity help build` probe remains. No new exact-head review is recorded. No compute, data, environment, test, analysis, or merge action was taken. Awaiting a human decision on whether the full GPT conversation may be continued in a successor chat; until then no dependent phase starts.
+
+## 2026-10-18 20:00 EDT — 15-minute gate monitor
+
+PR #6 is still OPEN at `13670e57c9ee384fb3a5f9455bae4ff7fc38f019`; GitHub reports no formal review. PR #5 remains OPEN at `c1f9329cd395eff82d2374184c3e1f7cc674922c`. Argos has no PMA process or recent PMA log update; the old `singularity help build` probe is still present. Reopened the same fixed “PMA项目” URL (no new chat); its prior technical answer shows “Connection interrupted. Waiting for the complete answer,” remains marked Working, and the input is disabled while generation is pending. No exact-head review of PR #6's current SHA is available. No Argos compute, data access, environment change, test, analysis, or merge occurred. Continue holding all dependent work pending GPT completion or a human decision on a successor conversation.
+
+## 2026-10-18 20:15 EDT — 15-minute live gate monitor
+
+Rechecked live GitHub state: PR #6 remains OPEN/unmerged at `13670e57c9ee384fb3a5f9455bae4ff7fc38f019` (base `6c2e323fc80cc3e05f9de05282d1bbce49ba98fa`), with zero formal reviews and no comments; its body explicitly says this current HEAD is awaiting GPT review. PR #5 remains OPEN/unmerged at `c1f9329cd395eff82d2374184c3e1f7cc674922c`; no new GitHub review/comments. Local checkout remains on `task_20261018_chipatlas_unique_bed6_design` at `13670e57`; only `Worklog.md` has pending monitor entries.
+
+Inspected the existing persistent “PMA项目” RA-Xiaolu conversation without sending or stopping anything. The page still shows a Working/interrupted response, and no review of PR #6 HEAD `13670e57` is visible. Read-only Argos check at 20:15 EDT found no PMA/footprinting process and no recent PMA logs; the old `singularity help build` shell and its Python child remain alive and were not touched. No Argos data/metadata access, compute, test, environment change, merge, or other dependent work was started. Current exact-head GPT approval remains the gate; both scientific endpoints remain incomplete.
+
+## 2026-10-18 20:30 EDT — 15-minute live gate monitor
+
+Rechecked current GitHub and local state. PR #6 remains OPEN/unmerged at `13670e57c9ee384fb3a5f9455bae4ff7fc38f019`, with no formal review/comments; its exact current HEAD is not approved. PR #5 remains OPEN/unmerged at `c1f9329cd395eff82d2374184c3e1f7cc674922c`; no new formal review. Local branch is `task_20261018_chipatlas_unique_bed6_design` at `13670e57`; Worklog has pending monitor entries.
+
+Reopened the same persistent RA-Xiaolu “PMA项目” conversation by its existing URL, without sending a message or creating a conversation. The visible latest reply is still an interrupted/incomplete PR #5 G2 technical response; no review of PR #6 HEAD `13670e57` is present. Read-only Argos check at 20:29 EDT found no PMA/footprinting process and no recent PMA logs. The old `singularity help build` shell and Python child remain alive and were not touched. No data/metadata access, compute, test, environment change, merge, or dependent phase was started. Both scientific endpoints remain incomplete; exact-current-HEAD GPT review remains the gate.
+
+## 2026-10-18 20:45 EDT — 15-minute monitor; PR #6 review requested in persistent GPT thread
+
+Live GitHub confirms PR #6 remains OPEN/unmerged at exact HEAD `13670e57c9ee384fb3a5f9455bae4ff7fc38f019` against `6c2e323fc80cc3e05f9de05282d1bbce49ba98fa`; there are no formal reviews or comments. PR #5 remains OPEN/unmerged at `c1f9329cd395eff82d2374184c3e1f7cc674922c`. Local branch remains `task_20261018_chipatlas_unique_bed6_design`, HEAD `13670e57`; no source changes are pending.
+
+The persistent RA-Xiaolu “PMA项目” conversation had an old G2 answer stalled with an interrupted-connection status. I ended that stale response in the same conversation and submitted an exact-head review request for PR #6 `13670e57c9ee384fb3a5f9455bae4ff7fc38f019`, explicitly limited to the design/audit diff and expressly excluding Argos, data/metadata access, implementation, tests, environment changes, analysis, and merge. ChatGPT now visibly reports “responding”; no verdict is available yet. Read-only Argos status at 20:44 EDT shows no PMA/footprinting process or recent log updates; the old `singularity help build` shell and child remain alive and untouched. No compute or data access occurred. Both scientific endpoints remain incomplete; wait for GPT's exact-head verdict before any dependent step.
+
+## 2026-10-18 21:00 EDT — 15-minute monitor; exact-head review request is active
+
+Live GitHub state is unchanged: PR #6 OPEN/unmerged at `13670e57c9ee384fb3a5f9455bae4ff7fc38f019` against `6c2e323fc80cc3e05f9de05282d1bbce49ba98fa`, with no formal review/comments; PR #5 OPEN/unmerged at `c1f9329cd395eff82d2374184c3e1f7cc674922c`. Local checkout remains on `task_20261018_chipatlas_unique_bed6_design` at `13670e57`, with only this Worklog pending.
+
+The first attempt to post the PR #6 request was not present after the conversation reloaded. Verified absence, then resubmitted it in the same persistent RA-Xiaolu “PMA项目” thread. The exact SHA/base and design-only scope are in the user message; it explicitly excludes Argos/data/metadata access, implementation, tests, environment changes, analysis, and merge. The UI now shows the request as a sent user message and ChatGPT as responding; no verdict yet. Read-only Argos status at 20:59 EDT found no PMA/footprinting process or recent PMA log updates; the old `singularity help build` process remains and was not touched. No Argos compute or data access occurred. Both final scientific endpoints remain incomplete pending the design review and later separately approved implementation/execution gates.
+
+## 2026-10-18 21:15 EDT — 15-minute exact-head review monitor
+
+GitHub remains unchanged: PR #6 OPEN/unmerged at `13670e57c9ee384fb3a5f9455bae4ff7fc38f019`, no formal reviews/comments; PR #5 OPEN/unmerged at `c1f9329cd395eff82d2374184c3e1f7cc674922c`. Checkout remains on `task_20261018_chipatlas_unique_bed6_design` at `13670e57`; only Worklog is modified.
+
+Reopened the same persistent PMA GPT thread and confirmed the sent exact-head PR #6 review request is present in conversation history. No assistant verdict follows it yet; the prior G2 technical answer is historical and not applicable to PR #6. Argos read-only process/log check at 21:14 EDT found no PMA/footprinting process or recent PMA logs. The old singularity help shell and child remain untouched. No data/metadata access, compute, tests, environment changes, or merge occurred. Await exact-head GPT decision; both final outcomes remain incomplete.
+
+## 2026-10-18 21:30 EDT — 15-minute live gate monitor
+
+Rechecked actual GitHub, checkout, and handoff state. PR #6 remains OPEN/unmerged at `13670e57c9ee384fb3a5f9455bae4ff7fc38f019`; formal reviews/comments remain empty. PR #5 remains OPEN/unmerged at `c1f9329cd395eff82d2374184c3e1f7cc674922c`. Local branch/HEAD remain `task_20261018_chipatlas_unique_bed6_design` / `13670e57`. `docs/CODEX_HANDOFF.md` and the dated scope handoff still document the prior design approval at `3e15ab2`; PR body correctly marks current `13670e57` as awaiting review. The exact-head request is present in the persistent GPT thread, but no response has followed it yet.
+
+Read-only Argos check at 21:29 EDT shows no PMA/footprinting process or recent PMA logs; the old `singularity help build` shell and child remain untouched. No data/metadata access, compute, tests, environment changes, or merge occurred. Hold dependent work for the current exact-head verdict; both PI endpoints remain incomplete.
+
+## 2026-10-18 21:45 EDT — 15-minute live gate monitor
+
+Actual GitHub state is unchanged: PR #6 remains OPEN/unmerged at full HEAD `13670e57c9ee384fb3a5f9455bae4ff7fc38f019`, with no formal reviews/comments; PR #5 remains OPEN/unmerged at `c1f9329cd395eff82d2374184c3e1f7cc674922c`. Local branch and HEAD remain `task_20261018_chipatlas_unique_bed6_design` / `13670e57`. The live handoff still records the earlier design approval on `3e15ab2`; current PR body correctly says `13670e57` awaits review.
+
+The sent PR #6 review request is visible in the same persistent GPT conversation history, but no GPT verdict or response follows it. Read-only Argos status at 21:44 EDT shows no PMA/footprinting process or recent PMA logs; the old singularity help process and child remain untouched. No data/metadata access, compute, tests, environment change, or merge occurred. Both PI endpoints remain incomplete; dependent work remains held for the exact-head gate.
+
+## 2026-10-18 22:00 EDT — live monitoring; GPT review response channel stalled
+
+Current GitHub state: PR #6 OPEN/unmerged at `13670e57c9ee384fb3a5f9455bae4ff7fc38f019`, no formal review/comments; PR #5 OPEN/unmerged at `c1f9329cd395eff82d2374184c3e1f7cc674922c`. Local checkout remains branch `task_20261018_chipatlas_unique_bed6_design` at `13670e57`; only Worklog is modified. The PR body accurately marks the current SHA unreviewed; CODEX_HANDOFF/dated handoff still describe the older 3e15ab2 design approval.
+
+The exact-head PR #6 request remains visible in the persistent PMA GPT conversation, but the Latest response pane is blank and no verdict follows the request. This is not an approval. Read-only Argos check at 21:46 EDT shows no PMA/footprinting process or recent PMA logs; the old `singularity help build` shell and child remain untouched. No data/metadata access, compute, tests, environment change, or merge occurred. Both final outcomes remain incomplete; do not proceed past the exact-head gate without a valid verdict.
+
+## 2026-10-18 22:02 EDT — successor exact-head GPT review submitted
+
+At the user's instruction to continue until completion, opened one successor conversation inside the existing RA-Xiaolu project after the prior persistent review thread had stalled. Submitted a request to review PR #6's full current HEAD `13670e57c9ee384fb3a5f9455bae4ff7fc38f019` against base `6c2e323fc80cc3e05f9de05282d1bbce49ba98fa`, including the PR diff/body, worklog, handoff, and design document, with explicit APPROVE/REQUEST_CHANGES outcome. The request expressly limits authorization to design review; it does not permit Argos access, data reads, preflight, tests, environment changes, analysis, implementation, or merge.
+
+Immediately rechecked GitHub and local checkout: PR #6 is still OPEN/unmerged at the requested SHA, base unchanged, no formal GitHub review; branch/HEAD are `task_20261018_chipatlas_unique_bed6_design` / `13670e57`. The new GPT conversation is responding; no verdict is available yet. No Argos command or computation was started. Outcome 1 remains at design-only; outcome 2 has no progress. Hold all dependent work until the explicit exact-head review arrives.
+
+## 2026-10-18 22:05 EDT — PR #6 exact-head review feedback applied
+
+The successor RA-Xiaolu review completed for exact HEAD `13670e57c9ee384fb3a5f9455bae4ff7fc38f019` and returned `REQUEST_CHANGES` with one blocking audit-status finding (F1): the dated handoff described historical approved HEAD `3e15ab23...` as current, and `docs/CODEX_HANDOFF.md` said PR #6 remained at the approved SHA. GPT found no blocker in the scientific design itself. Applied only the requested documentation correction: mark `3e15ab23...` as historical and approval-limited, record the 22:02 verified live HEAD as pending review, and distinguish historical Argos/PR status from live state. No design contract or implementation changed. Next: inspect the exact diff/status, commit/push within PR #6, refresh its body for the resulting HEAD, and request a new exact-head review. No Argos/data access, tests, environment changes, analysis, or merge occurred.

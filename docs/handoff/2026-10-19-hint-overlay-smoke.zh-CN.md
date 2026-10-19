@@ -113,3 +113,21 @@ PR #8 `012ee70` 新增 `prepare_denovo_motif_fasta.py`，SHA-256 `ae54dd7cf2c86e
 四个初版 STREME 任务都退出 0，但 TOBIAS 在 1,992 个有事件窗口中仅留下 **39 对**严格避开所有原生事件的同窗口背景；1,906 个窗口找不到背景。这组 TOBIAS motif 只能保留作诊断，不能与其他工具比较。初版 HINT 1,945 对中有 2 个 E<0.05 motif（E=0.002、0.0056），PRINT r20 1,441 对中有 1 个（E=3.4e-10）；这只是探索性序列富集，未确认 TF 身份或准确度赢家。
 
 PR #8 `75420e4` 给 FASTA 脚本增加显式 `--background-exclusion selected_only`：四工具统一使用同一可及窗口、50-bp 长度、GC 差≤0.1 的背景，并避开选中的阳性事件及其侧翼。背景可能落在该工具的其他事件上，所以富集可能被稀释，必须如实报告。新的 Argos 任务 `BG_B4_UNIFORM_{HINT,PRINT,TOBIAS,TRACE}_75420E4` 已在独立外部目录 `processed/round1/motif_explore_75420e4/` 启动；脚本 SHA-256 `4135ea18f9a20af479d0c7f68b98c4acd2b4e4a7813d8f80336a5bd0fc04a6c9`。待核对四组配对数、GC 和 motif E-value，不能混合初版与新版结果。
+
+## 2026-10-19 11:12 EDT：四工具统一背景 motif 结果
+
+四项统一背景 Argos 任务均退出 0；HINT、PRINT r20、TOBIAS、TraceBIND 的 50-bp 阳性/背景配对数依次为 **1,973 / 1,441 / 1,981 / 1,216**。所有配对的 GC 差中位数为 0，最大≤0.1。STREME E<0.05 motif 数为 **0 / 1 / 2 / 1**。显著模式：PRINT `AGCGCCMYCTRSTGGCMR` (E=2.6e-10)；TOBIAS `NVTGASTCABN` (2.7e-6)、`CCACTAGGTGGCRV` (0.0027)；TraceBIND `YGCCCYCTRSTGGCC` (1.7e-7)。STREME 文本 SHA-256 按上述顺序为 `c056ed8e107dc71a1cad73c8a738b8e33a1e85129eb1044add34d4f4b23400b2`、`3d7bf5e2d976807cec364da8d70a09c2d748783e8eeb918feb04d409c3539463`、`293f44af73348381203b1fc833fc61a4ba502803b6fbe2ed1a9bed422cbafa11`、`65ab021b99b7e33ef2b1460bc095e21c8cd7575ae06e40f4039af5b960497741`。原生阈值和配对数不同，motif 数不能用于工具准确度排序；TF 身份、独立复现和家族恢复尚未确认。
+
+同一脚本及窗口设置的 aux 条件四项复现任务 `BG_B4_AUX_{HINT,PRINT,TOBIAS,TRACE}_75420E4` 已在 Argos 启动，结果隔离到 `processed/round1/motif_explore_aux_75420e4/`。任务完成后检查配对与 E-value，再做 PWM 相似性比较，最后才与冻结 motif 参考注释。
+
+## 2026-10-19 11:14 EDT：K562 HINT 正式速度结果与 B4 复现
+
+`BG_K562_HINT32_V1` 在 Argos 退出 0：独立确认 110,891,952 个非重复高质量成对片段；77,668 个冻结 1-kb 窗口；32 个分块全部有输出；墙钟 **16:53.47**；最终 781,863 条事件，SHA-256 `3e4011c24e959eed020feed56496f8af94976d0c717d07c12cb66e3a14a5e7a7`，无失败标记。预设 ≤4 小时的时间门槛通过。`/usr/bin/time -v` 的 240,740-KiB 最大 RSS 是单子进程值，不是 32 进程聚合峰值，因此 ≤40-GiB 内存门槛还不能宣称已核验。另启 `BG_K562_HINT_QC_V1` 检查事件全部落在冻结窗口内。这里的 genome-wide 是 77.668 Mb 的同样本可及窗口加 off-peak 对照，不是逐碱基全基因组。
+
+四工具 aux 条件统一背景 B4 全部退出 0，配对数按 HINT/PRINT r20/TOBIAS/TraceBIND 为 **1,928 / 1,449 / 1,959 / 942**；E<0.05 motif 数为 **0 / 0 / 1 / 0**，TOBIAS 模式 `GTGASTCAC` 的 E=0.01。ctrl PRINT/TraceBIND 的富集模式在 aux 后未达到 E<0.05；这提出 CTCF degron 影响的假设，尚需 B2 位点级验证。de novo 发现结束后才用冻结 PMA HIGH v0.3 作 TOMTOM 注释：ctrl PRINT 最佳 `PMC_M00017` (q=2.52e-12，CTCF 主导)、TraceBIND `PMC_M00293` (q=2.32e-13，CTCF 主导)、TOBIAS 首个 motif `PMC_M00115` (q=8.76e-11，bZIP/JUN 家族)。PMA 含 ChIP 来源 motif，不能当独立真值。完整 TOMTOM 表留在外部目录；仍不能选工具。
+
+## 2026-10-19 11:18 EDT：HINT 速度输出边界 QC 与共享片段预处理
+
+独立 QC 的 V1 因 HINT 原生 BED 末尾多一个空第 7 列而被 `bedtools` 拒绝；V2 只读前三列后发现 3,125 条不完全落在单个冻结窗口内，严格零边界检查退出 1。源结果未修改，失败日志保留。V3 分类 QC 在 Argos 退出 0：**781,863 总事件；0 条与所有冻结窗口完全不相交；3,125 条跨窗口边界；778,738 条完全包含**。正式发布前应明确剪裁或排除边界事件，不能直接说全部事件都严格在窗口内。HINT 的 16:53.47 墙钟速度测量仍成立。
+
+`BG_K562_FRAG_PREP_V1` 已在 Argos 启动，用未更改的 `01_prep_inputs.py:bam_to_frags`（SHA-256 `336443a056ad5177505e4d0f0ef2aa8cb57db41902705204747c29cb07466609`）从已校验的 K562 BAM 生成排序、bgzip、tabix 索引片段，结果只放外部 `processed/round1/frags/`。因为速度门槛从比对好的 BAM 开始计时，这段转换时间必须计入 PRINT 和 TraceBIND 各自的总时间；计数、墙钟和文件 hash 尚未完成。

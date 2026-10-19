@@ -56,6 +56,10 @@ def main():
     parser.add_argument("--score-column", type=int, required=True,
                         help="1-based BED score column")
     parser.add_argument("--max-gc-delta", type=float, default=0.1)
+    parser.add_argument("--background-exclusion", choices=("all_calls", "selected_only"),
+                        default="all_calls",
+                        help="selected_only permits other native calls in backgrounds; "
+                             "use consistently across callers when calls saturate windows")
     args = parser.parse_args()
     if args.score_column < 4 or not 0 <= args.max_gc_delta <= 1:
         parser.error("invalid score column or GC delta")
@@ -105,10 +109,11 @@ def main():
             continue
         pos_gc = gc(positive)
         candidates = []
+        exclusion_calls = calls if args.background_exclusion == "all_calls" else [(score, center, ev_start, ev_end)]
         for neg_start in range(start + 25, end - 75, 10):
             neg_end = neg_start + 50
             if any(neg_start < e + 25 and neg_end > s - 25
-                   for _, _, s, e in calls):
+                   for _, _, s, e in exclusion_calls):
                 continue
             negative = window[neg_start - start:neg_end - start]
             if len(negative) != 50 or set(negative) - set("ACGT"):
@@ -142,7 +147,8 @@ def main():
     manifest = {
         "purpose": "exploratory_B4_only", "sequence_length": 50,
         "selection": "highest_score_event_per_1kb_accessible_window",
-        "background": "same_window_nonoverlapping_event_and_flanks_gc_matched",
+        "background": "same_window_gc_matched",
+        "background_exclusion": args.background_exclusion,
         "max_gc_delta": args.max_gc_delta, "contained_events": n_events,
         "windows_with_events": len(per_region), "pairs": len(positives),
         "rejected": dict(rejected), "score_column": args.score_column,

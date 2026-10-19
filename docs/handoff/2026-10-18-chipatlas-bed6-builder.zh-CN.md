@@ -1,6 +1,6 @@
 # ChIP-Atlas unique BED6 builder implementation handoff
 
-Updated: 2026-10-18 22:55 EDT
+Updated: 2026-10-18 22:57 EDT
 Branch: `task_20261019_chipatlas_bed6_builder`  
 Parent design PR: [#6](https://github.com/leezx/Protein-Motif-Association/pull/6), exact GPT-approved design HEAD `3c0e48e699073726b9ef7453644cabbe8b277ca4`, OPEN/unmerged.  
 Implementation PR: [#7](https://github.com/leezx/Protein-Motif-Association/pull/7), OPEN/unmerged, stacked on PR #6. Verify the complete live HEAD on GitHub before review or execution; this handoff is a timestamped snapshot.
@@ -8,6 +8,8 @@ Implementation PR: [#7](https://github.com/leezx/Protein-Motif-Association/pull/
 ## Direction and current progress
 
 **Live update — 2026-10-18 22:55 EDT.** GPT approved PR #7 exact HEAD `1432f6211b3e3411bf62a6f5e5f951bf9df17863` for implementation static review and for one execution of the exact read-only preflight below. The command was run once and exited `1` when the path guard found `/home` is a symlink. Captured stdout before exit: Argos checkout `task_20261018_step4b_setup_fix`, HEAD `4d099df44dc4bb48a93e110241168fadea1b1de6`, and remote PR branch ref `1432f6211b3e3411bf62a6f5e5f951bf9df17863`. It stopped before opening MD5SUMS or any input, checking output paths/filesystem/tools, or creating the transient cgroup. No checksum, disk, or cgroup result was obtained. Stderr included the SSH post-quantum key-exchange warning. No retry or other Argos command has been run. GPT's final scope approval is recorded in the persistent PMA review conversation; it excludes all build/QC/benchmark work.
+
+**Fresh-review state — 2026-10-18 22:57 EDT.** GPT recommended canonicalizing only the trusted parent above RAW, while rejecting symlinks at RAW and below and keeping all resolved targets under the canonical RAW root. The command below now follows that proposal and explicitly checks the cgroup result without Python `assert`. Static syntax/AST/diff checks passed. This is a modified SSH command: the earlier one-time permission is consumed, so request fresh exact-head and one-time scope approval before any retry. No new SSH command has run.
 
 GPT reviewed PR #7 exact code HEAD `05652f09eef0dc83b6c6c80bee1922dddf11d209` (base `3c0e48e699073726b9ef7453644cabbe8b277ca4`) and returned `APPROVE — Implementation code-review gate`, with zero blockers. This was static code review only. Later preflight reviews resolved the scope blockers; see the live update above for the exact approved head and one failed execution. No MD5SUMS or source data contents were read.
 
@@ -32,7 +34,7 @@ PR #6's current design-only approval does not include implementation or Argos op
 
 The code review passed for PR #7 exact HEAD `1432f6211b3e3411bf62a6f5e5f951bf9df17863`. GPT approved one execution of the read-only preflight at the same SHA. It stopped at the source-path symlink guard (`/home`); see the live update. The remainder of the proposal documents the intended scope and was not reached in that run. No second SSH invocation is authorized by the one-time approval.
 
-Exact read-only preflight proposal (approved for one execution; that execution stopped at the first path guard):
+Revised read-only preflight proposal (not yet approved; the prior version stopped at the first path guard):
 
 ```bash
 ssh -o BatchMode=yes zz950@rcapps3.dfci.harvard.edu 'bash -s' <<'REMOTE'
@@ -50,17 +52,34 @@ git ls-remote https://github.com/leezx/Protein-Motif-Association.git refs/heads/
 "$PY" - "$RAW/MD5SUMS" "$RAW" <<'PY'
 import hashlib, os, re, sys
 from pathlib import Path, PurePosixPath
-root = Path(os.path.abspath(sys.argv[2]))
+logical_root = Path(os.path.abspath(sys.argv[2]))
+logical_parent = logical_root.parent.parent.resolve(strict=True)
+raw_parent = logical_parent / logical_root.parent.name
+root = raw_parent / logical_root.name
+if raw_parent.is_symlink() or not raw_parent.is_dir():
+    raise SystemExit("RAW parent is missing or symlinked")
+if root.is_symlink() or not root.is_dir() or root.resolve(strict=True) != root:
+    raise SystemExit("RAW root is missing, symlinked, or resolves unexpectedly")
+print(f"CANONICAL_RAW_ROOT {root}")
 def guarded_path(value):
-    path = Path(os.path.abspath(value))
-    if os.path.commonpath((str(root), str(path))) != str(root):
-        raise SystemExit(f"path outside raw root: {path}")
-    current = Path(path.anchor)
-    for part in path.parts[1:]:
+    logical = Path(os.path.abspath(value))
+    try:
+        relative = logical.relative_to(logical_root)
+    except ValueError:
+        raise SystemExit(f"path outside logical raw root: {logical}")
+    if not relative.parts or ".." in relative.parts:
+        raise SystemExit(f"invalid relative source path: {relative}")
+    current = root
+    for part in relative.parts:
         current = current / part
         if current.is_symlink():
-            raise SystemExit(f"symlink path component: {current}")
-    return path
+            raise SystemExit(f"symlink inside raw root: {current}")
+    resolved = current.resolve(strict=True)
+    if os.path.commonpath((str(root), str(resolved))) != str(root):
+        raise SystemExit(f"resolved path escapes raw root: {resolved}")
+    if resolved != current:
+        raise SystemExit(f"unexpected path resolution: {current}")
+    return current
 manifest = guarded_path(sys.argv[1])
 if not manifest.is_file():
     raise SystemExit("missing checksum manifest")
@@ -85,7 +104,7 @@ for line_no, line in enumerate(manifest.read_text(encoding="ascii").splitlines()
 if set(expected) != allowed:
     raise SystemExit(f"required checksum entries missing/ambiguous: {sorted(allowed-set(expected))}")
 for name in sorted(allowed):
-    path = guarded_path(root / name)
+    path = guarded_path(logical_root / name)
     if not path.is_file():
         raise SystemExit(f"unsafe or missing input file: {name}")
     digest = hashlib.md5()
@@ -114,11 +133,11 @@ bgzip --version 2>&1 | sed -n '1p'
 tabix --version 2>&1 | sed -n '1p'
 systemd-run --version | sed -n '1p'
 systemd-run --user --scope --quiet --property=MemoryMax=44G --property=MemorySwapMax=0 --property=TasksMax=8 -- \
-  "$PY" -c 'from pathlib import Path; import json; p=next(x.split(":",2)[2] for x in Path("/proc/self/cgroup").read_text().splitlines() if x.startswith("0::")); c=Path("/sys/fs/cgroup")/p.lstrip("/"); v={n:(c/n).read_text().strip() for n in ("memory.max","memory.swap.max","memory.peak")}; print(json.dumps({"cgroup":p,**v})); assert int(v["memory.max"]) <= 44*1024**3 and v["memory.swap.max"] == "0"'
+  "$PY" -c 'from pathlib import Path; import json,sys; p=next(x.split(":",2)[2] for x in Path("/proc/self/cgroup").read_text().splitlines() if x.startswith("0::")); c=Path("/sys/fs/cgroup")/p.lstrip("/"); v={n:(c/n).read_text().strip() for n in ("memory.max","memory.swap.max","memory.peak")}; print(json.dumps({"cgroup":p,**v})); ok=v["memory.max"]!="max" and int(v["memory.max"])<=44*1024**3 and v["memory.swap.max"]=="0" and v["memory.peak"].isdigit(); sys.exit(0 if ok else 1)'
 REMOTE
 ```
 
-The authorized run exited `1` at `guarded_path()` with `symlink path component: /home`. The command had already printed the remote checkout state and branch HEAD and completed `git ls-remote`; it stopped before opening MD5SUMS, hashing or statting inputs, inspecting output paths/filesystems/tool versions, or creating a cgroup. No output/work path was created and no analysis ran. The one-time scope is consumed; do not retry or issue another SSH command until a revised exact scope receives fresh review. The remaining proposed behavior is described above for review only; this failed run did not execute it.
+The authorized run exited `1` at `guarded_path()` with `symlink path component: /home`. The command had already printed the remote checkout state and branch HEAD and completed `git ls-remote`; it stopped before opening MD5SUMS, hashing or statting inputs, inspecting output paths/filesystems/tool versions, or creating a cgroup. No output/work path was created and no analysis ran. GPT recommended resolving only the trusted parent above RAW (to permit a system-level `/home` symlink), then rejecting a symlink at RAW itself and every component below RAW, while requiring resolved inputs to remain under the canonical RAW root. This revised command needs fresh exact-head and one-time scope review; the previous one-time approval is consumed. Do not retry or issue another SSH command before that review.
 
 Any full build is a later stage requiring a separate explicit scope decision. The preflight only reports free capacity; a later review must compare that measurement with a defensible temporary-space estimate from the pinned input and algorithm before deciding whether to build. The correct PR checkout must also be prepared on Argos under an approved scope. Keep every task at or below the 44 GiB configured cap and below the user's 50 GB limit. Do not merge PR #6 or PR #7 without the user's separate approval.
 

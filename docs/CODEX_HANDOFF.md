@@ -1,5 +1,9 @@
 # PMA — handoff to Codex (2026-10-17, written by Claude Code)
 
+## Live status update — 2026-10-18 22:57 EDT — preparing revised preflight for fresh review
+
+GPT technical guidance: resolve the trusted path parent above RAW to tolerate system `/home` symlinks, but reject a symlink at the RAW directory itself and at every component below RAW; verify resolved targets remain under the canonical RAW root. The failed one-time preflight approval is consumed, so a modified command requires a new exact-HEAD and one-time scope approval before execution. The dated handoff now contains this revised proposal and replaces the cgroup Python `assert` with explicit exit logic. Static shell syntax, embedded Python AST parse, and `git diff --check` passed. No further Argos command has run.
+
 ## Live status update — 2026-10-18 22:57 EDT — preflight stopped before source-data reads
 
 The once-approved command at PR #7 HEAD `1432f6211b3e3411bf62a6f5e5f951bf9df17863` ran once and stopped with exit code 1 at `symlink path component: /home`. It reported remote checkout `task_20261018_step4b_setup_fix` / `4d099df44dc4bb48a93e110241168fadea1b1de6` and the PR branch ref, then exited before opening MD5SUMS or any ChIP-Atlas input. It did not inspect target output/storage/tools or create the cgroup scope. No retry is authorized. The current audit records are being synchronized, and GPT has been asked for a safe path interpretation and whether a revised command needs fresh exact-scope approval. No other Argos command has been run.

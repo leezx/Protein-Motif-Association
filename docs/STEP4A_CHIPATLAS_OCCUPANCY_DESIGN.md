@@ -93,17 +93,19 @@ unverified until that run.
   it. The seven possible nonzero masks are mutually exclusive; their counts must sum to the global
   unique-region count. Also report overlapping class-specific unique-region counts.
 - Keep the approved two external sorts in the core build: coordinate/experiment/source-row grouping,
-  then source-row ordering for provenance. Add a separate release-level third sort over one compact
-  `(region_id, chrom, start, end)` record per unique region. Adjacent full-ID comparison must verify
-  zero duplicate IDs and zero different-coordinate SHA-256 collisions. This QC does not reread or
-  reorder the raw archive or provenance table.
+  then source-row ordering for provenance. The builder records collision QC as `NOT_RUN` and the
+  negligible-assumed SHA-256 risk honestly. Run a separate release-level third sort over one compact
+  `(region_id, chrom, start, end)` record per unique region once for the formal release. Adjacent
+  full-ID comparison must verify zero duplicate IDs and zero different-coordinate SHA-256
+  collisions. This QC does not reread or reorder the raw archive or provenance table.
 - The approved builder launcher must place Python and every child process in a cgroup with a hard
   44 GiB memory cap and swap disabled; GNU sort starts at `-S 4G --parallel=2`. `sort -S` alone is
   not a process-memory limit. If the cgroup cannot be created, fail closed. The actual disk peak is
   unknown until a read-only Argos preflight estimates scratch/output needs from the pinned inputs;
   do not infer disk feasibility from the memory cap or start the full build without adequate space.
 - The builder writes 48 deterministic random 1 kb BED0 windows and compares each indexed `tabix`
-  result byte-for-byte with the streaming unindexed BED6 rows captured during construction.
+  result byte-for-byte with the streaming unindexed BED6 rows captured during construction. The
+  separate release-ID QC also verifies BED6 sort order, coordinate validity, and stable-ID hashes.
 
 These are implementation-stage proposals, not tested behavior or resource measurements. No Argos
 data or environment was accessed while adding them.

@@ -80,6 +80,18 @@ def write_json(path: Path, value: object) -> None:
     path.write_text(json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2) + "\n", encoding="utf-8")
 
 
+def cgroup_memory_peak_bytes() -> int | None:
+    """Read this process's cgroup-v2 high-water mark when the launcher exposes it."""
+    try:
+        for line in Path("/proc/self/cgroup").read_text(encoding="ascii").splitlines():
+            if line.startswith("0::/"):
+                cgroup_path = Path("/sys/fs/cgroup") / line[4:].lstrip("/") / "memory.peak"
+                return int(cgroup_path.read_text(encoding="ascii").strip())
+    except (OSError, ValueError):
+        return None
+    return None
+
+
 def load_metadata(path: Path) -> tuple[dict[str, list[list[str]]], str]:
     """Read the pinned, headerless experimentList.tab; retain every raw field."""
     records: dict[str, list[list[str]]] = collections.defaultdict(list)
@@ -250,7 +262,6 @@ def main() -> int:
         run_sort(unsorted, sorted_rows, tmpdir, args.sort_buffer, args.sort_workers,
                  ["-k1,1n", "-k2,2", "-k3,3n", "-k4,4n", "-k5,5", "-k6,6n"])
         bed_plain = tmpdir / "regions.bed"
-        id_ledger = tmpdir / "unique-region-id-coordinate.tsv"
         links_gz, links_raw = open_text_gz(outdir / "region_experiment.tsv.gz")
         summary_gz, summary_raw = open_text_gz(outdir / "region_summary.tsv.gz")
         links_gz.write("region_id\texperiment_id\n")
@@ -259,7 +270,6 @@ def main() -> int:
         n_regions = n_links = n_included_rows = 0
         n_multi_experiment_regions = 0
         with bed_plain.open("wt", encoding="utf-8", newline="") as bed, \
-             id_ledger.open("wt", encoding="utf-8", newline="") as ids, \
              row_map.open("wt", encoding="utf-8", newline="") as mapping:
             group_key: tuple[str, int, int] | None = None
             rid = ""
@@ -272,7 +282,6 @@ def main() -> int:
                 chrom, start, end = group_key
                 bed_line = f"{chrom}\t{start}\t{end}\t{rid}\t{min(1000, support)}\t."
                 bed.write(bed_line + "\n")
-                ids.write(f"{rid}\t{chrom}\t{start}\t{end}\n")
                 summary_gz.write(f"{rid}\t{chrom}\t{start}\t{end}\t{support}\t{source_rows}\t{class_mask}\n")
                 mask_counts[class_mask] += 1
                 n_regions += 1
@@ -315,35 +324,12 @@ def main() -> int:
         links_gz.close(); links_raw.close()
         summary_gz.close(); summary_raw.close()
 
-        # Release-level third external sort: exact verification of ID uniqueness.
-        sorted_ids = tmpdir / "unique-region-id-coordinate.sorted.tsv"
-        run_sort(id_ledger, sorted_ids, tmpdir, args.sort_buffer, args.sort_workers, ["-k1,1"])
-        collision_count = 0
-        duplicate_id_count = 0
-        collision_examples = []
-        last_id = None
-        last_coord = None
-        with sorted_ids.open("rt", encoding="utf-8", newline="") as ids:
-            for line in ids:
-                rid, chrom, start, end = line.rstrip("\n").split("\t")
-                coord = [chrom, int(start), int(end)]
-                if rid == last_id:
-                    duplicate_id_count += 1
-                    if coord != last_coord:
-                        collision_count += 1
-                        if len(collision_examples) < 20:
-                            collision_examples.append({"region_id": rid, "first_coordinate": last_coord,
-                                                       "colliding_coordinate": coord})
-                last_id, last_coord = rid, coord
-        collision_qc = {"checked_unique_region_ids": n_regions,
-                        "unique_coordinate_keys": n_regions,
-                        "duplicate_region_id_rows": duplicate_id_count,
-                        "different_coordinate_hash_collisions": collision_count,
-                        "collision_examples": collision_examples,
-                        "status": "PASS" if duplicate_id_count == 0 else "FAIL"}
+        collision_qc = {"checked_unique_region_ids": None, "unique_coordinate_keys": n_regions,
+                        "duplicate_region_id_rows": None, "different_coordinate_hash_collisions": None,
+                        "collision_examples": [], "status": "NOT_RUN",
+                        "risk_control": "NEGLIGIBLE_ASSUMED",
+                        "method": "release-level exact collision QC is a separate command"}
         write_json(outdir / "region_id_collision_qc.json", collision_qc)
-        if duplicate_id_count != 0:
-            raise RuntimeError("region_id uniqueness check failed; see region_id_collision_qc.json")
 
         run_sort(row_map, sorted_map, tmpdir, args.sort_buffer, args.sort_workers, ["-k1,1n"])
         provenance, provenance_raw = open_text_gz(outdir / "peak_provenance.tsv.gz")
@@ -479,6 +465,10 @@ def main() -> int:
         "region_id_collision_qc": collision_qc,
         "external_data_only": True,
         "resource_notes": {"sort_buffer": args.sort_buffer, "sort_workers": args.sort_workers},
+        "resource_measurement": {"memory_cap": "44 GiB via systemd cgroup",
+                                 "cgroup_memory_peak_bytes": cgroup_memory_peak_bytes(),
+                                 "peak_rss_bytes": None,
+                                 "peak_rss_status": "NOT_MEASURED"},
     }
     write_json(outdir / "MANIFEST.json", manifest)
     print(json.dumps({"status": "complete", "reconciliation": reconciliation,

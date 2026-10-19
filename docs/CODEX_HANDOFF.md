@@ -1,5 +1,9 @@
 # PMA — handoff to Codex (2026-10-17, written by Claude Code)
 
+## Live status update — 2026-10-18 23:04 EDT — approved preflight invoked; result not recoverable
+
+PR #7 is OPEN at `012b59c35bae3271605b00d8c3a77ed82061e27a`, base `3c0e48e699073726b9ef7453644cabbe8b277ca4`. GPT approved the static implementation/audit and exactly one run of the revised read-only Argos preflight at that exact HEAD. The approved command was invoked once. Its tool response exceeded retained output capacity, and stdout/stderr/exit status cannot be reliably recovered from the current record. Do not infer that any checksum, capacity, tool-version, or cgroup check passed. The one-time approval is consumed; do not retry or issue a follow-up remote command to reconstruct results. No dependent builder, release QC, tests, benchmark, install, or merge has been started. Both final outcomes remain incomplete. If an existing local execution transcript is found, record and review its complete output before considering a separately reviewed next stage.
+
 ## Live status update — 2026-10-18 22:57 EDT — preparing revised preflight for fresh review
 
 GPT technical guidance: resolve the trusted path parent above RAW to tolerate system `/home` symlinks, but reject a symlink at the RAW directory itself and at every component below RAW; verify resolved targets remain under the canonical RAW root. The failed one-time preflight approval is consumed, so a modified command requires a new exact-HEAD and one-time scope approval before execution. The dated handoff now contains this revised proposal and replaces the cgroup Python `assert` with explicit exit logic. Static shell syntax, embedded Python AST parse, and `git diff --check` passed. No further Argos command has run.

@@ -1,8 +1,9 @@
 # Step 4b — Genome-wide, motif-free ATAC-seq footprinting: benchmark design
 
-**Status.** The benchmark design is approved: ChatGPT, 2026-10-17, "APPROVE DESIGN WITH REVISIONS",
-with the revisions applied below. The final caller is not selected yet, and no C/C++ port is
-approved yet. Both decisions wait for the measured benchmark (§6).
+**Status.** The earlier benchmark design was approved by ChatGPT on 2026-10-17 with revisions.
+Section 4 was materially revised on 2026-10-19 after exact-head review feedback and is pending
+review of the revised PR HEAD; the earlier approval does not cover these changes. No caller is
+selected, and no C/C++ port is approved. Both decisions wait for a measured benchmark (§6).
 
 **PI direction.**
 - Read Hu et al. 2025 *Nature* ("Multiscale footprints reveal the organization of cis-regulatory
@@ -87,17 +88,64 @@ ChIP peaks are not footprints, and an accessible region may hold undetected bind
 therefore never treated as a clean negative. Where reliable negatives do not exist, enrichment and
 positive-set recall are reported instead of an absolute precision.
 
-## 4. Pre-registered selection rule (PMA thresholds, not a published standard)
+## 4. Accuracy-ranking protocol (frozen before caller-score inspection)
 
-1. **Primary endpoint.** The naked-DNA false-positive density, compared at matched sensitivity.
-   Matched positive recall is the protective co-metric.
-2. **FPR rule.** In at least two independent data conditions where matched recall differs by
-   ≤ 5 percentage points, the method with the lower naked-DNA FPR wins.
-3. **AUPRC rule.** If the FPRs differ by less than 20 %, the median across-dataset AUPRC decides;
-   a difference must be ≥ 0.03 to count.
-4. **Uncertainty.** Bootstrap over 1 Mb genomic blocks, stratified by dataset. Dense calls in one
-   region are never treated as independent replicates.
-5. **No winner.** If no method meets both specificity and sensitivity, report "no accuracy winner".
+This replaces the earlier B1-first / post-hoc median-AUPRC selection rule. It is a local
+HCT116 CTCF-degron benchmark, not a universal caller ranking and not a genome-wide estimate of
+motif-free event precision.
+
+1. **Primary candidate universe.** Use the union of high-confidence untreated HCT116 CTCF ChIP
+   consensus peaks from the matched degron experiment. Merge overlapping ±50-bp summit windows
+   deterministically, retaining the summit of the strongest control peak (ties: chromosome order
+   in the exact hg38 `chrom.sizes` file, then lowest summit coordinate, then stable peak ID); keep
+   one control-ChIP summit per locus. The same fixed summit and
+   100-bp window are used for every caller and both ATAC conditions. Caller events, STREME and
+   TOMTOM do not create or remove candidates. Freeze the candidate manifest before reading caller
+   scores. If ENCODE provenance, replicate relationships, assay controls or peak QC do not support
+   a reliable consensus, stop and do not create these labels.
+2. **Treatment labels.** Among control-bound candidate loci, call `depleted` only when the
+   input-normalized auxin/control ChIP log2 fold-change is ≤ −1 and differential-test FDR ≤ 0.05
+   with adequate coverage in the contributing replicates. Call `retained` only when the treated
+   ChIP peak is replicate-supported and log2 fold-change is > −0.5. All other, low-coverage,
+   discordant or missing-provenance loci are `ambiguous` and excluded. A missing peak alone is
+   never a negative label. Confirm the matching biological sample, treatment time and replicate
+   structure before applying these criteria; technical replicates do not count as independent
+   biological replicates.
+3. **Score mapping and primary endpoint.** Evaluate the treated ATAC caller score at each frozen
+   control-ChIP summit using the maximum threshold-free, continuous score in the same ±50-bp
+   interval. Fix each tool's score field and direction from its documented output before looking
+   at labels. Compute pooled out-of-fold average precision (AP; the non-interpolated area under
+   the precision-recall curve) for distinguishing `retained` from `depleted` loci. Do not
+   substitute a ChIP summit-derived candidate coordinate asymmetrically between classes. If a
+   caller only provides thresholded events and no continuous pre-threshold score, mark it
+   `unscorable for primary AP`; do not fill missing scores with zero or rank it with an
+   undocumented proxy. Report thresholded sensitivity separately.
+4. **Held-out split and inference.** Assign non-overlapping 1-Mb genomic blocks to five folds by
+   `int(SHA256("PMA-4b-20261019|" + chromosome + ":" + block_start)[0:8], 16) % 5`, where
+   `block_start` is the zero-based coordinate of the block's first base and chromosome order comes
+   from the exact hg38 `chrom.sizes` file frozen with the candidate manifest. All paired conditions,
+   replicates and loci in a block stay together. At each boundary between adjacent blocks assigned
+   to different folds, apply a 50-kb embargo on both sides; exclude any locus whose scoring window
+   intersects that embargo. Also exclude windows crossing a fold boundary. Select the operating
+   threshold only in the four training folds to reach 80%
+   retained-site recall; apply it unchanged to the held-out fold. Also report predeclared 50%,
+   70% and 90% recall operating points as secondary results. Pool the out-of-fold scores for AP.
+   Compute 2,000 paired bootstrap resamples of 1-Mb blocks with seed `PMA-4b-bootstrap-20261019`;
+   each resample uses the same blocks for all callers. Correct the six pairwise caller comparisons
+   with Holm's method.
+5. **B1–B4 and selection.** B1 naked gDNA is specificity evidence only: at each training-selected
+   threshold report held-out observed recall, false calls per callable Mb and per million usable
+   cuts after matching depth; it is not positive truth. B2 tests the paired ctrl→aux score change
+   at ChIP-depleted versus retained loci. B3 uses occupancy data independent of this benchmark and
+   caller development; if none is available, state that generalization is unvalidated. The
+   TraceBIND developers' HCT116 degron set is an author-benchmark reanalysis, not independent
+   validation. B4 replicate reproducibility and motif-family recovery are supporting evidence only.
+   Declare a **local HCT116 CTCF candidate** only when one caller's held-out AP exceeds each other
+   scorable caller under the six Holm-adjusted paired block comparisons and B1/B2 do not contradict
+   it. If AP uncertainty overlaps or AP and specificity trade off, report a tie/Pareto set; do not
+   add post-hoc weights. This benchmark cannot establish a universal or pan-cancer winner. Accuracy
+   selects the candidate first; speed is compared separately, and C/C++ work is considered only
+   after profiling a validated accuracy candidate.
 
 ## 5. Speed gate
 

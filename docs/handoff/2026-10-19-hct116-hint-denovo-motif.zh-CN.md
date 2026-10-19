@@ -1,5 +1,30 @@
 # HCT116 HINT motif 与 K562 TOBIAS 里程碑
 
+## 2026-10-19 14:58 EDT — §4 细节补齐，等待固定 PMA 会话复审
+
+根据固定 PMA 项目审核对 PR #8 HEAD `98819830e4e302c6d96148f365a2a52f9c229e74` 的
+`REQUEST_CHANGES`，在同一个 PR 细化准确度协议：hg38 候选位点 tie-break 明确引用冻结的
+`chrom.sizes` 顺序及稳定 peak ID；五折 hash 明确使用 block 的 0-based 起点；相邻 1-Mb
+block 被分到不同 fold 时在两侧各排除 50 kb，减少邻近序列/上下文泄漏。设计文档明确
+2026-10-17 的旧批准不覆盖本次 §4 实质性修改，当前 HEAD 必须重新审核。更新仍只是方案，
+ChIP 文件/标签未取得、未评分、无准确度排名或赢家。所有后续 GPT 审核继续使用唯一的
+`PMA｜固定阶段审核` 对话；不启动 Argos 计算、不触碰 PR #7、不合并 PR #8。
+
+## 2026-10-19 14:55 EDT — exact-head 方法审核与只读 ChIP provenance 核验
+
+PR #8 在审核时为 OPEN，HEAD `98819830e4e302c6d96148f365a2a52f9c229e74`。固定 PMA 项目会话
+`PMA｜固定阶段审核` 对此 HEAD 返回 `REQUEST_CHANGES`。要求修正：共同候选空间与正/负/模糊 ChIP 标签；阈值前连续分数、score-to-site 规则及未调用/不可评分状态；1-Mb held-out 分块、固定 primary AP 和六组比较的校正；TraceBIND 自有 HCT116 benchmark 不可称独立验证；PR body 描述和旧 B1-first 规则也需同步。
+
+该审查只明确批准了对 Argos 上**现有文件**做只读 provenance 核验，没有批准下载、运行分析或自动启动评分。只读检查：
+
+- `/home/zz950/DATA/2.PROJECTS/PMA/atac_footprint/raw/2026-10-19/encode_hct116_unfiltered/ENCSR328JGW_ENCSR260SWI/` 中有四个已验证的 unfiltered ATAC BAM 和 `MD5SUMS.encode.tsv`。
+- 在搜索过的 PMA `raw/`、`processed/` 子树中未找到 `ENCSR059BCO`（未处理 CTCF ChIP）或 `ENCSR160GVO`（auxin CTCF ChIP）的文件/manifest。ATAC 清单不是 ChIP 真值凭证。
+- Argos 当前无 footprint 任务运行；未下载文件、未读取或生成峰、未计算 footprint 分数。
+
+据此，本地准确度标签尚不存在，不能算 AUPRC，也不能选准确度赢家。方法修订已明确这只是 HCT116 CTCF degron 的局部 retained-vs-depleted 检验：所有 candidate 均为控制条件 ChIP 共识峰，固定 control summit ±50 bp；depleted 要求 auxin/control ChIP log2FC ≤−1 且 FDR≤0.05 并有足够覆盖，retained 要求处理后有重复支持且 log2FC>−0.5，其余标为 ambiguous。所有决定必须经 provenance/replicate/QC 确认后，且先于 caller 分数。该窄目标不能代表全基因组、无 motif 总体准确度或泛癌赢家。
+
+本次只修订现有 PR #8 的协议、handoff、审计记录和 PR 描述，完成后在同一固定 PMA 审核会话请求新 HEAD 复审。依赖性准确度评分、PRINT/TraceBIND 重跑和癌症 ATAC 全局运行继续暂停；不处理 Claude 负责的 BED6/PR #7，不合并 PR #8。
+
 时间：2026-10-19 14:20 EDT
 工作区：`/tmp/pma-hint-smoke`
 PR：#8，更新前 HEAD `361e6589ce4cab9e88b381758836ea4c2bf08532`（OPEN）

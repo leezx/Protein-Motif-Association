@@ -1,5 +1,22 @@
 # Step 4b HINT 隔离环境与真实小样本调用
 
+## 2026-10-19 14:58 EDT — 同一 PR 准备 exact-head 复审
+
+PR #8 的协议修订继续留在 `task_20261019_hint_overlay_smoke`。固定 PMA 项目会话对上一
+HEAD `98819830e4e302c6d96148f365a2a52f9c229e74` 的反馈为 `REQUEST_CHANGES`；当前补齐了
+冻结 hg38 坐标排序、0-based 1-Mb block hash 及跨 fold 边界 50-kb embargo，并标注旧设计
+批准不覆盖这次修改。提交更新后只在固定的 `PMA｜固定阶段审核` 会话请求当前 HEAD 复审。
+在该审核和相应阶段接受完成前，不启动依赖性评分或新 Argos footprint 任务；准确度目前
+仍无可报告排名。无 ChIP 下载/分析，不修改 PR #7，不合并 PR #8。
+
+## 2026-10-19 14:55 EDT — 审核门禁与选型规则修订
+
+本交接较早章节中的 HINT 临时执行候选、B1-first 选型规则及“不要开新审核会话”均为历史记录，已被当前用户“准确度优先”和固定 PMA 项目审核会话要求取代。现行准确度协议以 `docs/STEP4B_ATAC_FOOTPRINT_BENCHMARK_DESIGN.md` §4 为准：固定 HCT116 control-ChIP-bound loci，以匹配 ChIP 的 retained/depleted 标签评估 auxin ATAC 分数；五折 1-Mb block split、阈值前 continuous score、pooled held-out AP、2,000 次 paired block bootstrap 和 Holm 六比较校正。没有阈值前连续分数时不进入 AP，不给未调用补零。此终点仅是局部 HCT116 CTCF degron 比较，不能外推至无 motif 全基因组或泛癌准确度。
+
+固定 PMA 审核对 PR #8 HEAD `98819830e4e302c6d96148f365a2a52f9c229e74` 返回 `REQUEST_CHANGES`。审查只批准了检查已存在 ChIP provenance；Argos 只读清单搜索未找到 `ENCSR059BCO` / `ENCSR160GVO` 的 ChIP 文件或 manifest，只找到已有 ATAC BAM 清单。未下载、未计算、未启动新 footprint 任务。工作在同一 PR 内修订协议、hand-off 和 PR 描述，然后只在固定 `PMA｜固定阶段审核` 对话中请求该 PR 新 HEAD 复审。PR #7 / ChIP BED6 由 Claude 负责，不触碰；PR #8 不合并。
+
+下面内容按各自记录时间保留历史状态；“当前状态”以本节和 `docs/CODEX_HANDOFF.md` 开头的最新更新为准。
+
 时间：2026-10-19 00:19 EDT。分支：`task_20261019_hint_overlay_smoke`，基于已合并 PR #4 的 `step4b-atac-footprinting` 头 `6c2e323fc80cc3e05f9de05282d1bbce49ba98fa`。本 PR 只修复 HINT 分块输出目录；所有包、BAM、BED 和结果均在仓库外。
 
 ## 目标与证据

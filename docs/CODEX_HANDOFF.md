@@ -1,5 +1,39 @@
 # PMA — handoff to Codex (2026-10-17, written by Claude Code)
 
+## Live status update — 2026-10-19 14:58 EDT — protocol repair staged for same-PR review
+
+Footprint-only scope. PR #8 is OPEN at HEAD `98819830e4e302c6d96148f365a2a52f9c229e74` on
+`task_20261019_hint_overlay_smoke`; worktree was clean at review time. The fixed PMA project review
+conversation `PMA｜固定阶段审核` returned `REQUEST_CHANGES` on this exact HEAD. Its actionable
+findings are now being addressed in the same PR: freeze the common candidate/locus and ChIP label
+rules; freeze score mapping, fold construction, missing-score handling and multiple-testing
+correction; distinguish the TraceBIND authors' HCT116 benchmark from independent validation; and
+correct the PR description and superseded B1-first rule.
+
+The review's narrow `APPROVE` was only for read-only verification of already-present HCT116 CTCF
+ChIP provenance. That check found no ChIP files or manifests for `ENCSR059BCO` or `ENCSR160GVO`
+under the searched Argos PMA raw/processed tree. The exact HCT116 unfiltered ATAC directory does
+contain four verified ATAC BAMs and `MD5SUMS.encode.tsv`; those are not ChIP truth. No footprint
+process was running, no files were downloaded, and no scores were computed. Thus ChIP labels,
+accuracy ranking and a caller winner remain unavailable.
+
+The repaired protocol is explicitly local: retained-versus-depleted occupancy among control-ChIP
+bound HCT116 CTCF loci, scored with identical fixed ±50-bp summit windows. It cannot establish
+general motif-free caller accuracy or a pan-cancer winner. Section 4 specifies an hg38
+`chrom.sizes` tie-break, zero-based 1-Mb block hashing, 50-kb embargoes at cross-fold block
+boundaries, and the revised design's review status. The earlier 2026-10-17 approval does not cover
+the material 2026-10-19 §4 changes. This same-PR revision is awaiting exact-head review in the
+single fixed PMA project conversation `PMA｜固定阶段审核`. The primary AP calculation remains
+blocked until ChIP provenance/labels are verified and all four tools expose documented
+threshold-free continuous scores; missing or unscorable values will not be filled with zero. K562
+TOBIAS timing and HINT HCT116 footprints are the only relevant large-result baselines; neither
+ranks accuracy.
+
+Next: finish the minimum protocol/doc/body repair, update this same PR, then ask `PMA｜固定阶段审核`
+to review the new exact HEAD. Do not start dependent scoring, another TraceBIND/PRINT run, or a
+cancer-wide caller run until that review and the required human phase acceptance. Do not touch
+ChIP BED6/PR #7 or merge PR #8.
+
 ## Live status update — 2026-10-19 14:20 EDT — TOBIAS speed run and HCT116 HINT motif exploration finished
 
 Footprint-only scope; ChIP BED6 and PR #7 are excluded. Before this documentation update, PR #8 was verified OPEN at HEAD `361e6589ce4cab9e88b381758836ea4c2bf08532`; worktree was clean.
@@ -22,15 +56,25 @@ Fresh truth-data discovery: official ENCODE lists HCT116 CTCF ChIP-seq `ENCSR059
 
 Footprint-only scope. PR #8 remains OPEN at HEAD `b2ea5c760d12d56e54fa01fa398b52c1d2521925`; do not inspect or modify ChIP BED6/PR #7.
 
-### Neutral accuracy ranking (proposal; not yet a completed benchmark)
+### Neutral accuracy ranking (revised; pending exact-head review)
 
-Do not rank callers by native event counts or package-default thresholds. The primary endpoint should be held-out per-site average precision / AUPRC on one shared, caller-independent candidate universe. Use matched HCT116 CTCF occupancy truth (paired CTCF ChIP-seq, with an independent CUT&RUN/ChIP replicate if available); define positives/negatives from occupancy evidence before looking at caller outputs. Freeze the same candidate sites, genomic-block folds, and overlap rule for all tools. For each caller map its continuous score to each shared site (e.g. max score at the ChIP summit ±50 bp, with no call scored 0); compute AUPRC on held-out chromosome or 1-Mb blocks, and paired block-bootstrap confidence intervals. Calibrate any operating threshold only on training blocks, at a predeclared recall target such as 80%; show 50/70/80/90% sensitivity curves rather than selecting a favorable threshold after seeing test results.
+The earlier proposal used an unspecified candidate set and fold choice, suggested a ChIP summit window,
+treated a missing caller event as zero, and named naked-DNA FPR as the primary endpoint. The fixed
+protocol now lives in `docs/STEP4B_ATAC_FOOTPRINT_BENCHMARK_DESIGN.md` §4 and the current dated handoff.
+It uses a narrow HCT116 CTCF degron task: fixed control-ChIP-bound loci, identical ±50-bp windows for
+both conditions, retained/depleted treatment labels from quantitative paired ChIP, five deterministic
+1-Mb-block folds, pooled held-out AP, 2,000 paired block bootstrap draws, and Holm correction for six
+caller pairs. It does not treat a missing peak alone as negative. AP requires a documented
+threshold-free continuous score; threshold-only callers are unscorable for AP and are not assigned
+zero. B1 is a matched-recall specificity check; B2 is paired perturbation; B3 is independent occupancy;
+B4 is support only. The TraceBIND developers' HCT116 data are a reproduction target, not independent
+validation. The older B1-first selection rule is superseded.
 
-Use B1 naked gDNA only as a specificity check: at the same threshold selected to attain target occupancy recall, report false calls per callable Mb and per million usable cuts after matched-depth normalization. Do not call gDNA a positive truth set. Use B2 paired degron ChIP labels to test whether scores drop specifically at independently ChIP-confirmed depleted CTCF sites; use B3 held-out orthogonal occupancy as the strongest independent validation. B4 replicate reproducibility and de novo motif-family recovery are supporting evidence only, never labels for primary accuracy. STREME/TOMTOM must remain downstream and cannot pick the winner.
-
-Declare a **local HCT116 CTCF winner** only if it has the best held-out AUPRC and its paired genomic-block-bootstrap difference from each other tool remains >0 after family-wise correction. If tied in AUPRC, report a tie unless one caller is also clearly more specific on matched-depth gDNA at the same training-calibrated recall. If AUPRC and gDNA specificity trade off, report the Pareto trade-off; do not invent a weighted composite after seeing results. B2/B3 must not contradict the claim. One CTCF target cannot establish a universal or pan-cancer winner; expand across independent TF/cell-line strata and macro-average by TF × biosample before making that claim. Keep speed separate: accuracy selects the caller first; then profile/optimize the winning core if needed.
-
-This is a proposed preregistered rule, not yet implemented or validated. The persistent PMA ChatGPT thread is occupied with a previous exact-head review; a method-consult message was attempted but the connector returned “already responding”. Do not create another reviewer conversation; revisit the method query when that thread is available. No accuracy winner has been computed.
+This is still a protocol, not an executed benchmark. No HCT116 ChIP truth files were found in the
+read-only Argos provenance search, and no caller accuracy result or winner exists. All future GPT
+reviews for this work remain in the single PMA project conversation `PMA｜固定阶段审核`; the exact
+HEAD review on `9881983` returned `REQUEST_CHANGES`. No dependent compute until the corrected same-PR
+HEAD is reviewed and the human phase decision is made.
 
 ### Fresh Argos evidence
 

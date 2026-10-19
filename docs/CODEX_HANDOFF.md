@@ -318,3 +318,7 @@ All four callers now passed the same frozen 20-region smoke inputs for gdna/ctrl
 ### 2026-10-19 05:54 EDT — round-one native-density spec
 
 External `processed/round1/benchmark_round1/spec_77d8556.json` pins all three 2,000-region BEDs and the five native event outputs per group; SHA-256 `13fc4061742d9e399795d32bd570cb3ae956a9a97cae0d96c4b0f4aa2a73e184`. Committed evaluator copied to `/home/zz950/PMA_fetch/eval_round1_77d8556.py`, SHA-256 `d5b85b1a3d9946d8da8c8e4a59dfd3e9b9ab2a3aa4e50361026c6a2abe417570`. Do not run until all pinned files exist; output is descriptive native-threshold density only.
+
+### 2026-10-19 06:06 EDT — whole-sample HINT run active
+
+The ctrl/aux whole-sample merge tasks both exited 0 and produced indexed, quickcheck-passing BAMs under external `processed/round1/bam/genome_wide/`: ctrl 4,960,640,917 bytes, SHA-256 `a87821a4c33544f6534d7a1d51c6a54241af0f09c98dca7e652e491dd5ed452d`; aux 4,877,771,562 bytes, SHA-256 `2259792d005017284166fad448783418dd4d97bcf16bff8c743e2df6dc47ca88`. `BG_HINT_GENOME_ctrl_32_V1` started at 06:06:37 EDT with ctrl BAM, 91,210 peak windows, 32 chunks and 44-GiB soft/hard RLIMIT_AS. Status/logs are under `/home/zz950/PMA_fetch/pma_bg_pr8_20261019/`; output prefix is external `processed/round1/runs_genomewide_pr8_77d8556/ctrl/hint_32`. Monitor exit, all chunks, output hash, wall and aggregate RSS before any speed claim. Other first-round and BED6 tasks remain active.

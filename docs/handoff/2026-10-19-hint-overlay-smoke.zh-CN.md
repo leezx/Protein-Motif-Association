@@ -65,3 +65,7 @@ TraceBIND v8 的 gDNA/ctrl/aux 20 区域任务均退出 0，事件 363/31/29 行
 ## 05:54 EDT 更新：首轮汇总输入清单已冻结
 
 已把 PR #8 的 `eval_round1.py` 复制到 Argos 仓库外代码暂存，SHA-256 `d5b85b1a3d9946d8da8c8e4a59dfd3e9b9ab2a3aa4e50361026c6a2abe417570`；外部 spec `processed/round1/benchmark_round1/spec_77d8556.json` SHA-256 `13fc4061742d9e399795d32bd570cb3ae956a9a97cae0d96c4b0f4aa2a73e184`，逐组固定 2,000 区域 BED 与 HINT、TOBIAS、PRINT r10/r20、TraceBIND 的原生结果路径。因 gDNA TOBIAS 与完整 TraceBIND 尚未完成，汇总尚未运行；输出只能是原生阈值的描述性密度，不能据此选工具。
+
+## 2026-10-19 06:06 EDT：全样本 BAM 与 HINT 速度实测
+
+Argos 的 ctrl/aux 双重复 BAM 合并和索引均退出 0，分别为 4,960,640,917 与 4,877,771,562 字节，SHA-256 为 `a87821a4c33544f6534d7a1d51c6a54241af0f09c98dca7e652e491dd5ed452d` / `2259792d005017284166fad448783418dd4d97bcf16bff8c743e2df6dc47ca88`，`samtools quickcheck` 通过。合并准备时间与 caller 时间分开记录。06:06:37 EDT 已用完整 ctrl BAM、91,210 个预设 HCT116 peak 窗口、32 个 HINT 分块启动 `BG_HINT_GENOME_ctrl_32_V1`，44 GiB 软硬地址空间上限、CPU-only；日志在 `/home/zz950/PMA_fetch/pma_bg_pr8_20261019/`，结果在外部 `processed/round1/runs_genomewide_pr8_77d8556/ctrl/hint_32`。尚无退出码、全量输出或速度门槛结论；gDNA TOBIAS 与三组 TraceBIND 首轮仍在运行。

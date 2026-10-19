@@ -39,7 +39,8 @@ for d in gdna ctrl aux; do
     if [ "$activation_rc" -ne 0 ]; then echo "R_ENV_ACTIVATION_FAIL r4p3 rc=$activation_rc" >&2; exit "$activation_rc"; fi
     if [ "${CONDA_DEFAULT_ENV:-}" != r4p3 ]; then echo "R_ENV_WRONG_ENV ${CONDA_DEFAULT_ENV:-unset}" >&2; exit 1; fi
     command -v Rscript >/dev/null || { echo "RSCRIPT_NOT_FOUND" >&2; exit 1; }
-    export R_LIBS=/home/zz950/softwares/R_lib_tracebind:/home/zz950/softwares/R_lib_4
+    # PRINT's isolated cladoRcpp overlay must be visible to the PSOCK workers as well as the parent R process.
+    export R_LIBS=/home/zz950/PMA_fetch/pma_r_print_overlay_v1/lib:/home/zz950/softwares/R_lib_tracebind:/home/zz950/softwares/R_lib_4
     /usr/bin/time -v Rscript $HERE/run_print.R $PRINTREPO $SH ${REG[$d]} ${FR[$d]} $O/print $C 10,20
       ) > $O/print.log 2>&1 &
   pids+=("$!")
@@ -51,7 +52,7 @@ for d in gdna ctrl aux; do
     if [ "$activation_rc" -ne 0 ]; then echo "R_ENV_ACTIVATION_FAIL r4p3 rc=$activation_rc" >&2; exit "$activation_rc"; fi
     if [ "${CONDA_DEFAULT_ENV:-}" != r4p3 ]; then echo "R_ENV_WRONG_ENV ${CONDA_DEFAULT_ENV:-unset}" >&2; exit 1; fi
     command -v Rscript >/dev/null || { echo "RSCRIPT_NOT_FOUND" >&2; exit 1; }
-    export R_LIBS=/home/zz950/softwares/R_lib_tracebind:/home/zz950/softwares/R_lib_4
+    export R_LIBS=/home/zz950/PMA_fetch/pma_r_print_overlay_v1/lib:/home/zz950/softwares/R_lib_tracebind:/home/zz950/softwares/R_lib_4
     /usr/bin/time -v Rscript $HERE/run_tracebind.R $TBPY $SH ${REG[$d]} ${FR[$d]} $O/tracebind $C 0.05
       ) > $O/tracebind.log 2>&1 &
   pids+=("$!")

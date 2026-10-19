@@ -145,3 +145,109 @@ K562 HINT 独立边界 QC 显示 3,125 个事件跨窗口边界，0 个完全不
 HCT116 HINT ctrl/aux 的序列准备均已退出 0。ctrl 配出 **90,387** 对，来自 91,184 个有事件窗口/924,139 条完整包含事件；566 个边界阳性与 231 个 GC 不匹配被排除。aux 配出 **88,444** 对，来自 91,103 个有事件窗口/944,467 条完整包含事件；排除2,401个边界阳性、1条非ACGT序列和257个GC不匹配。manifest显示序列均为50 bp、背景在同一窗口、绝对GC差最大0.1。FASTA哈希：ctrl positive/background `a13292e373f6cd64514551d6a54d9cd83f95b6ac2111599ab215ffc228731a69` / `d9fc17f6716e7bc7b0e555645a7c3971665998450bdee0ee9c87799fccdbd791`；aux `eeae3edbe963825c1240be6202bdc31d588839608785c628e30d1e49836a8dbb` / `011d36ed901f413b772d2d393589c40c24bb2d62e6e9c79fc47da6a654b745db`。
 
 `BG_B4_HCT116_HINT_CTRL_80FCAC9` 和 `...AUX...` 中的 STREME 均仍在活动，日志已从初始 suffix-tree 阶段推进到 candidate refinement，ctrl 到候选22、aux到候选23；每进程 RSS约4.3 GB，低于44-GiB限制。无最终 motif/退出码。K562 `BG_K562_FRAG_PREP_V1` 已结束 BAM 扫描并进入 GNU sort，临时排序约1.6 GB；待最终 bgzip/tabix 与片段数/hash核验后，才启动 PRINT/TraceBIND 同输入速度比较。
+## 2026-10-19 11:52 EDT：准确度优先，核实 TraceBind 完整模式所需 mtDNA
+
+用户明确把**准确度**放在 footprint 工具选择第一位，只有确认准确度领先工具后才针对速度优化。此前基于速度将 HINT 作为临时执行候选的判断不再代表准确度选型；HINT 保留为最快已测基线。查阅 TraceBind 2026 年论文后，将**完整 TraceBind**设为当前准确度优先的文献候选：该论文在裸 DNA 阴性、匹配 ChIP/CUT&RUN、DNase footprint，以及 HCT116 CTCF 降解配对 ChIP 的评估中报告其相对已有方法有较低假阳性和较高灵敏度/AUPR。论文属于方法开发者主导的评估，且 footprint 阈值采用各工具设置，不能据此声称普遍或本项目已证明其更准确。来源：https://www.nature.com/articles/s41467-026-73164-3 。
+
+代码核对确认本项目当前 `scripts/04b_footprint/run_tracebind.R` 明确是 PRINT 预训练 bias 模式，固定 p 阈值，**没有样本 mtDNA 微调，也没有线粒体按覆盖度分层经验 FDR**。因此已有 TraceBIND 结果只能称 reduced PRINT-bias mode，不能用来代表论文中的完整 TraceBind。官方教程公开了 `get_insertions` → `finetuned_model` → 微调模型 `get_bias` → `mito_fdr` 的步骤：https://github.com/linyx-lyn/TraceBind 。
+
+Argos 实际检查（11:52 EDT）：HCT116 HINT ctrl/aux STREME 仍运行，日志迭代到 32/30；保留为探索性，不作赢家证据。K562共用片段预处理已退出0：110,891,807 个片段、BGZF 521,792,045 字节并有 tabix 索引，准备耗时 28:24。旧的独立读取计数 110,891,952 与 prepared-fragments 计数差145，因过滤谓词不完全一致，正式 denominator 应使用准备输出并核清统计定义。
+
+确认四个 HCT116 原始 filtered BAM 的 header 有 chrM，但供核内 caller 的片段表无 chrM。因此启动 Argos `BG_HCT116_MITO_COUNTS_V2`，在44-GiB CPU-only gate 下扫描四 BAM，按 properly-paired、primary、nonduplicate、MAPQ≥30、read1、同染色体且模板长度≥20 的 converter 规则统计 chrM。V1 只因 shell trap 引号问题在分析前退出1，日志保留；V2结果待出。未确认足够 mtDNA 数据与校准流程前，不运行/宣称完整 TraceBind。下一步：V2通过后按官方全模式在相同 HCT116 windows 运行，再与 HINT 等工具比较 B1匹配灵敏度/FPR、B2降解位点、B3正交占据和独立B4；准确度赢家确定后才对其慢热点剖析并评估C/C++核心优化。不合并PR #8，不碰ChIP BED6。
+
+## 2026-10-19 12:01 EDT：使用同实验的 ENCODE unfiltered alignments 做完整 TraceBind
+
+线粒体计数发现，HCT116 对照 filtered BAM `ENCFF784ATG`、`ENCFF794FUH` 各有0条符合片段转换规则的 chrM 片段；aux 的 `ENCFF877LRY` 也是0，`ENCFF745WLX` 尚在扫描。K562 filtered BAM `ENCFF534DCE` 的索引统计显示 chrM mapped/unmapped 均为0。ENCODE ATAC pipeline 官方文档默认 `atac.filter_chrs` 包含 chrM/MT，因此这些计数只说明 filtered 文件不能用于 TraceBind 的 mtDNA 校准，不能推断实验无 chrM reads。
+
+从 Argos 查询 ENCODE API，找到同一 HCT116 CTCF degron 两组 unfiltered alignments：ctrl `ENCSR328JGW`：`ENCFF534JUB`（6,550,555,568 bytes，MD5 `5201b49a902b58abdcd559de3333be9f`）、`ENCFF077TQF`（7,584,751,249 bytes，`e15fd6a8d8ae38da0ac17feb415b5105`）；aux `ENCSR260SWI`：`ENCFF882WHI`（7,262,651,459 bytes，`fb037a631413b44af5e59ee794fc49d5`）、`ENCFF979SQQ`（6,930,164,254 bytes，`d29a968899e8b7116159d9d919231e06`）。启动 `BG_HCT116_UNFILTERED_FETCH_V1`，输出放在仓库外 `/home/zz950/DATA/2.PROJECTS/PMA/atac_footprint/raw/2026-10-19/encode_hct116_unfiltered/ENCSR328JGW_ENCSR260SWI/`，通过44-GiB CPU-only gate；需逐项核对字节数、MD5、`samtools quickcheck` 和 chrM header 后才会标记完成。12:00 EDT 四个 partial 文件为68–101 MB且仍增长，未校验的 partial 不可用于分析。
+
+一次 R 包探查误调用系统 R，因 `rlang.so` ABI 不兼容退出；改用 r4p3 的 Rscript 成功确认 `finetuned_model()` 与 `mito_fdr()` 接口。一次本机元数据命令因没有 `python` 可执行文件而未运行，之后在 Argos 用 Python 3 查询官方 API 成功。上述仅为工具核验，未修改样本输入或输出分析。
+
+下一步等待四个 unfiltered BAM 校验，统一筛选并在同一遍读取中生成核内与 chrM fragments；验证 mtDNA 覆盖后先做官方完整 TraceBind pilot，再做全 HCT116 输入比较。若这些 unfiltered BAM 仍无合格 chrM 读段，则暂停 full TraceBind 并调查未比对 FASTQ/原始数据，不用 filtered 数据替代。
+
+## 2026-10-19 12:07 EDT：filtered HCT116 的 chrM 检查完成，unfiltered 下载持续推进
+
+`BG_HCT116_MITO_COUNTS_V2` 已退出0，最终TSV确认四个 filtered HCT116 replicates 在同一 proper-pair/primary/nonduplicate/MAPQ≥30/read1/same-contig/insert≥20规则下 chrM 计数均为0；K562 filtered BAM 的 chrM mapped/unmapped也均为0。该结果符合 ENCODE pipeline 默认排除 chrM/MT 的 filter 设置，因此 full TraceBind 需用对应 unfiltered alignments。
+
+`BG_HCT116_UNFILTERED_FETCH_V1` 继续在Argos下载 ENCODE官方四个 HCT116 unfiltered BAM并进行44-GiB CPU-only gate；12:06 EDT partial 大小为 702/641/636/479 MB，尚无文件通过完整字节数、MD5、`samtools quickcheck` 和 chrM header 校验。HINT ctrl/aux STREME均仍运行、日志到候选40–41左右，约4.4/4.3 GB RSS；最终 motif 和退出状态未就绪。PR #8 仍 OPEN at `b2ea5c760d12d56e54fa01fa398b52c1d2521925`，当前本地仅Worklog/handoff文档修改。
+
+## 2026-10-19 12:10 EDT — transfer and motif-task refresh
+
+Argos files `ENCFF534JUB`, `ENCFF077TQF`, `ENCFF882WHI`, `ENCFF979SQQ` have partial sizes 1,108,349,832 / 1,009,778,688 / 1,001,914,368 / 806,879,232 bytes (3.93 of 27.2 GB; 14.4%). All remain uncertified: full expected byte count, MD5, `samtools quickcheck`, and chrM header checks have not yet passed. No partial input was analyzed. A metadata/HEAD probe timed out without returning headers; it was stopped, while the original four download streams continue. `BG_B4_HCT116_HINT_CTRL_80FCAC9` and `...AUX...` are active; latest STREME refinements reached candidate 49 and 44. These are footprint-derived motif discovery tasks, not accuracy evidence. Next output: finish and verify full BAMs, count qualifying chrM fragments, create same-rule nuclear/mitochondrial fragments, and run the validated full TraceBind calibration plus matched-accuracy benchmark. The transfer is the current critical path; no accuracy winner is established.
+
+## 2026-10-19 12:30 EDT — exact transfer total and task status
+
+`FILE_REFERENCE.tsv` is the authoritative byte manifest: the four unfiltered HCT116 BAMs total **28,328,122,530 bytes (26.38 GiB)**. This supersedes the earlier rounded “about 27.2 GB” denominator. Current Argos partial sizes are 2,878,865,408 (`ENCFF077TQF`), 3,158,310,912 (`ENCFF534JUB`), 2,866,806,784 (`ENCFF882WHI`), and 2,545,418,240 (`ENCFF979SQQ`) bytes, total 11,449,401,344 (40.4%). No BAM has passed size/MD5/quickcheck/chrM-header checks; no partial input was consumed. The current short-window transfer rate is about 6.3 MB/s aggregate, implying roughly 45 minutes remaining if sustained.
+
+The two HCT116 full-window HINT/STREME tasks remain active after ~51 minutes; logs show ongoing refinement while both `streme.txt` outputs remain empty. Full TraceBind accuracy work is still waiting for certified unfiltered input. The R package interface and official tutorial have been checked for `get_insertions`, observed mitochondrial bias, `finetuned_model`, `get_bias`, and `mito_fdr`; no calibration job has started yet. PR #8 remains OPEN at `b2ea5c760d12d56e54fa01fa398b52c1d2521925`.
+
+## 2026-10-19 12:34 EDT — transfer still advancing; accuracy decision remains open
+
+Argos machine time 12:34:35 EDT. `BG_HCT116_UNFILTERED_FETCH_V1` remains active. Partial files: 3,219,652,608 bytes (`ENCFF077TQF`), 3,533,701,120 (`ENCFF534JUB`), 3,204,972,544 (`ENCFF882WHI`), and 2,869,952,512 (`ENCFF979SQQ`), **12,828,278,784 / 28,328,122,530 bytes (45.3%)**. None has passed exact manifest byte count, MD5, `samtools quickcheck`, or chrM-header validation, so none was analyzed. Recent aggregate rate is about 5 MB/s; the ~50-minute completion estimate is conditional on rate holding. An independent 15-second ENCODE response-header probe timed out; the original downloads were left running.
+
+`BG_B4_HCT116_HINT_CTRL_80FCAC9` and `...AUX...` remain active and progressing in STREME, latest logged candidates 35 and 24. Final motif files and exit status are not available yet. The underlying HINT motif-free calls already cover 91,210 fixed 1-kb HCT116 accessible windows (91.210 Mb); this is real cancer-cell accessible-window progress, while tool accuracy remains unresolved. HINT is the fastest measured baseline, not a proven accuracy winner. Full TraceBind calibration and B1 matched-sensitivity comparison wait on certified unfiltered BAMs. PR #8 remains OPEN at HEAD `b2ea5c760d12d56e54fa01fa398b52c1d2521925`; no code or sample outputs were changed in this check.
+
+## 2026-10-19 12:45 EDT — BAM transfer at 58.9%; STREME still refining
+
+Argos machine time 12:45:01 EDT. The four matching HCT116 unfiltered BAM partials total **16,673,931,264 / 28,328,122,530 bytes (58.9%)**: 4,175,953,920 (`ENCFF077TQF`), 4,586,995,712 (`ENCFF534JUB`), 4,161,273,856 (`ENCFF882WHI`), 3,749,707,776 (`ENCFF979SQQ`). All remain `.partial`; exact byte count, MD5, `samtools quickcheck`, and chrM-header checks are pending, and no partial was analyzed. The original four transfers remain active. Between 12:34 and 12:45 the aggregate advanced about 3.85 GB (~6 MB/s); about 32 minutes to completion is only a conditional estimate.
+
+HCT116 HINT-derived `BG_B4_HCT116_HINT_CTRL_80FCAC9` / `...AUX...` STREME tasks remain active, latest candidate labels `CAND-2-49` / `CAND-2-34`; no final motif table or exit status yet. HINT calls are already complete on 91,210 fixed 1-kb accessible windows (91.210 Mb). This is one HCT116 cancer-cell accessible-window result, not a multi-cancer atlas. No caller accuracy winner is established; full TraceBind calibration and matched-recall B1 await certified unfiltered BAMs. PR #8 remains OPEN at `b2ea5c760d12d56e54fa01fa398b52c1d2521925`; only worklog/handoff documentation changed this turn.
+
+## 2026-10-19 12:59 EDT — unfiltered BAM transfer at 77.3%
+
+Argos time 12:59:05 EDT. The four unfiltered HCT116 BAM partials total **21,912,092,672 / 28,328,122,530 bytes (77.3%)**: `ENCFF077TQF` 5,469,896,704; `ENCFF534JUB` 6,008,864,768; `ENCFF882WHI` 5,453,643,776; `ENCFF979SQQ` 4,979,687,424. All remain `.partial`; expected sizes, MD5, `samtools quickcheck`, and chrM header have not yet passed, and no partial has been analyzed. About 6.4 GB remains; ~16 min is conditional on the recent transfer rate. `BG_HCT116_UNFILTERED_FETCH_V1` continues to run.
+
+The HCT116 HINT-derived STREME jobs remain active. Latest logged candidate IDs are `CAND-3-32` for ctrl and `CAND-2-49` for aux; final STREME tables/exit codes remain pending. HINT footprints already cover 91,210 fixed 1-kb HCT116 accessible windows, but accuracy selection and multi-cancer expansion are still open. Full TraceBind calibration/B1 remains gated on certified unfiltered BAMs. PR #8 is OPEN, unchanged HEAD `b2ea5c760d12d56e54fa01fa398b52c1d2521925`; no code or external result was modified in this refresh.
+
+2026-10-19 13:05 EDT — K562 same-input speed tasks launched; full TraceBind remains download-gated
+
+Argos check at 13:04:42 EDT: the four unfiltered HCT116 ENCODE BAM partials total **23,963,208,624 / 28,328,122,530 bytes (84.6%)**: ENCFF077TQF 5,985,271,808; ENCFF534JUB 6,550,555,568; ENCFF882WHI 5,953,814,528; ENCFF979SQQ 5,473,566,720. They remain .partial; byte/MD5/quickcheck/chrM checks have not passed, and no partial was analyzed. The transfer is advancing but is still the dependency for full-mode TraceBind.
+
+To complete a comparable speed table on the same K562 ENCSR868FGK data and frozen 77,668 1-kb windows, started BG_K562_TOBIAS_SPEED_V1 at 13:03:31 EDT and BG_K562_PRINT_SPEED_V1 at 13:04:04 EDT on Argos. Each runner records 16 CPU cores, input integrity/path checks and /usr/bin/time -v, and is launched under /home/zz950/PMA_fetch/pma_bg_gate_v2.sh with 44-GiB RLIMIT_AS, CPU-only and no GPU. Shared code is the integrity-checked external clone pma_pr8_speed_44b9c11 at commit 44b9c1153692effb528b888129136ef2a920201f; runner SHA-256s are TOBIAS 6b86b6d4d018bd2e3af3c030fd3084f21ccb42fc49ee66b43d907a9fe9728ae1 and PRINT b87d83ce50f49f781c22b6049d0e876eb8132183e0c2017286765d1c20f08ee0. Both were confirmed active shortly after start; complete outputs/timing are pending. PRINT uses the existing 110,891,807-row prepared fragment table; its BAM-to-fragments preprocessing wall is 28:24 and must be added to PRINT's end-to-end time. K562 has an ENCODE nucleosome-free-fraction QC warning, so these are timing-only, not B3 accuracy evidence.
+
+The HCT116 HINT-derived full-window STREME tasks remain CPU-active after ~87 min: ctrl/aux at CAND-3-40 / CAND-2-59, each ~100% CPU and ~4.4/4.2 GB RSS; final motif tables and statuses are pending. Existing K562 HINT timing remains 16:53.47 on the same 77,668 windows; aggregate RSS was not directly measured. These data advance the common speed comparison and HCT116 motif discovery, but do not yet establish an accuracy winner, a validated motif reference, or a multi-cancer atlas. PR #8 remains OPEN at unchanged HEAD b2ea5c760d12d56e54fa01fa398b52c1d2521925; no data were added to the repo.
+
+
+2026-10-19 13:14 EDT — same-input speed and footprint-to-motif tasks progressing
+
+Fresh read-only check: PR #8 remains OPEN at HEAD `b2ea5c760d12d56e54fa01fa398b52c1d2521925`; no ChIP/PR #7 activity. On Argos, `BG_K562_PRINT_SPEED_V1` is progressing through fixed-window chunks (chunk 6/39 observed at 13:14:03; process active); no error signatures were found. `BG_K562_TOBIAS_SPEED_V1` has entered CPU-active `ATACorrect` workers on the same 77,668 frozen windows and verified K562 BAM; timing results are not yet available. Thus there is still no comparable PRINT-vs-TOBIAS timing table.
+
+The four unfiltered HCT116 BAM downloads remain `.partial` and uncertified. Latest partial sizes at 13:14 EDT: 6,887,047,168 (`ENCFF077TQF`), 6,550,555,568 (`ENCFF534JUB`), 6,850,347,008 (`ENCFF882WHI`), 6,251,610,112 (`ENCFF979SQQ`) bytes; total 26,539,559,856 bytes (verify from authoritative transfer status before reporting completion). No partial input was analyzed. HCT116 HINT-derived STREME ctrl/aux searches remain CPU-active, latest candidates `CAND-4-25` / `CAND-3-29`; final motif files and exit codes are pending. These jobs seek de novo motifs from HINT calls, not tool accuracy.
+
+Measured progress toward the user's deliverable: cancer ATAC footprint calls already cover 91,210 fixed HCT116 accessible 1-kb windows with HINT; current same-input K562 runs are measuring TOBIAS and PRINT speed on 77,668 fixed 1-kb windows. Remaining blockers are matched-sensitivity B1/B2–B4 accuracy evidence and certified unfiltered HCT116 BAMs for full TraceBIND mtDNA calibration. No accuracy winner or multi-cancer/global-base footprint atlas is established. Next: monitor the two active K562 callers and transfer; once TraceBIND inputs are fully verified, run the pre-defined full calibration and comparable caller tests. Do not promote exploratory STREME output to a motif reference before validation.
+
+
+2026-10-19 13:30 EDT — repaired HCT116 BAM verification; same-input timing advances
+
+PR #8 remains OPEN at `b2ea5c760d12d56e54fa01fa398b52c1d2521925`. Argos `BG_K562_PRINT_SPEED_V1` reached chunk 27/39 after ~25 min; `BG_K562_TOBIAS_SPEED_V1` is in `ATACorrect` at 30% correction (13:28 snapshot). Full timing is pending; these runs use the same 77,668 windows and K562 fragments but K562 remains timing-only due to its ENCODE QC warning.
+
+All four HCT116 unfiltered BAM `.partial` files reached the authoritative total 28,328,122,530 bytes, and a fresh header-only check finds `SN:chrM` in each. The fetch task's failure is a false negative from an over-escaped Bash grep tab pattern, not an observed missing contig. Verification retry V2 failed immediately on an AWK quoting typo before changing or analyzing inputs. Corrected `BG_HCT116_UNFILTERED_VERIFY_V3` started at 13:29:30 EDT under `pma_bg_gate_v2.sh` with RLIMIT_AS 44 GiB, recomputing MD5/SHA-256 and running quickcheck plus exact chrM validation; no certificates are claimed until this completes. HCT116 ctrl/aux HINT→STREME searches continue CPU work at candidates `CAND-4-60` / `CAND-4-18`; final STREME outputs remain pending.
+
+Measured project progress: HINT motif-free calls already cover 91,210 fixed HCT116 accessible 1-kb windows; current tasks advance same-input PRINT/TOBIAS speed and HINT-derived motif discovery. Accuracy selection remains unresolved pending B1 matched sensitivity and B2–B4 independent evidence; full TraceBIND remains gated on certified BAMs. No multi-cancer/global-base atlas is complete. Next: finish checksum certification and current speed runs, then perform full TraceBIND calibration and objective matched-truth ranking. No ChIP files were inspected or modified and no external data/results were added to the repository.
+
+## 2026-10-19 13:43 EDT — 中立准确度排名方案与新运行状态
+
+本次继续只做 footprint，不接触 Claude 负责的 ChIP BED6/PR #7。PR #8 工作树 HEAD `b2ea5c760d12d56e54fa01fa398b52c1d2521925`。
+
+### 准确度排名：预注册方案草案
+
+不按各工具默认阈值的事件数排名。统一固定 caller-independent 的候选位点和 genomic-block folds；对每个 caller 将连续输出分数投到同一位点（例如 ChIP summit ±50 bp 范围内最大分数，无调用记 0），以 held-out AUPRC / average precision 为主指标，并按 1-Mb/染色体块配对 bootstrap 给置信区间。任何二值操作阈值只在训练块按预定召回率（建议主分析 80%，同时展示 50/70/80/90%）校准，再用于 held-out 和 B1。
+
+- **真值**：HCT116 匹配 CTCF ChIP-seq 定义 occupancy；先从 ChIP 数据固定 control-bound 与 degron-depleted 位点及同等可及背景候选，再读取任何 caller 分数。site 标签不依赖 footprint/STREME/TOMTOM。
+- **B1 naked gDNA**：仅为负控；在同召回阈值下报告每 callable Mb 和每百万有效切点的假阳性，匹配测序深度，不能单独定义 accuracy。
+- **B2 degron**：比较 ChIP 确认丢失结合位点的 paired ctrl→aux 分数变化，验证扰动响应。
+- **B3**：独立 CUT&RUN/ChIP 复现是外部验证；不可用作训练阈值校准后又重复计分。
+- **B4/STREME/TOMTOM**：家族恢复、motif/replicate 可重复性仅作支持证据，不当作 footprint accuracy labels。
+- **结论门槛**：只有 held-out AUPRC 在配对 genomic-block bootstrap 下胜过其余工具（校正四工具的多重比较），且 B1 不显示明确 specificity 代价、B2/B3 不矛盾，才称“本 HCT116 CTCF 设置的局部赢家”。若 AUPRC 统计并列则报告并列；若 AUPRC 与 gDNA specificity 相互 trade off，就报告 Pareto trade-off，不看完结果再加权。单一 TF/细胞系不能推出泛癌或普适赢家。准确度先选工具，速度后比较；只有准确赢家经实测仍慢，才 profile 具体热点并考虑 C/C++。
+
+该方案是待方法复核的草案，尚无 caller accuracy 数值；ChatGPT 持久会话仍在处理先前请求，方法咨询提交返回 already responding，因此没有新建会话，也没有把其写成已批准结论。
+
+### 可核验进展
+
+- Argos `BG_HCT116_UNFILTERED_VERIFY_V3` 退出 0：四个官方 HCT116 unfiltered BAM 全部通过精确字节数、ENCODE MD5、SHA-256、`samtools quickcheck`，且都有 chrM header；可开始 full TraceBIND 的 mtDNA 校准，但校准本身尚未运行。
+- ENCODE 官方记录显示潜在 matched truth：HCT116 CTCF ChIP-seq `ENCSR059BCO`（未处理）和 `ENCSR160GVO`（6 小时 5-Ph-IAA），与已有 ATAC `ENCSR328JGW` / `ENCSR260SWI` 同属该 CTCF degron 系统。ChIP 文件、replicate/QC 和精确 biosample 对照尚未检查，当前只记为候选真值；不能称已验证 B3。
+- `BG_K562_PRINT_SPEED_V1` 退出 1：到达 39/39 chunk 后在 R worker 报 `there is no package called 'cladoRcpp'`，没有可用速度/调用输出。wall 36:19.75、max RSS 34,130,552 KB (~32.5 GiB)。只读 R 查询证实：原 launcher 的两项 `R_LIBS` 下 `requireNamespace('cladoRcpp')=FALSE`，加入 `/home/zz950/PMA_fetch/pma_r_print_overlay_v1/lib` 后为 TRUE。PR 三个 launcher export 已本地补入此路径（未提交、未重跑）；外部速度 launcher 待 review gate 后同步修正，最多再受控重跑一次。
+- `BG_K562_TOBIAS_SPEED_V1` 上次快照仍在 ATACorrect CPU workers；最终 wall/output 待定。K562 存在 NFR QC 警告，只作速度输入。
+- HCT116 HINT 仍覆盖 91,210 个固定 1-kb 可及窗口；ctrl/aux STREME 仍无最终 `streme.txt`，不可用于选工具。
+
+**下一步**：静态检查 PR 的最小 R_LIBS 修复；只读确认 matched HCT116 CTCF ChIP label/site 表、B3 独立真值是否存在；完成 TraceBIND 全模式校准后，在所有 caller 的共同位点表上跑 held-out AUPRC/B1–B3。PR gate 通过后再同步修正外部速度 launcher 并受控重跑 PRINT。没有完成前，不报告赢家或开始泛癌全局调用。外部数据/结果未进入仓库；未合并 PR。

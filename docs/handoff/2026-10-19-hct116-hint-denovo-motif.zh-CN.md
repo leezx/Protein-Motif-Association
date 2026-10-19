@@ -1,5 +1,40 @@
 # HCT116 HINT motif 与 K562 TOBIAS 里程碑
 
+## 2026-10-19 15:07 EDT — 同一 PR 的协议修订已准备复审
+
+固定 PMA 项目对话中的 PR #8 HEAD `c5bf88f365a3e10f1cdf3ad7714f2df94518da17` 审核要求继续
+补足标签、score adapter、held-out 拟合边界和配对推断定义。本轮在同一 PR 文档中加入了
+可执行的 ChIP-IP/input 差异模型、当前工具 wrapper 的分数来源与可评分状态、共同 mask 限制、
+训练折内适配和百分位映射、bootstrap/permutation/Holm，以及 B1 事件提取规则。`git diff
+--check` 通过。当前 HANDOFF 仍表明缺少所需 ChIP 生物学重复/输入/spike-in 文件；HINT 和
+TraceBIND wrapper 当前也没有可供统一 AP 的连续轨。因此准确度排名和赢家仍不可计算。
+下一步只提交并推送同一 PR #8，在固定 PMA 审核对话请求新 HEAD 的 exact-head review；未获
+批准和人类阶段接受前不启动 Argos 依赖分析，不触碰 PR #7，也不合并。
+
+## 2026-10-19 15:03 EDT — 第二次 exact-head 反馈与协议细化
+
+固定 PMA 对话 `PMA｜固定阶段审核` 审核 PR #8 HEAD
+`c5bf88f365a3e10f1cdf3ad7714f2df94518da17` 后再次给出 `REQUEST_CHANGES`。本次审查只读
+GitHub 和指定仓库文档，没有访问 Argos、下载/读取实验数据、运行分析或改环境。剩余方法
+缺口：IDR/peak strength 与 coverage 的定义、跨条件 ChIP 的 calibrated normalization 和
+差异统计；逐 caller score adapter 与共同可评分集合；拟合/归一化是否跨入 held-out fold；
+AP 差值 CI、配对检验、Holm、阈值 ties 和 B1 事件定义。
+
+同一 PR 的 §4 已进一步固定：仅用 ENCODE IDR≤0.05 的生物学重复共识峰；从 narrowPeak
+列10取 summit、列7取 signalValue，按 hg38 chrom.sizes 加稳定来源 ID 去重；共同 ATAC
+可调用 mask 取两个条件 ENCODE IDR peak union 减 blacklist。occupancy 变化采用 edgeR
+quasi-likelihood NB 的 `~ replicate_pair + condition + assay + condition:assay` 模型，
+以匹配 input 与外源 spike-in 校正，BH 在冻结的 coverage-eligible 候选全集上；depleted
+需要 log2FC、BH q 和 95% CI 同时过线，retained 用 treatment IDR 支持及 90% CI 等效检验。
+没有至少三个独立生物学重复对、matched input、spike-in 或通过的模型诊断则停止标签生成。
+PRINT 采用当前 wrapper 的 r10 per-base aggregateScores；TOBIAS 采用默认
+FootprintScores 连续轨；HINT 与 TraceBIND 当前 wrapper 只导出阈值事件，不能进入主 AP，
+除非另行实现并冻结连续输出适配器；四工具若不共用完整可评分位点则不得宣布四工具赢家。
+每折数据适配限于训练块、held-out 分数按训练分布百分位归一；block bootstrap 用有效样本
+规则，另设预先固定的双侧 paired block-swap permutation 与 Holm 校正。新修订只定义方案，
+不代表任何准确度排名或工具赢家。待同一 PR 提交后仍只在此固定 PMA 对话请求复审；未获
+APPROVE 前不做依赖评分/Argos 运算，不碰 Claude 的 PR #7，不合并 PR #8。
+
 ## 2026-10-19 14:58 EDT — §4 细节补齐，等待固定 PMA 会话复审
 
 根据固定 PMA 项目审核对 PR #8 HEAD `98819830e4e302c6d96148f365a2a52f9c229e74` 的

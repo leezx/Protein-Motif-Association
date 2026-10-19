@@ -95,55 +95,118 @@ HCT116 CTCF-degron benchmark, not a universal caller ranking and not a genome-wi
 motif-free event precision.
 
 1. **Primary candidate universe.** Use the union of high-confidence untreated HCT116 CTCF ChIP
-   consensus peaks from the matched degron experiment. Merge overlapping ±50-bp summit windows
-   deterministically, retaining the summit of the strongest control peak (ties: chromosome order
-   in the exact hg38 `chrom.sizes` file, then lowest summit coordinate, then stable peak ID); keep
-   one control-ChIP summit per locus. The same fixed summit and
-   100-bp window are used for every caller and both ATAC conditions. Caller events, STREME and
-   TOMTOM do not create or remove candidates. Freeze the candidate manifest before reading caller
-   scores. If ENCODE provenance, replicate relationships, assay controls or peak QC do not support
-   a reliable consensus, stop and do not create these labels.
-2. **Treatment labels.** Among control-bound candidate loci, call `depleted` only when the
-   input-normalized auxin/control ChIP log2 fold-change is ≤ −1 and differential-test FDR ≤ 0.05
-   with adequate coverage in the contributing replicates. Call `retained` only when the treated
-   ChIP peak is replicate-supported and log2 fold-change is > −0.5. All other, low-coverage,
-   discordant or missing-provenance loci are `ambiguous` and excluded. A missing peak alone is
-   never a negative label. Confirm the matching biological sample, treatment time and replicate
-   structure before applying these criteria; technical replicates do not count as independent
-   biological replicates.
+   consensus peaks from the matched degron experiment. A qualifying peak file must be the ENCODE
+   IDR-thresholded narrowPeak set with IDR ≤ 0.05 from at least two independent biological
+   replicates; technical replicates do not count. Freeze accession, biosample/clone, treatment,
+   biological-replicate mapping, matched input, genome, file IDs, audits, MD5/SHA-256, pipeline
+   version and blacklist in the candidate manifest. Read summit from narrowPeak column 10 (offset
+   from BED start) and strength from column 7 (`signalValue`). Merge overlapping ±50-bp summit
+   windows by connected component; retain the summit with greatest `signalValue`, ties by the
+   frozen hg38 `chrom.sizes` order, lowest summit coordinate, then file ID and 1-based source row.
+   Keep one control-ChIP summit per component. The same fixed summit and 100-bp window are used
+   for every caller and both ATAC conditions. Freeze one caller-independent common ATAC callable
+   mask as the union of the two matched-condition ENCODE IDR-thresholded ATAC narrowPeak sets
+   (IDR ≤ 0.05), minus the frozen hg38 blacklist; retain only candidate windows fully inside this
+   mask. If those exact consensus files are unavailable, stop until an equally fixed peak pipeline
+   is reviewed; do not choose a caller's peak set. Caller events, STREME and TOMTOM do not create or
+   remove candidates. Freeze the candidate manifest before reading caller scores. If exact
+   provenance, independent biological replicates, matched input or peak QC are unavailable, stop:
+   do not generate inferential occupancy labels.
+2. **Treatment labels.** Require at least three matched independent biological-replicate pairs,
+   each with control and auxin CTCF IP plus matched input, all with provenance and assay QC. Technical
+   replicates are merged within each biological replicate before counting. Count deduplicated
+   fragments in each IP/input BAM over the frozen candidate windows; use a spike-in scale factor
+   estimated from the exogenous reference reads for each library. Fit an edgeR quasi-likelihood
+   negative-binomial model with design `~ replicate_pair + condition + assay + condition:assay`,
+   offset by the library's spike-in factor; the treatment effect is the condition×IP interaction
+   (difference-in-differences of ChIP versus input). Freeze edgeR version, design matrix, offsets,
+   dispersion settings and full tested-locus universe in the manifest before assigning labels. A
+   locus is coverage-eligible only if both IP and matched-input counts are ≥10 in at least two of
+   the three or more biological replicate pairs in each condition. Apply BH over every
+   coverage-eligible candidate in this frozen universe. Among control-bound loci, call `depleted`
+   only if the interaction log2 fold-change ≤ −1, BH q ≤ 0.05, and the 95% confidence interval upper
+   bound is < −0.5. Call `retained` only if the treated locus is present in the replicate-supported
+   IDR set and a two-one-sided equivalence test at α=0.05 has its 90% confidence interval wholly
+   inside [−0.5, +0.5]. All others, including low coverage, discordant or missing-provenance loci,
+   are `ambiguous` and excluded. A missing peak alone is never a negative. If the independent
+   biological pairs, matched inputs, exogenous spike-in, or model diagnostics are absent/failed,
+   stop; do not substitute technical replicates, plain library-size normalization, or an invented
+   FDR. The available handoff currently reports technical rather than biological replication, so
+   these labels are not presently eligible to generate.
 3. **Score mapping and primary endpoint.** Evaluate the treated ATAC caller score at each frozen
    control-ChIP summit using the maximum threshold-free, continuous score in the same ±50-bp
-   interval. Fix each tool's score field and direction from its documented output before looking
-   at labels. Compute pooled out-of-fold average precision (AP; the non-interpolated area under
-   the precision-recall curve) for distinguishing `retained` from `depleted` loci. Do not
-   substitute a ChIP summit-derived candidate coordinate asymmetrically between classes. If a
-   caller only provides thresholded events and no continuous pre-threshold score, mark it
-   `unscorable for primary AP`; do not fill missing scores with zero or rank it with an
-   undocumented proxy. Report thresholded sensitivity separately.
+   interval. Before labels are joined, the adapter manifest must freeze each tool's exact source
+   commit/package build, command parameters, model/resource hashes, score field, units, direction,
+   scale, file checksum and mapped genome interval. The current `events_from_track.py` event
+   converter is not an AP adapter: it replaces missing bigWig values with zero for event output,
+   so it must not be reused to build AP inputs. AP extraction must preserve the common mask and
+   represent invalid coverage separately:
+
+   | Caller | Current wrapper's primary candidate signal | Direction / current status |
+   |---|---|---|
+   | PRINT | `run_print.R` `.r10.track.tsv.gz`, column `score` (`aggregateScores`; radius 10 only; do not select a radius after seeing labels) | Higher `−log10(p)` is stronger; continuous track. Exact `print_repo` commit and dispersion/bias resource hashes are not yet frozen; no AP until recorded. |
+   | TOBIAS | `run_tobias.sh` `footprints.bw`, TOBIAS 0.17.5 default FootprintScores/ScoreBigwig (`score=footprint`) value | Higher score indicates stronger footprint evidence and includes local accessibility. Freeze all score parameters and input hashes. |
+   | HINT | `run_hint.sh` `events.bed`, RGT 1.0.2 | Thresholded intervals only in the current wrapper; unscorable for primary AP unless a documented, threshold-free per-base signal is added and frozen. BED score, if present, is not assumed continuous. |
+   | TraceBIND | `run_tracebind.R` `.events.bed`, column 5 `−log10` BH-adjusted p, emitted only after `p_threshold=0.05` | Threshold-truncated events only in the current wrapper; package commit and model-resource hashes are not frozen; unscorable for primary AP. Do not treat the surviving event score as a full continuous track. |
+
+   The fixed candidate window must be fully covered by the same predeclared callable mask for every
+   caller. A finite observed score below a caller's event threshold remains a valid continuous
+   score; it is not a no-call. A thresholded caller's absent event is not zero. Missing track
+   coverage is `unscorable`, a failed caller/run invalidates that run (never silently drops loci),
+   and a valid observed numeric zero remains zero only where the pinned tool's documentation defines
+   that value. Report per-tool coverage and the exact common-site count. Four-way AP is allowed only
+   if all four frozen adapters score every site in the same common mask; otherwise report only
+   pairwise/subset comparisons on explicitly named shared sites and declare no four-tool winner.
+   Compute pooled out-of-fold average precision (AP; non-interpolated area under the PR curve) for
+   `retained` versus `depleted` loci. Do not use ChIP summit coordinates differently by class.
 4. **Held-out split and inference.** Assign non-overlapping 1-Mb genomic blocks to five folds by
    `int(SHA256("PMA-4b-20261019|" + chromosome + ":" + block_start)[0:8], 16) % 5`, where
    `block_start` is the zero-based coordinate of the block's first base and chromosome order comes
    from the exact hg38 `chrom.sizes` file frozen with the candidate manifest. All paired conditions,
-   replicates and loci in a block stay together. At each boundary between adjacent blocks assigned
+   replicates and loci in a block stay together. For each outer fold, every data-dependent fit or
+   selection (sample-specific bias adaptation, normalization, scale selection and threshold tuning)
+   must use training blocks only; pre-trained parameters are allowed only with a frozen
+   external version/resource hash. An adaptation that consumes held-out reads, sequence-derived
+   counts or test-fold score distributions is transductive and cannot support the primary held-out
+   AP claim. If a caller cannot produce fold-excluded scores, mark it ineligible for strict AP and
+   report any all-sample score comparison separately as exploratory. Map each held-out raw score to
+   its caller-specific training-fold empirical percentile (mid-rank; values outside the training
+   range map to 0 or 1) before pooling out-of-fold AP, so fold-specific score scales are not pooled
+   raw. At each boundary between adjacent blocks assigned
    to different folds, apply a 50-kb embargo on both sides; exclude any locus whose scoring window
    intersects that embargo. Also exclude windows crossing a fold boundary. Select the operating
-   threshold only in the four training folds to reach 80%
-   retained-site recall; apply it unchanged to the held-out fold. Also report predeclared 50%,
-   70% and 90% recall operating points as secondary results. Pool the out-of-fold scores for AP.
-   Compute 2,000 paired bootstrap resamples of 1-Mb blocks with seed `PMA-4b-bootstrap-20261019`;
-   each resample uses the same blocks for all callers. Correct the six pairwise caller comparisons
-   with Holm's method.
-5. **B1–B4 and selection.** B1 naked gDNA is specificity evidence only: at each training-selected
-   threshold report held-out observed recall, false calls per callable Mb and per million usable
-   cuts after matching depth; it is not positive truth. B2 tests the paired ctrl→aux score change
-   at ChIP-depleted versus retained loci. B3 uses occupancy data independent of this benchmark and
+   threshold only in the four training folds: choose the highest score cutoff whose inclusive
+   tie rule yields at least 80% retained-site recall; apply it unchanged to the held-out fold. If
+   a training fold has fewer than 20 retained or 20 depleted eligible loci, its operating threshold
+   is unestimable and matched-recall/B1 selection is unavailable for that fold. Also report
+   predeclared 50%, 70% and 90% recall cutoffs as secondary results. Pool one out-of-fold score per
+   locus for AP. For uncertainty, compute 2,000 paired bootstrap resamples of 1-Mb blocks with seed
+   `PMA-4b-bootstrap-20261019`, resampling the identical blocks for all callers; discard a draw
+   with no examples of either label and continue the seeded stream until 2,000 valid draws are
+   obtained. If more than 5% of attempted draws are invalid, mark inferential AP unavailable.
+   Report percentile 95% intervals for AP differences. For each pair, compute a two-sided paired block-swap
+   permutation test with 10,000 permutations and seed `PMA-4b-permutation-20261019`, swapping the
+   callers' complete score vectors within each block and recomputing pooled AP difference; raw
+   p-value is `(1 + count(|delta_perm| >= |delta_observed|)) / 10001`. Apply Holm across all six
+   caller pairs at family-wise α=0.05. If a caller has an invalid run, report the estimand as
+   unavailable rather than changing the block/sample rule. An AP CI
+   overlap alone is not a pairwise significance test.
+5. **B1–B4 and selection.** B1 naked gDNA is specificity evidence only: apply the same training-fold
+   cutoff and one frozen event adapter (21-bp event width, peak at local maximum, greedy NMS with
+   minimum center distance 21 bp) to report false events per callable Mb and per million usable
+   cuts after matching depth; it is not positive truth. Report the corresponding held-out HCT116
+   retained-site recall separately. B2 tests the paired ctrl→aux score change at ChIP-depleted
+   versus retained loci; it reuses the primary labels and is not independent validation. B3 uses
+   occupancy data independent of this benchmark and
    caller development; if none is available, state that generalization is unvalidated. The
    TraceBIND developers' HCT116 degron set is an author-benchmark reanalysis, not independent
    validation. B4 replicate reproducibility and motif-family recovery are supporting evidence only.
-   Declare a **local HCT116 CTCF candidate** only when one caller's held-out AP exceeds each other
-   scorable caller under the six Holm-adjusted paired block comparisons and B1/B2 do not contradict
-   it. If AP uncertainty overlaps or AP and specificity trade off, report a tie/Pareto set; do not
-   add post-hoc weights. This benchmark cannot establish a universal or pan-cancer winner. Accuracy
+   Declare a **local HCT116 CTCF AP leader** only when one caller's held-out AP exceeds every other
+   caller in the four-way common mask under the six Holm-adjusted paired block tests. Otherwise
+   report no AP leader or only the supported pairwise subset. Report B1 specificity and B2 direction
+   separately; if either materially conflicts with the AP result, say evidence is mixed and do not
+   name an overall best tool. Do not add post-hoc weights. This benchmark cannot establish a
+   universal or pan-cancer winner. Accuracy
    selects the candidate first; speed is compared separately, and C/C++ work is considered only
    after profiling a validated accuracy candidate.
 

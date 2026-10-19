@@ -1,14 +1,14 @@
 # PMA — handoff to Codex (2026-10-17, written by Claude Code)
 
-## Live status update — 2026-10-19 14:58 EDT — protocol repair staged for same-PR review
+## Live status update — 2026-10-19 15:07 EDT — same-PR protocol revision ready for exact-head review
 
-Footprint-only scope. PR #8 is OPEN at HEAD `98819830e4e302c6d96148f365a2a52f9c229e74` on
-`task_20261019_hint_overlay_smoke`; worktree was clean at review time. The fixed PMA project review
-conversation `PMA｜固定阶段审核` returned `REQUEST_CHANGES` on this exact HEAD. Its actionable
-findings are now being addressed in the same PR: freeze the common candidate/locus and ChIP label
-rules; freeze score mapping, fold construction, missing-score handling and multiple-testing
-correction; distinguish the TraceBIND authors' HCT116 benchmark from independent validation; and
-correct the PR description and superseded B1-first rule.
+Footprint-only scope. PR #8 is OPEN at HEAD `c5bf88f365a3e10f1cdf3ad7714f2df94518da17` on
+`task_20261019_hint_overlay_smoke`. The fixed PMA project review conversation
+`PMA｜固定阶段审核` returned `REQUEST_CHANGES` on this exact HEAD. It accepted the direction and
+the repaired common summit windows, but blocked score-based accuracy scoring on four details:
+quantitative ChIP labels were not fully operational; per-caller score adapters/common coverage were
+not frozen; fitting/adaptation on held-out blocks was not ruled out; and the bootstrap/permutation,
+Holm and threshold-tie rules were incomplete. These are being revised in the same PR.
 
 The review's narrow `APPROVE` was only for read-only verification of already-present HCT116 CTCF
 ChIP provenance. That check found no ChIP files or manifests for `ENCSR059BCO` or `ENCSR160GVO`
@@ -17,22 +17,25 @@ contain four verified ATAC BAMs and `MD5SUMS.encode.tsv`; those are not ChIP tru
 process was running, no files were downloaded, and no scores were computed. Thus ChIP labels,
 accuracy ranking and a caller winner remain unavailable.
 
-The repaired protocol is explicitly local: retained-versus-depleted occupancy among control-ChIP
-bound HCT116 CTCF loci, scored with identical fixed ±50-bp summit windows. It cannot establish
-general motif-free caller accuracy or a pan-cancer winner. Section 4 specifies an hg38
-`chrom.sizes` tie-break, zero-based 1-Mb block hashing, 50-kb embargoes at cross-fold block
-boundaries, and the revised design's review status. The earlier 2026-10-17 approval does not cover
-the material 2026-10-19 §4 changes. This same-PR revision is awaiting exact-head review in the
-single fixed PMA project conversation `PMA｜固定阶段审核`. The primary AP calculation remains
-blocked until ChIP provenance/labels are verified and all four tools expose documented
-threshold-free continuous scores; missing or unscorable values will not be filled with zero. K562
-TOBIAS timing and HINT HCT116 footprints are the only relevant large-result baselines; neither
-ranks accuracy.
+The same-PR revision now specifies the retained-versus-depleted occupancy labels among control-ChIP-bound
+HCT116 CTCF loci; it cannot establish general motif-free accuracy or a pan-cancer winner. Section 4
+now requires IDR≤0.05 independent biological-replicate ChIP and ATAC peak sets, spike-in/input
+calibration with an edgeR quasi-likelihood NB difference-in-differences model, explicit locus
+thresholds, exact current-wrapper score fields, a common callable mask, strict fold-held-out
+adaptation, and executable paired inference. Current wrappers
+expose continuous fields for PRINT and TOBIAS only; HINT and TraceBIND currently emit thresholded
+BED calls, so the present evidence does not support a four-way AP ranking. Even the two-track AP
+adapter and data provenance are not yet frozen. The 2026-10-17 approval does not cover the material
+2026-10-19 §4 revisions. The second exact-head review requests another same-PR revision; all future
+GPT reviews remain in `PMA｜固定阶段审核`. K562 TOBIAS timing and HINT HCT116 footprints are not
+accuracy evidence.
 
-Next: finish the minimum protocol/doc/body repair, update this same PR, then ask `PMA｜固定阶段审核`
-to review the new exact HEAD. Do not start dependent scoring, another TraceBIND/PRINT run, or a
-cancer-wide caller run until that review and the required human phase acceptance. Do not touch
-ChIP BED6/PR #7 or merge PR #8.
+The reviewer authorized only another same-PR protocol/audit-document revision and preparation of
+provenance and score-adapter specifications. This revision is ready after `git diff --check`; it
+does not create labels or score adapters. No ChIP downloads, Argos access, labels, scoring, reruns,
+environment changes or merge occurred. Next: commit/push to PR #8 and request exact-head review in
+this same fixed PMA conversation. No dependent compute or cancer-wide run before a complete review
+and human phase acceptance. Do not touch ChIP BED6/PR #7 or merge PR #8.
 
 ## Live status update — 2026-10-19 14:20 EDT — TOBIAS speed run and HCT116 HINT motif exploration finished
 

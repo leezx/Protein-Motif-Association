@@ -1,5 +1,32 @@
 # Step 4b HINT 隔离环境与真实小样本调用
 
+## 2026-10-19 15:07 EDT — 协议差异检查通过，等待固定 PMA 对话复审
+
+PR #8 仍为同一开放 PR，当前被复审版本为 HEAD `c5bf88f365a3e10f1cdf3ad7714f2df94518da17`。
+按最近一次 `REQUEST_CHANGES`，同一 PR 的五个文档/审计文件已经补足 ChIP-Rx/input 标签模型、
+四工具分数适配器和 missingness 规则、严格 held-out 拟合、跨折分数尺度处理及配对统计方案。
+`git diff --check` 通过。这里只核对/记录方案；没有访问 Argos、下载数据、产标签、跑评分、
+改环境或合并。下一步提交并推送后，在唯一固定的 PMA 项目对话 `PMA｜固定阶段审核` 请求
+新 HEAD 审核；此前不启动依赖计算，不触碰 Claude 负责的 ChIP PR #7。
+
+## 2026-10-19 15:05 EDT — 第二次 same-PR 方法修订细化
+
+固定 PMA 审核对 PR #8 HEAD `c5bf88f365a3e10f1cdf3ad7714f2df94518da17` 返回
+`REQUEST_CHANGES`。仅在本地按反馈更新 §4：定义 IDR≤0.05 共识峰、summit/strength
+字段、ENCODE ATAC 两条件共同可调用 mask、degron 标签的 spike-in/input 校准与 fail-closed
+条件；列出当前四 runner 的 score 输出。Occupancy model 已明确为 edgeR quasi-likelihood
+NB、`~ replicate_pair + condition + assay + condition:assay`，并在冻结的 coverage-eligible
+候选全集上做 BH；要求至少三对独立生物学重复、matched input 和外源 spike-in。当前只有
+PRINT r10 continuous track 和 TOBIAS
+FootprintScores bigWig 可构建阈值前 score；当前 HINT 和 TraceBIND runner 只输出阈值 BED，
+所以现阶段不能做四工具 AP winner。补充每折训练块拟合、禁止 held-out read adaptation，
+跨 fold percentile normalization、20-site per-class 阈值门槛、paired bootstrap 有效抽样、
+paired block-swap permutation、Holm、B1 event adapter 及阈值 ties 规则。
+
+这是**方案修订**，不是分析结果，也不是 Argos 计算授权。本轮未读取 Argos 文件、未下载
+ChIP、未生成标签或 score。提交/push 后仍在同一 `PMA｜固定阶段审核` 对话请求新 HEAD 审核；
+不得触碰 Claude 负责的 PR #7，不合并 PR #8。
+
 ## 2026-10-19 14:58 EDT — 同一 PR 准备 exact-head 复审
 
 PR #8 的协议修订继续留在 `task_20261019_hint_overlay_smoke`。固定 PMA 项目会话对上一

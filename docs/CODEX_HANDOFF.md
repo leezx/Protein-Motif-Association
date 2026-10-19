@@ -344,3 +344,7 @@ benchmark. See `docs/STEP1_*`, `docs/STEP2_*`.
 - Merge `step3b-v03-integration` (with `step2c-denovo-sources`): needs explicit confirmation.
 - Merge `step4a-chipatlas-occupancy`: after the closure check.
 - When to copy the Argos raw data back to local DATA.
+
+## Live status update — 2026-10-18 23:51 EDT — resource-control diagnostic drafted, not authorized
+
+At PR #7 HEAD `a1779e95387ca840baf954f49d8f647e9fa7a106`, GPT approved the exact-head static audit (0 blockers), but only proposed—not authorized—a new read-only Argos diagnostic. It would inspect SSH user-systemd session/socket presence, PID 1, scheduler client availability without invoking clients, and current cgroup-v2 path/controllers/limits through at most 16 ancestors. No remote command ran. GPT noted systemd 229 predates `MemoryMax` (v231) and `MemorySwapMax` (v232), so fixing the missing user bus alone would not prove the required cap. The full command is in `docs/handoff/2026-10-18-chipatlas-bed6-builder.zh-CN.md`; it needs a new exact-head GPT review and explicit one-time approval before SSH. No build/QC/benchmark can start until an enforceable <=50 GB task limit is verified. Output 1: zero BED6 rows; output 2: zero matched footprint runs. No merge.

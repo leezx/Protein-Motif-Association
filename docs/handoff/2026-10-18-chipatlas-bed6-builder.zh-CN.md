@@ -425,3 +425,102 @@ Any full build is a later stage requiring a separate explicit scope decision. Th
 ## Next acceptance
 
 Finish static review, update the PR body and this handoff with the final exact HEAD, request exact-head GPT review, and fix only review findings in the same PR. After preflight review, use the reported free capacity plus a defensible temporary-space estimate to request a separate exact-scope review before any build; never use Mac mini compute. Then verify full row reconciliation, coordinate and region-ID uniqueness, provenance/linkage cardinality, class-mask counts, tabix queries, and reproducible hashes. Keep all data and results outside the repository.
+
+## 2026-10-18 23:51 EDT — cgroup/systemd capability diagnostic proposed; not run
+
+At PR #7 HEAD `a1779e95387ca840baf954f49d8f647e9fa7a106` / base `3c0e48e699073726b9ef7453644cabbe8b277ca4`, persistent GPT completed the exact-head static review as `APPROVE` (0 blockers). It confirmed the prior preflight's manifest-backed checks and identified two likely independent limits: the SSH user systemd bus is unavailable, and systemd 229 predates `MemoryMax=` (v231) and `MemorySwapMax=` (v232). GPT proposed the following bounded, read-only diagnostic only; it did not authorize execution. No Argos command has been run for this proposal.
+
+The proposed diagnostic checks SSH session environment/socket presence, PID 1 and user systemd process count, whether common scheduler client commands exist (without invoking them), and the current process's cgroup membership/mount plus up to 16 cgroup-v2 ancestors' controller and memory/swap limit files. It reads no ChIP-Atlas inputs, creates/writes nothing, and does not call systemd, loginctl or any scheduler.
+
+```bash
+ssh -o BatchMode=yes zz950@rcapps3.dfci.harvard.edu 'bash -s' <<'REMOTE'
+set -euo pipefail
+UID_NUM="$(id -u)"
+PY=/home/zz950/softwares/miniforge3/envs/pmafp/bin/python
+printf 'UID=%s\\n' "$UID_NUM"
+if [ -n "${XDG_RUNTIME_DIR:-}" ]; then echo 'XDG_RUNTIME_DIR_SET=yes'; else echo 'XDG_RUNTIME_DIR_SET=no'; fi
+if [ -n "${DBUS_SESSION_BUS_ADDRESS:-}" ]; then echo 'DBUS_SESSION_BUS_ADDRESS_SET=yes'; else echo 'DBUS_SESSION_BUS_ADDRESS_SET=no'; fi
+for item in "/run/user/$UID_NUM" "/run/user/$UID_NUM/bus" "/run/systemd/system"; do
+  if [ -S "$item" ]; then printf 'RUNTIME_PATH %s socket\\n' "$item"
+  elif [ -d "$item" ]; then printf 'RUNTIME_PATH %s directory\\n' "$item"
+  else printf 'RUNTIME_PATH %s absent_or_other\\n' "$item"; fi
+done
+printf 'PID1='; ps -p 1 -o comm=
+echo USER_SYSTEMD_PROCESS_COUNT:
+ps -u "$UID_NUM" -o comm= | awk '$1=="systemd"{n++} END{print n+0}'
+echo SCHEDULER_CLIENTS:
+for cmd in sbatch srun squeue bsub bjobs qsub qstat condor_submit; do
+  if command -v "$cmd" >/dev/null 2>&1; then printf '%s=present\\n' "$cmd"; else printf '%s=absent\\n' "$cmd"; fi
+done
+echo CGROUP_INSPECTION:
+"$PY" - <<'PY'
+from pathlib import Path
+
+def read_limited(path, limit=262144):
+    with Path(path).open("rb", buffering=0) as f:
+        data = f.read(limit + 1)
+    if len(data) > limit:
+        raise SystemExit(f"oversized inspection input: {path}")
+    return data.decode("utf-8", "replace")
+
+cg_lines = read_limited("/proc/self/cgroup").splitlines()
+mount_lines = read_limited("/proc/self/mountinfo").splitlines()
+for line in cg_lines[:32]:
+    print("SELF_CGROUP", line)
+mounts = []
+for line in mount_lines:
+    if " - " not in line:
+        continue
+    left, right = line.split(" - ", 1)
+    left_fields, right_fields = left.split(), right.split()
+    if len(left_fields) < 5 or not right_fields or right_fields[0] not in ("cgroup", "cgroup2"):
+        continue
+    fs_type, mount_root, mount_point = right_fields[0], left_fields[3], left_fields[4]
+    mounts.append((fs_type, mount_root, mount_point))
+    if len(mounts) > 16:
+        raise SystemExit("cgroup mount count exceeded")
+    print("CGROUP_MOUNT", fs_type, mount_root, mount_point)
+v2_path = next((line[3:] for line in cg_lines if line.startswith("0::")), None)
+print("SELF_CGROUP_V2_PATH", v2_path or "<unavailable>")
+
+def inspect_file(directory, name):
+    path = directory / name
+    if not path.is_file():
+        return "unavailable"
+    with path.open("rb", buffering=0) as f:
+        data = f.read(513)
+    if len(data) > 512:
+        return "oversized"
+    return data.decode("ascii", "replace").strip()
+
+if v2_path is not None:
+    for fs_type, mount_root, mount_point in mounts:
+        if fs_type != "cgroup2":
+            continue
+        if mount_root == "/":
+            relative = v2_path.lstrip("/")
+        elif v2_path == mount_root:
+            relative = ""
+        elif v2_path.startswith(mount_root.rstrip("/") + "/"):
+            relative = v2_path[len(mount_root):].lstrip("/")
+        else:
+            print("V2_MAPPING_UNAVAILABLE", mount_point)
+            continue
+        if ".." in Path(relative).parts:
+            raise SystemExit("unsafe cgroup path")
+        boundary = Path(mount_point)
+        current = boundary / relative
+        for depth in range(16):
+            print("CGROUP_LEVEL", depth, str(current))
+            for name in ("cgroup.controllers", "cgroup.subtree_control", "memory.max", "memory.swap.max", "memory.current", "memory.peak"):
+                print(name, inspect_file(current, name))
+            if current == boundary:
+                break
+            current = current.parent
+        else:
+            raise SystemExit("cgroup hierarchy depth exceeded")
+PY
+REMOTE
+```
+
+Next gate: commit/push this proposed diagnostic and its audit trail, synchronize PR #7 description to the resulting exact HEAD, and ask GPT to review this precise command. Do not SSH until that new exact-head review explicitly approves one execution. Even if read-only diagnostics find a scheduler client, its service and hard memory-limit semantics must be established before any computation. Current measurable progress remains: verified source hashes and large free disk, but zero BED6 rows, no output QC, no footprint comparisons; task-level memory cap unresolved.

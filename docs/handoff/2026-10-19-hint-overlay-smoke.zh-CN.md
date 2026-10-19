@@ -131,3 +131,11 @@ PR #8 `75420e4` 给 FASTA 脚本增加显式 `--background-exclusion selected_on
 独立 QC 的 V1 因 HINT 原生 BED 末尾多一个空第 7 列而被 `bedtools` 拒绝；V2 只读前三列后发现 3,125 条不完全落在单个冻结窗口内，严格零边界检查退出 1。源结果未修改，失败日志保留。V3 分类 QC 在 Argos 退出 0：**781,863 总事件；0 条与所有冻结窗口完全不相交；3,125 条跨窗口边界；778,738 条完全包含**。正式发布前应明确剪裁或排除边界事件，不能直接说全部事件都严格在窗口内。HINT 的 16:53.47 墙钟速度测量仍成立。
 
 `BG_K562_FRAG_PREP_V1` 已在 Argos 启动，用未更改的 `01_prep_inputs.py:bam_to_frags`（SHA-256 `336443a056ad5177505e4d0f0ef2aa8cb57db41902705204747c29cb07466609`）从已校验的 K562 BAM 生成排序、bgzip、tabix 索引片段，结果只放外部 `processed/round1/frags/`。因为速度门槛从比对好的 BAM 开始计时，这段转换时间必须计入 PRINT 和 TraceBIND 各自的总时间；计数、墙钟和文件 hash 尚未完成。
+
+## 2026-10-19 11:36 EDT：HINT 临时首选；启动 HCT116 全可及窗口从头 motif
+
+用户要求快速选一个兼顾准确度和速度的 footprint 工具，并开始癌症 ATAC 全局鉴定。当前选择 **HINT 为临时主候选**，是为了推进工作，不代表已证明它最准确：它是唯一完成 >100M 非重复片段、32 路 Argos 速度实测的工具，K562 77,668 个固定窗口耗时 16:53.47；HCT116 ctrl/aux 全部 91,210 个固定 1-kb 可及窗口的 HINT 调用分别已在 10:03.94/10:10.11 完成。不同工具的裸 gDNA 原生事件密度 HINT/PRINT/TOBIAS/TraceBIND 为 3,905/688/42,411/14,527 每 Mb，但阈值和灵敏度未匹配，不能将其当作准确度排名。
+
+已在 Argos 启动 `BG_B4_HCT116_HINT_CTRL_80FCAC9`、`BG_B4_HCT116_HINT_AUX_80FCAC9`。两组输入均为 HCT116 的 91,210 个全样本固定窗口与 HINT 事件；在完整包含于窗口的事件里，每窗口取最高分调用中心 ±25 bp；负集为同窗口、50 bp、GC 差≤0.1 的匹配片段，采用统一 `selected_only` 背景规则；STREME 5.5.9 参数 6–20 bp、最多10个 motif、seed 19。脚本 SHA-256：wrapper `6e0f5920b866e6f09f087c129ae4dd67d236ef62d1b21271f9bdb36f8068ed3b`，FASTA builder `4135ea18f9a20af479d0c7f68b98c4acd2b4e4a7813d8f80336a5bd0fc04a6c9`。任务逐个运行于不可变 44-GiB gate，CPU-only；外部结果写到 `processed/round1/motif_hct116_genomehint_80fcac9/{ctrl,aux}/`。当前搜索空间为 91.210 Mb 可及窗口，并非 hg38 每个碱基。
+
+K562 HINT 独立边界 QC 显示 3,125 个事件跨窗口边界，0 个完全不相交；motif 输入 builder 排除所有不完全位于窗口内的事件。K562 PRINT/TraceBIND 共用片段预处理 `BG_K562_FRAG_PREP_V1` 在 11:36 EDT 仍处于单核 CPU BAM 扫描，约19分钟，unsorted 文件约2.6 GB，尚无最终压缩索引片段；完成后其耗时计入这两个工具速度。继续检查 HCT116 两组配对数、GC QC、STREME 输出以及 K562 prep。B1–B4/独立验证和候选工具准确度排名仍未完成；PR #8 不合并。

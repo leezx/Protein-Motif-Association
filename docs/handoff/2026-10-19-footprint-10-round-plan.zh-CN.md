@@ -1,8 +1,8 @@
 # Step 4b footprint：十轮内形成可行工具选择
 
-更新时间：2026-10-19 16:32 EDT（UTC 20:32）
+更新时间：2026-10-19 20:34 EDT（UTC 00:34, 2026-10-20）
 范围：仅 footprint→de novo motif；ChIP BED6 / PR #7 由 Claude 负责，本交接不涉及。  
-PR #8：`task_20261019_hint_overlay_smoke`，OPEN、未合并。固定 PMA 对话 `PMA｜固定阶段审核` 对父 HEAD `03dbdd9a5bc8f54e1ef09056e3f4cc755e71ae2a` 批准第 3 轮公开研究元数据盘点；提交后的 HEAD `bfa06d4e86bbe77d4d4ebc84190f408fb6a216d9` 收到 `REQUEST_CHANGES`，目前只按以下三项 finding 修正准入表。批准/复审范围不包含实验数据文件、Argos、caller、分析、环境修改、ChIP 数据处理或合并。未下载或读取 BAM、FASTQ、BED、BigWig、矩阵等实验数据文件。
+PR #8：`task_20261019_hint_overlay_smoke`，OPEN、未合并。固定 PMA 对话 `PMA｜固定阶段审核` 对父 HEAD `03dbdd9a5bc8f54e1ef09056e3f4cc755e71ae2a` 批准第 3 轮公开研究元数据盘点；提交后的 HEAD `bfa06d4e86bbe77d4d4ebc84190f408fb6a216d9` 收到 `REQUEST_CHANGES`；三项 finding 已在同一 PR 修正并推送至 `6f9c04621dae462bb316366c0c0b41f79c4e12bd`，当前精确 HEAD 的复审待定。批准/复审范围不包含实验数据文件、Argos、caller、分析、环境修改、ChIP 数据处理或合并。未下载或读取 BAM、FASTQ、BED、BigWig、矩阵等实验数据文件。
 固定 PMA 对完整 HEAD `774a3498d7cc17904afe3dc4610711586fe56d82` 再次给出 `APPROVE`：四个 wrapper 的当前接口描述与 canonical §4 一致；缺失/不可评分/运行失败不能混为零；标签、共同分数和折外证据仍缺。无阻塞 finding。仅有一项非阻塞措辞修正：将“二值 BED”改为“阈值后事件 BED”；即使事件列保留 p/score，也不能恢复完整阈值前排序空间。该修正与本次审核记录一并纳入后续文档同步，无需另起重复审查轮次。
 审核明确的科学结论：目前不能确定哪个工具准确度最高。occupancy/扰动标签测的是指定场景的预测一致性，不是碱基级 footprint 边界真值；裸 gDNA 也不是通用真阴性。没有合格标签、四工具共同可评分集和验证过的折外分数，因此没有四工具 AP 排名。审核建议在同 PR 记录此结论，并只用仓库现有源码/文档完成接口与验收规格只读核对。后续复审前从 GitHub 读取完整 live tip，handoff 不自引用其自身 SHA。
 审核边界：此前 `fd0b041` 的 APPROVE 仅覆盖方法文档；`525f0d4` 收到的时间、状态来源、折外边界和事件级备选 findings 已在同 PR 修复，并获当前 `0829b08` 方案级批准。15:41 EDT Argos 队列读取来自当时用户明确要求的 15 分钟监控 heartbeat；只读取调度与已有状态文件，没有读取实验数据，也没有核查 detached processes。该监控授权不扩大为 caller 执行授权。
@@ -22,7 +22,7 @@ PR #8：`task_20261019_hint_overlay_smoke`，OPEN、未合并。固定 PMA 对�
 
 来源：ENCODE experiment records [`ENCSR059BCO`](https://www.encodeproject.org/experiments/ENCSR059BCO/?format=json)、[`ENCSR160GVO`](https://www.encodeproject.org/experiments/ENCSR160GVO/?format=json)、[`ENCSR229ZIR`](https://www.encodeproject.org/experiments/ENCSR229ZIR/?format=json)、[`ENCSR862XXV`](https://www.encodeproject.org/experiments/ENCSR862XXV/?format=json)、[`ENCSR328JGW`](https://www.encodeproject.org/experiments/ENCSR328JGW/?format=json)、[`ENCSR260SWI`](https://www.encodeproject.org/experiments/ENCSR260SWI/?format=json)、[`ENCSR000DMA`](https://www.encodeproject.org/experiments/ENCSR000DMA/?format=json)、[`ENCSR000DMB`](https://www.encodeproject.org/experiments/ENCSR000DMB/?format=json)；GEO series [`GSE179540`](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE179540) 和样本 `GSM5420199`–`GSM5420202`、`GSM5420215`–`GSM5420218`；4DN experiment `4DNEXFB8OQ21` / replicate set [`4DNES5X392R6`](https://data.4dnucleome.org/experiment-set-replicates/4DNES5X392R6/)。上述仅为公开页面/API 中的元数据和所示 QC 摘要；没有下载任何关联 data file。
 
-**当前唯一允许的下一步**：按 `PMA｜固定阶段审核` 对 `bfa06d4` 的 `REQUEST_CHANGES` 修正候选表；只继续核对上述候选的公开元数据和方法来源，补齐链接并把未能证实的项标 `unknown`。此范围不包含扩展到新的未列候选、不运行 Argos、不下载/读取实验数据、不生成标签或 caller 输出；之后须在固定 PMA 对话对新 HEAD 复审，再决定下一阶段。
+**当前唯一允许的下一步**：在固定 PMA 对话对已推送 HEAD `6f9c04621dae462bb316366c0c0b41f79c4e12bd` 请求精确 HEAD 复审。审核结果未出前不扩展候选、不运行 Argos、不下载/读取实验数据、不生成标签或 caller 输出；之后依审核决定下一阶段。
 
 2026-10-19 15:41 EDT Argos 只读核查：按当时用户的 15 分钟监控指示运行 `qstat -u zz950`，未列出该账户的调度作业。没有检查 detached/background processes，因此不能据此声称 Argos 上“没有任务”。只读取已有任务状态文件，未读取实验数据。状态文件在 `/home/zz950/PMA_fetch/pma_bg_pr8_20261019/`。
 

@@ -1,8 +1,8 @@
 # Step 4b footprint：十轮内形成可行工具选择
 
-更新时间：2026-10-19 15:51 EDT（UTC 19:51）
+更新时间：2026-10-19 15:56 EDT（UTC 19:56）
 范围：仅 footprint→de novo motif；ChIP BED6 / PR #7 由 Claude 负责，本交接不涉及。  
-PR #8：`task_20261019_hint_overlay_smoke`，OPEN、未合并。固定 PMA 对话对完整 HEAD `0829b0886777637a88fb3925ce9d1f511b1a00dd` 给出 `APPROVE`，仅限文档/方法与仓库只读审计；不批准任何 Argos 或数据操作。固定 handoff 不自引用更新自身 commit SHA，后续复审前从 GitHub 读取实时完整 tip。
+PR #8：`task_20261019_hint_overlay_smoke`，OPEN、未合并。固定 PMA 对话 `PMA｜固定阶段审核` 对完整 HEAD `a602373a1849588c6bdce2356791afc3ac7a5d72` 给出 `APPROVE`，仅限文档/方法与仓库只读审计；不批准任何 Argos 或数据操作。固定 handoff 不自引用更新自身 commit SHA，后续复审前从 GitHub 读取实时完整 tip。
 审核边界：此前 `fd0b041` 的 APPROVE 仅覆盖方法文档；`525f0d4` 收到的时间、状态来源、折外边界和事件级备选 findings 已在同 PR 修复，并获当前 `0829b08` 方案级批准。15:41 EDT Argos 队列读取来自当时用户明确要求的 15 分钟监控 heartbeat；只读取调度与已有状态文件，没有读取实验数据，也没有核查 detached processes。该监控授权不扩大为 caller 执行授权。
 
 ## 现在能确定什么
@@ -64,4 +64,40 @@ PR #8：`task_20261019_hint_overlay_smoke`，OPEN、未合并。固定 PMA 对�
 
 ## 下一项唯一高价值动作
 
-准入/adapter/fold-exclusion 清单已按批准范围写入本交接。下一步仅将本次三份文件的审计记录提交到 PR #8，并在固定 PMA 对话审核完整新 HEAD。此审核只放行文档/只读审计，不自动许可任何 Argos 计算。执行阶段需另有明确范围和人类接受。
+准入/adapter/fold-exclusion 清单已按批准范围写入本交接。下一步仅补齐可实现的评分接口与验收协议并在固定 PMA 对话审核新 HEAD；此审核不自动许可 Argos 计算。执行阶段仍需独立的具体范围批准和人类阶段接受。
+
+## 准确度排名接口与冻结验收协议（第 2 轮文档交付）
+
+本节把“中立排名”定义成可以成功、失败或不可排名的检验，不按工具原生阈值、输出数量或 motif 数排位。
+
+### A. 连续分数主分析（仅标签和适配器准入后）
+
+每个工具/模式的 score adapter 输出逐候选位点长表，至少包含：`tool_id`、`mode_id`、软件/容器与参数/参考资源哈希、`sample_id`、`condition`、`fold_id`、`chrom`、0-based 半开 `start/end`、`score`、`score_status`、`missing_reason`、分数方向/单位、源文件/track 和已核实的最大上下文半径。合法 `score_status` 至少区分 `finite`、`unscorable`、`missing`、`run_failed`；非有限值、未输出事件和失败运行绝不填成 0。每种模式只准使用一种预先冻结的分数与方向；方向不清楚时先在训练折定向，之后冻结。
+
+- PRINT：候选原始连续值为当前 r10 track 中 `aggregateScores`（设计定义为越高越强的 `−log10(p)`）；先核实其坐标覆盖、方向、资源哈希及可重复性。
+- TOBIAS：候选原始连续值为 ATACorrect 后的 `footprints.bw` (`footprint` score)，不是 `events_from_track.py` 的二值 BED。BigWig 未定义/NaN 必须标成不可评分，不能转零。
+- HINT：当前 wrapper 只输出阈值事件 BED；除非找到/实现并冻结阈值前连续统计量，否则不进入 AP。
+- TraceBIND：当前 wrapper 为 `PRINT-bias` reduced mode，按 `p_threshold` 截断输出；不能把已截断 BED score 当完整连续轨。full mtDNA-calibrated mode 是另一个 `mode_id`，须单独验收。
+
+主分析按已存在的 `docs/STEP4B_ATAC_FOOTPRINT_BENCHMARK_DESIGN.md` §4 冻结：HCT116 的 control-ChIP CTCF summits 是候选位点，在每个 summit ±50 bp 取处理后 ATAC footprint 连续分数的最大值；标签仅限经过该设计规定的匹配 ChIP/重复/校准 QC 后的 `retained` 对 `depleted`，不把 ATAC 自身或无 ChIP 峰当真值。四方 AP 仅在共同候选位点上四方均有合法分数时计算；否则可报告明确标名的 pairwise/subset AP，但不能称四工具排名。报告每工具 pooled OOF AP、共同覆盖率、有效正负例数、六个两两比较及 1-Mb block 配对 bootstrap。每折 held-out 原始分数按相应训练折的经验百分位转换后再合并，避免各折分数尺度不可比；分数方向、单位和映射区间均预先冻结。一个工具只有对其余三家的 Bonferroni 同时校正 99.1667% AP 差异区间下界全大于 0，才达到局部领先判据。若最终只有 HCT116 CTCF retained/depleted 标签，结论只适用于该扰动/TF 场景，不外推为普适 footprint 真值或泛癌赢家。裸 gDNA 仅用于特异性/背景密度，不作为蛋白占据真值的通用负类。
+
+### B. 连续分数不可得时的事件级备选
+
+事件比较只在有独立实验标签且各工具事件定义/坐标合法时启用。冻结同一 callable mask、候选窗口、核内片段谓词、深度匹配规则、事件平分规则和 21-bp NMS；训练折至少各有 20 个 retained/depleted 标签时才可选阈值，选出达到 80% training retained-site recall 的最高分 cutoff，并原样用于测试折。独立真值位点与事件做一对一匹配，匹配半径、定位误差和未匹配位点数均在看测试结果前固定。另报 naked-DNA false-event density（每 callable Mb 和每百万可用 fragment ends；不是 conventional FPR）及固定 event/bp budget 下召回。
+
+任何工具若只能给原生单点工作阈值且不能调到共同召回，就报告其原生工作点并纳入 Pareto 比较；不得声称 matched-sensitivity 优胜。event 缺失不是阴性标签；无事件、不可评分、运行失败、窗口不可调用必须分别计数。没有独立标签、共同 callable 候选集或合法一对一匹配时，事件级方案也必须停止为“不可排名”。
+
+### C. 折外隔离和数据准入合同
+
+按 canonical design 固定分折：`int(SHA256("PMA-4b-20261019|" + chromosome + ":" + block_start)[0:8], 16) % 5`；`block_start` 是冻结 hg38 `chrom.sizes` 顺序下 1-Mb block 的 0-based 起点。相邻/上下文相交的位点、配对扰动标签和同一调控位点的重复记录必须留在同一折。每个 caller 的 `C_j`（最大影响 score 的序列/读段/平滑上下文）必须从源码/实现证据确定。测试区块边缘按 `E_j=max(50 kb, 50 bp+C_j)` 排除可能跨边界泄漏的训练/适配证据，并排除完整依赖区间与 embargo 相交的评分候选；记录 fold manifest/hash、embargo 参数、候选数和每折输入/输出摘要。Held-out reads 可作为冻结 caller 的预测输入；不得用 held-out reads 做样本特异性偏差拟合/归一化或从 score 分布挑参数。
+
+冻结 caller 可把 held-out BAM/序列作为预测输入；held-out 标签、标签派生筛选、score 分布、阈值和工具选择不得参与拟合/适配/调参。需要样本特异性训练的校准资源必须逐折只由训练折生成，并证明未触及 embargo 区；不能做到者不进入严格 OOF AP/事件主排名。标签准入表必须记录 accession、细胞/处理、独立生物重复、matched input、spike-in 类型与加样时点、参考基因组、开发集是否重用及 QC；缺任何决定性来源项即 fail closed，不能把无 ChIP 峰区域直接当真阴性。
+
+### D. 排名冻结与停止规则
+
+1. 在揭盲测试折前冻结主要标签、位点宇宙、分数/模式、匹配半径、目标召回、bootstrap 单位与多重比较方案，并保存 manifest/hash。
+2. 工具资格按完整输入输出链判定；失败运行不是低分，缺失轨不是零分。最多允许一次针对性修复一个可复现工程故障，之后标记该模式不可评分。
+3. 只有一个工具在独立 held-out 主终点上稳健胜过全部对手、B1 特异性不劣且 B2/B3 不矛盾，才可称“本数据/场景中准确度最佳”；否则报告并列/场景性 Pareto 候选，或“当前数据不能排名”。
+4. 十轮结束后停止扩建 benchmark。若缺标签或同一可评分集合仍未建立，第 10 轮交付不可排名结论和精确缺口，不因任务期限放宽真值标准。
+
+**本轮可测推进：**已将连续分数、事件级备选、缺失值、折外泄漏和终止判据定义成表结构/计算合同。它尚未产生标签、连续 score adapters、折外预测或准确度数值；当前仍没有工具赢家。下一验收是固定 PMA 对话对完整新 PR HEAD 审查通过，并由人类接受该方法阶段；之后才可按单独批准的具体实验范围执行。

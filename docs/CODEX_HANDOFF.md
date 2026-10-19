@@ -1,12 +1,14 @@
 # PMA — handoff to Codex (2026-10-17, written by Claude Code)
 
-## Current live status — 2026-10-19 15:51 EDT — ten-round plan and eligibility audit
+## Current live status — 2026-10-19 15:54 EDT — ten-round ranking protocol
 
 Footprint-only. PR #8 is OPEN, unmerged, on `task_20261019_hint_overlay_smoke`. Fixed PMA conversation
-`PMA｜固定阶段审核` reviewed exact HEAD `0829b0886777637a88fb3925ce9d1f511b1a00dd` and returned
+`PMA｜固定阶段审核` reviewed exact HEAD `a602373a1849588c6bdce2356791afc3ac7a5d72` and returned
 `APPROVE` for the ten-round method document plus repository-only read audit. It explicitly did not
-authorize Argos, experimental data, analysis, environment changes, caller execution, or merge. The
-the approved data-admission/adapter/fold-exclusion evidence checklist is now pushed on the same PR.
+authorize Argos, experimental data, analysis, environment changes, caller execution, or merge. This
+revision adds concrete continuous-score, event-fallback, fold-isolation and stop-rule contracts to
+the same PR. The user requests a credible answer within ten iterations; round 10 may conclude
+“cannot rank” if independent labels and comparable held-out outputs remain unavailable.
 Resolve the live PR head from GitHub for exact-head review; the handoff avoids self-referencing its
 own audit commit. The PR description matches the bounded plan and states that no accuracy winner is
 established.

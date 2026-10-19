@@ -139,9 +139,9 @@ REMOTE
 
 **Observed result (one invocation):** exit code `0`. stdout listed exactly two candidates: `RAW/MD5SUMS` and `reference/MD5SUMS`, both regular files. It did not find a name containing `MD5SUMS.refs`, `SHA256`, `checksum`, or `manifest` in either scanned top-level directory. stderr contained only the SSH post-quantum warning. Complete stdout/stderr/exit record is outside the repository at `/tmp/pma_pr7_checksum_discovery_b347d8e.ofZvuy/`; stdout SHA-256 `00ee47447c514792aa69a9c1e92d40d91cb1f3133adf0514c09e1baf81006117`, stderr SHA-256 `048e2ba89ae430962e02f5341cf60c694fb7e131cb417790075a56b32ca09992`. This establishes candidate names and file types only. It does not establish the contents, provenance, or expected hash in either manifest. The one-time scope is consumed.
 
-## Proposed next query — inspect the exact reference checksum manifest; not approved or run
+## Proposed next query — exact reference checksum manifest read; GPT REQUEST_CHANGES, repaired, not approved or run
 
-The next minimal read is limited to the observed regular file `reference/MD5SUMS`. It first resolves and guards the fixed RAW/reference path, opens only this manifest with `O_NOFOLLOW`, confirms via `fstat()` that the opened descriptor is a regular file no larger than 64 KiB, then reads at most 65,537 bytes to fail closed if it changed/grows beyond the cap. It prints the bounded manifest lines with line numbers and `repr`, plus byte/line counts. It does not read `RAW/MD5SUMS`, any sequencing/peak source data, or other files, and performs no hashing, output/storage/tool/cgroup check, write, install, or analysis. A new exact-head GPT review and one-time scope approval are required before any SSH.
+The next minimal read is limited to the observed regular file `reference/MD5SUMS`. GPT reviewed PR #7 HEAD `9138d5bca5a0f9b59bf2724a7ec4481b681306b8` and returned `REQUEST_CHANGES` for two file-descriptor boundary issues: buffered `fdopen().read()` may prefetch more than requested, and blocking `os.open()` could hang if a path race replaces the target with a FIFO. It also recommended a strict formatted-output cap. The command below is repaired to open with `O_NOFOLLOW | O_NONBLOCK`, verify the opened descriptor using `fstat()`, read through an unbuffered stream in chunks totaling at most 65,537 bytes, reject >64 KiB, and build/check the complete formatted output against 16 KiB before writing it. It still reads only `reference/MD5SUMS`, creates no files, and performs no hashing or analysis. It is unrun and needs a new exact-head review and one-time scope approval.
 
 ```bash
 ssh -o BatchMode=yes zz950@rcapps3.dfci.harvard.edu 'bash -s' <<'REMOTE'
@@ -152,6 +152,7 @@ PY=/home/zz950/softwares/miniforge3/envs/pmafp/bin/python
 import os, stat, sys
 from pathlib import Path
 MAX_BYTES = 65536
+MAX_OUTPUT_BYTES = 16384
 logical_root = Path(os.path.abspath(sys.argv[1]))
 logical_parent = logical_root.parent.parent.resolve(strict=True)
 raw_parent = logical_parent / logical_root.parent.name
@@ -183,16 +184,24 @@ if not reference.is_dir():
     raise SystemExit("reference is not a directory")
 if not hasattr(os, "O_NOFOLLOW"):
     raise SystemExit("O_NOFOLLOW is unavailable")
-fd = os.open(str(manifest), os.O_RDONLY | os.O_NOFOLLOW)
+fd = os.open(str(manifest), os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
 try:
     st = os.fstat(fd)
     if not stat.S_ISREG(st.st_mode):
         raise SystemExit("reference/MD5SUMS is not a regular file")
     if st.st_size > MAX_BYTES:
         raise SystemExit("reference/MD5SUMS exceeds 64 KiB; report incomplete")
-    with os.fdopen(fd, "rb") as stream:
+    with os.fdopen(fd, "rb", buffering=0) as stream:
         fd = -1
-        data = stream.read(MAX_BYTES + 1)
+        chunks = []
+        remaining = MAX_BYTES + 1
+        while remaining:
+            block = stream.read(remaining)
+            if not block:
+                break
+            chunks.append(block)
+            remaining -= len(block)
+        data = b"".join(chunks)
     if len(data) > MAX_BYTES:
         raise SystemExit("reference/MD5SUMS grew beyond 64 KiB; report incomplete")
 finally:
@@ -200,9 +209,13 @@ finally:
         os.close(fd)
 text = data.decode("ascii")
 lines = text.splitlines()
-print(f"MANIFEST_BYTES={len(data)} MANIFEST_LINES={len(lines)}")
+output = [f"MANIFEST_BYTES={len(data)} MANIFEST_LINES={len(lines)}"]
 for line_no, line in enumerate(lines, 1):
-    print(f"MANIFEST_LINE number={line_no} text={line!r}")
+    output.append(f"MANIFEST_LINE number={line_no} text={line!r}")
+formatted = "\n".join(output) + "\n"
+if len(formatted.encode("ascii")) > MAX_OUTPUT_BYTES:
+    raise SystemExit("formatted output exceeds 16 KiB; report incomplete")
+sys.stdout.write(formatted)
 PY
 REMOTE
 ```

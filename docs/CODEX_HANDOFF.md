@@ -1,8 +1,8 @@
 # PMA — handoff to Codex (2026-10-17, written by Claude Code)
 
-## Live status update — 2026-10-18 23:28 EDT — checksum manifest located; content read awaits review
+## Live status update — 2026-10-18 23:34 EDT — manifest-read command repaired; fresh review required
 
-PR #7 was OPEN at exact HEAD `b347d8e87bfc541990bab1647119dc848056ac87` (base `3c0e48e699073726b9ef7453644cabbe8b277ca4`). GPT approved exactly one run of the read-only checksum-name discovery. It exited `0` and found two regular files: `RAW/MD5SUMS` and `reference/MD5SUMS`; no `MD5SUMS.refs`-like candidate appeared in the scanned top-level directories. This reveals a likely reference-manifest location but says nothing about its contents or provenance. Logs/hashes are outside the repo in the dated handoff. The one-time scope is consumed. A 64-KiB-bounded, no-follow read of only `reference/MD5SUMS` is drafted but has not been reviewed or run. No further Argos action until exact-head GPT review. No BED6 build/QC or footprint comparison has completed.
+PR #7 was OPEN at exact HEAD `9138d5bca5a0f9b59bf2724a7ec4481b681306b8` (base `3c0e48e699073726b9ef7453644cabbe8b277ca4`). GPT returned `REQUEST_CHANGES` for the proposed one-time read of `reference/MD5SUMS`: buffered `fdopen().read()` may prefetch beyond the 65,537-byte request, and blocking `open()` could wait if a path race substitutes a FIFO. It recommended a formatted-output byte cap. The command was repaired to use `O_NOFOLLOW | O_NONBLOCK`, `fstat()` on the opened descriptor, unbuffered bounded chunk reads, and a 16-KiB complete-output check. It remains unrun and requires fresh exact-head review and one-time scope approval. No further Argos operation until then. No BED6 build/QC or footprint comparison has completed.
 
 ## Live status update — 2026-10-18 23:10 EDT — recovered preflight result; manifest gate failed
 

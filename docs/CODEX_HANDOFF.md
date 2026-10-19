@@ -8,7 +8,8 @@ conversation `PMA｜固定阶段审核` returned `REQUEST_CHANGES` on prior HEAD
 handoff-sync commit have been pushed to the same PR. Before review, resolve the live PR head from
 GitHub; the handoff does not self-reference the commit that updates itself. The earlier `fd0b041`
 approval covered method documentation only, not execution. This revision does not authorize Argos
-or experimental work.
+or experimental work. The PR description is synchronized with this bounded ten-round plan and the
+current no-winner evidence state; resolve its live HEAD from GitHub for exact-head review.
 
 The user-requested 15-minute monitoring instruction authorized the 15:41 EDT read-only queue check;
 `qstat -u zz950` listed no scheduler jobs for that account. Detached/background processes were not

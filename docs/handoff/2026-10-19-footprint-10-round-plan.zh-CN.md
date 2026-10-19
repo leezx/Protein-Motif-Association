@@ -1,6 +1,6 @@
 # Step 4b footprint：十轮内形成可行工具选择
 
-更新时间：2026-10-19 16:04 EDT（UTC 20:04）
+更新时间：2026-10-19 16:20 EDT（UTC 20:20）
 范围：仅 footprint→de novo motif；ChIP BED6 / PR #7 由 Claude 负责，本交接不涉及。  
 PR #8：`task_20261019_hint_overlay_smoke`，OPEN、未合并。固定 PMA 对话 `PMA｜固定阶段审核` 对完整 HEAD `b421864177da5d6eb9fc4b4a206a8c924cf0fe4f` 给出 `APPROVE`，仅限文档/仓库只读方法审计；不批准 Argos、实验数据、下载、分析、环境修改、caller 执行、ChIP 工作或合并。审核确认同 PR 对 HEAD `4f1d2b86e0e15aeda8d5e8766049eff5539150d5` 的三个 finding 已修复（哈希分折/embargo、分数方向、截断 HINT/TraceBIND 事件），且 21-bp adapter 仅用于连续轨 B1 密度，不代表边界准确度。
 固定 PMA 对完整 HEAD `774a3498d7cc17904afe3dc4610711586fe56d82` 再次给出 `APPROVE`：四个 wrapper 的当前接口描述与 canonical §4 一致；缺失/不可评分/运行失败不能混为零；标签、共同分数和折外证据仍缺。无阻塞 finding。仅有一项非阻塞措辞修正：将“二值 BED”改为“阈值后事件 BED”；即使事件列保留 p/score，也不能恢复完整阈值前排序空间。该修正与本次审核记录一并纳入后续文档同步，无需另起重复审查轮次。
@@ -26,7 +26,7 @@ PR #8：`task_20261019_hint_overlay_smoke`，OPEN、未合并。固定 PMA 对�
 | 轮 | 交付物 | 冻结验收 / 停止条件 |
 |---|---|---|
 | 1（本轮，已核对） | 四工具运行状态与可信性清单 | 仅 EXIT=0 且输出完整者算有效；PRINT 失败不算成绩，HCT116 BAM 校验不算标签，STREME motif 数不算准确度。输出已记录在本文。 |
-| 2 | 目标与唯一主终点冻结 | 主终点优先为共同、独立标注位点上的 held-out AP；HCT116 CTCF degron只能支持局部“control-ChIP-bound 位点的保留/耗竭区分”，不得声称通用 footprint 真值或 pan-cancer 排名。缺合格标签则本轮结论为“不能作准确度排名”。 |
+| 2（人类已选终点） | 目标与唯一主终点冻结 | 用户选择“与独立 ChIP/CUT&RUN occupancy 标签的一致性”，而非碱基级 footprint 边界准确度。主终点是共同、独立标注位点上的 held-out AP；HCT116 CTCF degron最多支持该局部保留/耗竭场景，不得声称通用真值或 pan-cancer 排名。标签不合格即允许结论为“当前不能排名”。 |
 | 3 | 数据准入表 | 每个候选 ChIP/CUT&RUN/降解数据列出 accession、细胞、处理、replicate、生物重复、matched input、spike-in 时点/固定投入、基因组、开发集重用及 QC。达不到预设标签资格即 fail closed；无峰区域不能自动当真阴性。 |
 | 4 | 每工具 adapter/模式资格表 | 冻结四工具版本、模式、资源哈希、连续分数字段、方向/单位、阈值前覆盖和 missingness。当前 PRINT/TOBIAS只是候选连续轨；HINT/TraceBIND当前 wrappers 为阈值事件，缺失事件不能填 0。无法阈值前打分的工具退出 AP 主比较，不能虚构四方 AP。TraceBIND 的 reduced PRINT-bias 与完整 mtDNA-calibrated 模式分开记账。把一次最相关作者基准的小规模模式核对/复现并入本轮；失败最多做一次针对性修复，然后如实标记不可复现。 |
 | 5 | 公共输入和折外执行清单 | 同一 BAM/核内 fragment 过滤谓词、固定候选窗口/callable mask、hg38 资源哈希；按设计冻结 1-Mb block folds，并逐工具核实最大 score-context radius。允许 frozen caller 将 held-out reads/sequence 作为预测输入；禁止以 held-out 标签或其分数分布拟合、适配、选参、定阈值或选择工具。需要 sample-specific adaptation 的 caller 必须仅用训练折拟合，并隔离其所需上下文与 embargo；不能隔离则不参加严格 OOF AP。 |

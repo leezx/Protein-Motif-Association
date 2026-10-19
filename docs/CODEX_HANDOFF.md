@@ -1,5 +1,9 @@
 # PMA — handoff to Codex (2026-10-17, written by Claude Code)
 
+## Current footprint milestone — endpoint selected, exact-head stage review pending
+
+2026-10-19 16:20 EDT: the user selected **prediction concordance with independent ChIP/CUT&RUN occupancy labels** as the accuracy endpoint, and explicitly accepts “cannot rank” if label eligibility or common scoring prerequisites fail. This is not base-resolution footprint-boundary truth. The existing ten-round plan now records this human choice. The last fixed-PMA APPROVE was limited to read-only documentation/source audit and did not permit Argos or experimental-data access. No Argos status check, data access, analysis or caller run was performed in this turn. Next: submit the exact current PR #8 HEAD to `PMA｜固定阶段审核` for endpoint/round-2 document review and ask whether bounded metadata-only dataset eligibility discovery is allowed. ChIP BED6/PR #7 remains out of scope.
+
 ## Current live status — 2026-10-19 16:04 EDT — exact-head approval; accuracy remains unranked
 
 Footprint-only. PR #8 is OPEN, unmerged, on `task_20261019_hint_overlay_smoke`. The fixed PMA

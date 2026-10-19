@@ -1,13 +1,13 @@
 # ChIP-Atlas unique BED6 builder implementation handoff
 
-Updated: 2026-10-18 22:34 EDT
+Updated: 2026-10-18 22:38 EDT
 Branch: `task_20261019_chipatlas_bed6_builder`  
 Parent design PR: [#6](https://github.com/leezx/Protein-Motif-Association/pull/6), exact GPT-approved design HEAD `3c0e48e699073726b9ef7453644cabbe8b277ca4`, OPEN/unmerged.  
 Implementation PR: [#7](https://github.com/leezx/Protein-Motif-Association/pull/7), OPEN/unmerged, stacked on PR #6. Verify the complete live HEAD on GitHub before review or execution; this handoff is a timestamped snapshot.
 
 ## Direction and current progress
 
-GPT reviewed PR #7 full HEAD `e54f7ab79def02a01673b52e4f8a1adabe7c81d6` (base `3c0e48e699073726b9ef7453644cabbe8b277ca4`) and returned `REQUEST_CHANGES`. F1, F2, N1 and N2 passed; two blockers remained: metadata release was inferred from a local directory instead of explicitly identified, and `zip(bed, summary)` could consume an extra BED row while the output audit lacked an independent BED ID/bounds check. GPT also recommended that the collision checker require the BED SHA-256 declaration. Focused local repairs now add a required `--metadata-release`, `zip_longest` row-count reconciliation, per-row BED ID/bounds validation, and strict manifest BED hash requirement. These edits passed static syntax/shell/diff checks only and have not been committed or reviewed. No external input was read and no Argos operation occurred.
+GPT reviewed PR #7 full HEAD `e54f7ab79def02a01673b52e4f8a1adabe7c81d6` (base `3c0e48e699073726b9ef7453644cabbe8b277ca4`) and returned `REQUEST_CHANGES`. F1, F2, N1 and N2 passed; two blockers remained: metadata release was inferred from a local directory instead of explicitly identified, and `zip(bed, summary)` could consume an extra BED row while the output audit lacked an independent BED ID/bounds check. GPT also recommended that the collision checker require the BED SHA-256 declaration. Focused repairs were committed/pushed on the same branch as `7e16526111f9491fe56a4e3152e3f21a6b769e2c`: required `--metadata-release`, `zip_longest` row-count reconciliation, per-row BED ID/bounds validation, and strict manifest BED hash requirement. Static checks passed. The new full HEAD still awaits GPT review; no external input was read and no Argos operation occurred.
 
 The user's two endpoints remain: (1) produce a coordinate-unique, experiment-traceable human hg38 ChIP-Atlas BED6 reference with QC; (2) compare PRINT, TraceBIND, HINT, and TOBIAS on matched motif-free footprint accuracy and genome-wide speed on Argos, then complete B1–B4 and motif integration. Neither endpoint is complete.
 
@@ -26,7 +26,7 @@ PR #6's current design-only approval does not include implementation or Argos op
 
 ## Review and execution gates
 
-The complete implementation PR and current resulting HEAD require GPT review before Argos access. The second focused repair is local and must be committed/pushed on PR #7, with the PR body/handoff synchronized before requesting exact-head review. The review request must include the precise read-only preflight and builder commands for consideration; no command has been run. If the PR HEAD is approved only for code review, obtain explicit GPT review of the proposed Argos scope before executing it. Do not merge PR #6 or the implementation PR without the user's separate approval.
+The complete implementation PR and current resulting HEAD require GPT review before Argos access. The second focused repair is pushed on PR #7. Synchronize the PR body to the final complete review HEAD and request GPT review of that exact HEAD. The review request must include the precise read-only preflight and builder commands for consideration; no command has been run. If the PR HEAD is approved only for code review, obtain explicit GPT review of the proposed Argos scope before executing it. Do not merge PR #6 or the implementation PR without the user's separate approval.
 
 ## Next acceptance
 

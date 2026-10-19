@@ -1,5 +1,31 @@
 # PMA — handoff to Codex (2026-10-17, written by Claude Code)
 
+## Current live status — 2026-10-19 19:42 EDT — ten-round footprint decision plan
+
+Footprint-only. PR #8 is OPEN, unmerged, at exact HEAD `fd0b04113f4d906eb0bc422d3d2ac714c966847f` on
+`task_20261019_hint_overlay_smoke`. The fixed PMA conversation `PMA｜固定阶段审核` approved this
+documentation/method stage only and explicitly did not approve Argos execution. Its approved next
+scope is limited to same-PR review recording plus a data-admission, adapter, and fold-exclusion
+eligibility checklist. The ten-round checklist is in
+`docs/handoff/2026-10-19-footprint-10-round-plan.zh-CN.md`.
+
+Fresh read-only Argos check at 15:41 EDT: `qstat -u zz950` is empty. Actual task statuses under
+`/home/zz950/PMA_fetch/pma_bg_pr8_20261019/`: HCT116 unfiltered BAM verification V3 EXIT=0 (all four
+ENCODE byte counts, MD5, SHA-256, quickcheck and chrM header passed); K562 TOBIAS speed EXIT=0 on
+77,668 frozen 1-kb windows, 3,319,912 events, 1:02:16 wall and 1,267,312 KB max RSS; K562 PRINT speed
+EXIT=1 after 39/39 chunks due to missing `cladoRcpp` in worker namespace (36:19.75 wall, 34,130,552
+KB max RSS), so it is not a valid speed/call result; K562 fragment preparation EXIT=0 (110,891,807
+fragments, 28:18.88 wall). The independent K562 filter count is 110,891,952, so the denominator
+mismatch must be resolved before a comparable speed table. HCT116 HINT-derived exploratory STREME
+EXIT=0: 90,387 ctrl and 88,444 aux GC-matched pairs, 10 motifs each; this is exploratory B4 support,
+not accuracy evidence or motif-reference validation. No process is active. These outcomes are now
+measured facts; HCT116 ChIP truth labels, HINT/TraceBIND threshold-free score adapters, common four-way
+score coverage and verified fold-excluded scores remain absent. Therefore no four-tool AP ranking or
+accuracy winner is justified. Do not run dependent compute until a new exact-head execution review
+and human stage acceptance.
+
+## Current live status — 2026-10-19 15:23 EDT — prior snapshot
+
 ## Current live status — 2026-10-19 15:23 EDT — review fixes and audit sync pushed
 
 Footprint-only scope. PR #8 is OPEN on `task_20261019_hint_overlay_smoke`. The fixed PMA project

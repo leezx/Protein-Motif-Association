@@ -1,16 +1,24 @@
 # PMA — handoff to Codex (2026-10-17, written by Claude Code)
 
+## Live status update — 2026-10-18 22:57 EDT — preflight stopped before source-data reads
+
+The once-approved command at PR #7 HEAD `1432f6211b3e3411bf62a6f5e5f951bf9df17863` ran once and stopped with exit code 1 at `symlink path component: /home`. It reported remote checkout `task_20261018_step4b_setup_fix` / `4d099df44dc4bb48a93e110241168fadea1b1de6` and the PR branch ref, then exited before opening MD5SUMS or any ChIP-Atlas input. It did not inspect target output/storage/tools or create the cgroup scope. No retry is authorized. The current audit records are being synchronized, and GPT has been asked for a safe path interpretation and whether a revised command needs fresh exact-scope approval. No other Argos command has been run.
+
+## Live status update — 2026-10-18 22:55 EDT — one-time approved preflight stopped safely at symlink guard
+
+GPT approved PR #7 implementation static review and exactly one execution of the preflight committed at `1432f6211b3e3411bf62a6f5e5f951bf9df17863`. GitHub still showed PR #7 OPEN at that head/base immediately before execution. The one SSH command exited `1` after read-only Argos checkout status/HEAD and GitHub `ls-remote`, then the path guard rejected `/home` as a symlink. It stopped before reading MD5SUMS or any data input, hashing or statting input files, checking output paths/storage/tools, or creating the transient cgroup. No outputs or environment changes occurred. That one-time scope is consumed; no retry or other Argos command will run without fresh exact-scope review. Outcome 1 still has no BED6 or QC evidence; outcome 2 is unchanged.
+
 ## Live status update — 2026-10-18 22:51 EDT — exact-head code review approved; preflight finding under repair
 
 GPT verified PR #7 at HEAD `e61fccda1fc03c2b0326a09def3d5ea1b206757d`, base `3c0e48e699073726b9ef7453644cabbe8b277ca4`, and approved the full static implementation code review with zero blockers. It returned `REQUEST_CHANGES` for the one-time read-only Argos preflight because a symlinked intermediate source directory (including the RAW directory itself) could still pass. I added a component-level check locally and moved all source-file checks/stat calls after it; the exact new HEAD must be reviewed before any SSH. No Argos command has been run. Both project outcomes remain incomplete.
 
 ## Live status update — 2026-10-18 22:50 EDT — tightening source-path symlink guard; no Argos access
 
-GPT's in-progress exact-head review of PR #7 found that the first repair rejected symlink files but did not reject symlinked intermediate directories such as `reference/`. I added a component-by-component symlink guard for the absolute manifest and each allowlisted input path. This repair is local and pending static checks and a new exact-head review. No SSH command has been run. Full build and footprint benchmark remain unstarted; neither final outcome is complete.
+GPT's in-progress exact-head review of PR #7 found that the first repair rejected symlink files but did not reject symlinked intermediate directories such as `reference/`. I added a component-by-component symlink guard for the absolute manifest and each allowlisted input path. At this 22:50 update, that repair was local and no SSH command had yet been run; the later approved preflight attempt and its result are recorded in the 22:55 live update above. Full build and footprint benchmark remain unstarted; neither final outcome is complete.
 
 ## Live status update — 2026-10-18 22:46 EDT — preflight findings repaired; exact-head review pending
 
-GitHub confirms PR #7 is OPEN at `23e19339bb1b7b8f1281f8b72d97f262e8aca81c`, based on approved design PR #6 HEAD `3c0e48e699073726b9ef7453644cabbe8b277ca4`. GPT's review of prior exact head `23f5f43b8f02c26f8c52863d66620d5cd9a7f105` kept the code-review verdict APPROVE but returned `REQUEST_CHANGES` for the proposed Argos preflight: (P1) `md5sum -c` could read manifest targets outside the three intended inputs; (P2) ordinary `git status` may update optional index state; (P3) output checks missed dangling symlinks and the disk-capacity wording overclaimed feasibility. Commit `23e19339bb1b7b8f1281f8b72d97f262e8aca81c` repairs those exact findings in the handoff: the manifest is constrained to the three allowlisted inputs, optional Git writes are disabled, dangling symlinks are detected, and disk capacity is report-only. No SSH command has been run.
+At the time of this 22:46 update, GitHub confirmed PR #7 OPEN at `23e19339bb1b7b8f1281f8b72d97f262e8aca81c`, based on approved design PR #6 HEAD `3c0e48e699073726b9ef7453644cabbe8b277ca4`. GPT's review of prior exact head `23f5f43b8f02c26f8c52863d66620d5cd9a7f105` kept the code-review verdict APPROVE but returned `REQUEST_CHANGES` for the proposed Argos preflight: (P1) `md5sum -c` could read manifest targets outside the three intended inputs; (P2) ordinary `git status` may update optional index state; (P3) output checks missed dangling symlinks and the disk-capacity wording overclaimed feasibility. Commit `23e19339bb1b7b8f1281f8b72d97f262e8aca81c` repaired those exact findings in the handoff. The later preflight attempt is recorded in the 22:55 live update above.
 
 The approval at `05652f09eef0dc83b6c6c80bee1922dddf11d209` remains limited to static implementation code review; it authorizes no Argos action. The current complete PR head needs exact-head GPT review before preflight. The proposal passed `bash -n`, embedded Python AST parsing, and `git diff --check`; these are static checks only. Outcome 1 remains at reviewed code with no generated BED6 or resource measurements; outcome 2 has no benchmark progress. Neither endpoint is complete.
 
@@ -22,7 +30,7 @@ GPT reviewed the full PR #7 HEAD `05652f09eef0dc83b6c6c80bee1922dddf11d209` agai
 
 Next gate: request GPT review of a read-only Argos preflight with the exact host, input/output paths, checksum/resource/cgroup/version commands, and stop conditions documented in the dated handoff. No remote command has been run. Only after that precise preflight scope is approved may it be performed; full building requires a separate decision based on measured disk availability and review of the exact build scope. No functional test, external data read, Argos access, builder/QC run, resource measurement, or merge occurred. PR #6 remains open/unmerged; neither project endpoint is complete.
 
-The dated handoff now contains the complete proposed preflight command for `rcapps3.dfci.harvard.edu`, source checksum verification, read-only storage/tool inspection, and a transient 44 GiB no-swap cgroup probe. It creates no directories and performs no code checkout or build. This command has not been run; GPT must review it against the new complete PR HEAD before any SSH access.
+At the time of this older handoff entry, the dated handoff contained an unrun preflight proposal. It was subsequently reviewed at exact HEAD and run once under the narrow approval; the outcome and stop point are documented at the top of this file.
 
 ## Live status update — 2026-10-18 22:12 EDT — PR #6 design approved; PR #7 builder review pending
 

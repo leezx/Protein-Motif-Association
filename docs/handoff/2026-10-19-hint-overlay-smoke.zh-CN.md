@@ -1,5 +1,19 @@
 # Step 4b HINT 隔离环境与真实小样本调用
 
+## 2026-10-19 15:15 EDT — 当前方法状态（覆盖下方历史阶段记录）
+
+PR #8 在固定 PMA 审核会话 `PMA｜固定阶段审核` 对 HEAD
+`069d5ccd4de99888f8fac29b93e1f1b0dd7b9ecf` 得到 `REQUEST_CHANGES`。同一会话的技术澄清已落实到
+当前本地未提交的 benchmark design §4 修订：只有加样量和加入时点可解释、且 IP/input 分开估计的 spike exposure
+才能进入 DESeq2 offset；用未收缩 condition×assay 交互项的 depletion 阈值 Wald 检验和 retained
+等效阈值检验，完整 eligible universe 分别做 BH；区块 bootstrap 取代不成立的 score-vector swap；
+冻结评分上下文、fold embargo 和 B1 固定阈值下的裸 gDNA false-event density。当前 HCT116 数据
+来源与生物学重复仍未核实，四工具共同连续轨和 fold-excluded scoring 仍缺，故准确度排名不可计算。
+
+本次只有同一 PR 的方案/交接文档更新：未访问 Argos、未下载或读取实验数据、未跑 caller/评分、
+未更改环境、未触碰 Claude 的 PR #7，也未合并 PR #8。下方所有较早条目保留为历史；其中的 edgeR
+QL + CI、block-swap/Holm 和 2,000 bootstrap 方案已被当前 design §4 取代。
+
 ## 2026-10-19 15:07 EDT — 协议差异检查通过，等待固定 PMA 对话复审
 
 PR #8 仍为同一开放 PR，当前被复审版本为 HEAD `c5bf88f365a3e10f1cdf3ad7714f2df94518da17`。

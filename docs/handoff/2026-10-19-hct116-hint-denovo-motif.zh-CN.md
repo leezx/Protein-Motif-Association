@@ -1,5 +1,21 @@
 # HCT116 HINT motif 与 K562 TOBIAS 里程碑
 
+## 2026-10-19 15:15 EDT — 固定 PMA 审核会话的技术反馈已落实到同一 PR
+
+PR #8 HEAD `069d5ccd4de99888f8fac29b93e1f1b0dd7b9ecf` 在固定 PMA 项目对话
+`PMA｜固定阶段审核` 收到 `REQUEST_CHANGES`。随后在同一对话询问的统计细节已澄清：spike-in
+只有在加样量、加入时点、IP 与 input 各自的 exposure 解释明确时才能用于校准；DESeq2 未收缩
+交互项可用预设阈值 Wald 检验分别判定 depletion 与等效保留；不能把 edgeR QL 和未经验证的
+Wald CI 拼成同一个推断方案；AP 排名采用同步区块 bootstrap，不做 score-vector swap；B1 应称
+naked-DNA false-event density 而不是传统 FPR。本次已在同一 PR 的本地未提交 §4 修订中记录这些规则、
+context/embargo 要求和效应区间稳定性门槛；旧的 edgeR/QL、block-swap、Holm 与 2,000 次 bootstrap
+描述均为历史。
+
+这仍只是可供审核的协议修改。HCT116 CTCF ChIP 文件/来源、足够的独立生物学重复、可解释的
+spike-in、四工具共同的连续分数及严格折外执行均未建立，因此没有标签、AP、准确度排名或工具赢家。
+没有 Argos 访问、数据下载、caller 计算、评分或合并。下一步核对这次同一 PR 文档 diff、更新 PR
+说明，提交后在该固定 PMA 对话请求当前 exact HEAD 复审；不碰 Claude 负责的 PR #7。
+
 ## 2026-10-19 15:07 EDT — 同一 PR 的协议修订已准备复审
 
 固定 PMA 项目对话中的 PR #8 HEAD `c5bf88f365a3e10f1cdf3ad7714f2df94518da17` 审核要求继续

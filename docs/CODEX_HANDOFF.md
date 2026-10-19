@@ -1,5 +1,31 @@
 # PMA — handoff to Codex (2026-10-17, written by Claude Code)
 
+## Current live status — 2026-10-19 15:15 EDT — PR #8 method revision after fixed-thread review
+
+Footprint-only scope. GitHub PR #8 is OPEN at base HEAD `069d5ccd4de99888f8fac29b93e1f1b0dd7b9ecf` on
+`task_20261019_hint_overlay_smoke`. The fixed PMA project conversation `PMA｜固定阶段审核`
+returned `REQUEST_CHANGES` on that exact HEAD. The reviewer clarified in that same conversation that
+spike-in factors are valid only with documented fixed spike input, interpretable addition timing and
+separate IP/input exposure; block-swap score-vector permutations are not justified for AP; and B1
+should be reported as naked-DNA false-event density at a fixed HCT116-trained cutoff. The uncommitted
+same-PR worktree revision now proposes fail-closed DESeq2 threshold-Wald labels, paired genomic-block
+bootstrap with endpoint-stability checks, verified context/embargo requirements, and explicit B1 event
+handling. These edits are not yet present on GitHub.
+
+This remains a proposed protocol, not a completed benchmark. Candidate HCT116 ChIP files/provenance,
+independent biological replicate pairs and valid spike-in exposures are not verified. PRINT/TOBIAS are
+the only current wrappers with candidate continuous tracks; HINT/TraceBIND remain thresholded-event
+only. Strict fold-excluded score production and the four-way common score set are not established.
+Therefore no accuracy estimate or tool winner exists. No Argos operation, download, environment
+change, caller rerun, scoring or merge is authorized by this documentation revision. Continue only
+with same-PR method documentation and handoff; ask for exact-head review in this fixed PMA
+conversation, and do not start dependent compute until GPT APPROVE plus human phase acceptance. Do
+not touch Claude's ChIP BED6/PR #7 or merge PR #8.
+
+Older dated sections below are retained as history. Their edgeR/QL-plus-CI, block-swap/Holm, and
+2,000-bootstrap descriptions are superseded by the current uncommitted design document §4 revision;
+the GitHub base HEAD does not yet contain it.
+
 ## Live status update — 2026-10-19 15:07 EDT — same-PR protocol revision ready for exact-head review
 
 Footprint-only scope. PR #8 is OPEN at HEAD `c5bf88f365a3e10f1cdf3ad7714f2df94518da17` on

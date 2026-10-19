@@ -1,13 +1,13 @@
 # ChIP-Atlas unique BED6 builder implementation handoff
 
-Updated: 2026-10-18 22:27 EDT
+Updated: 2026-10-18 22:30 EDT
 Branch: `task_20261019_chipatlas_bed6_builder`  
 Parent design PR: [#6](https://github.com/leezx/Protein-Motif-Association/pull/6), exact GPT-approved design HEAD `3c0e48e699073726b9ef7453644cabbe8b277ca4`, OPEN/unmerged.  
 Implementation PR: [#7](https://github.com/leezx/Protein-Motif-Association/pull/7), OPEN/unmerged, stacked on PR #6. Verify the complete live HEAD on GitHub before review or execution; this handoff is a timestamped snapshot.
 
 ## Direction and current progress
 
-GPT reviewed PR #7 full HEAD `c62c106c6fd238f9540c09b1bff95d971a39265a` and returned `REQUEST_CHANGES`. Four blockers concerned source-coordinate/provenance binding, entrypoint-level cgroup verification, builder manifest/source identity, and independent sidecar reconciliation. Two recommendations requested byte-for-byte tabix comparisons with a guaranteed positive control and `LC_ALL=C` sorting. Focused local repairs are now in progress on this same branch; they are not yet committed or reviewed.
+GPT reviewed PR #7 full HEAD `c62c106c6fd238f9540c09b1bff95d971a39265a` and returned `REQUEST_CHANGES`. Four blockers concerned source-coordinate/provenance binding, entrypoint-level cgroup verification, builder manifest/source identity, and independent sidecar reconciliation. Two recommendations requested byte-for-byte tabix comparisons with a guaranteed positive control and `LC_ALL=C` sorting. Focused repairs to all findings were pushed on the same branch as commit `532117a33a93b8f48e7fa90a874fde5a759ed264`; GPT has not reviewed that commit. The PR description and audit handoff are being synchronized to the exact final review head.
 
 The user's two endpoints remain: (1) produce a coordinate-unique, experiment-traceable human hg38 ChIP-Atlas BED6 reference with QC; (2) compare PRINT, TraceBIND, HINT, and TOBIAS on matched motif-free footprint accuracy and genome-wide speed on Argos, then complete B1–B4 and motif integration. Neither endpoint is complete.
 
@@ -26,7 +26,7 @@ PR #6's current design-only approval does not include implementation or Argos op
 
 ## Review and execution gates
 
-The complete implementation PR and current resulting HEAD require GPT review before Argos access. After current local repair, commit/push only the focused PR #7 code/audit paths, synchronize its body, and request GPT review of the exact complete HEAD. The review request must include the precise read-only preflight and builder commands for consideration; no command has been run. If the PR HEAD is approved only for code review, obtain explicit GPT review of the proposed Argos scope before executing it. Do not merge PR #6 or the implementation PR without the user's separate approval.
+The complete implementation PR and current resulting HEAD require GPT review before Argos access. The focused code repair is pushed; after this audit sync, synchronize the PR body and request GPT review of the exact complete HEAD. The review request must include the precise read-only preflight and builder commands for consideration; no command has been run. If the PR HEAD is approved only for code review, obtain explicit GPT review of the proposed Argos scope before executing it. Do not merge PR #6 or the implementation PR without the user's separate approval.
 
 ## Next acceptance
 

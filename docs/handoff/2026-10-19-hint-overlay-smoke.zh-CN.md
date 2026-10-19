@@ -101,3 +101,15 @@ K562 BAM 索引任务已退出 0，索引 SHA-256 `9566848400900c465d450bc1c942a
 `BG_K562_SPEED_REGIONS_44B9C11` 在 Argos 退出 0：159,628 个同实验 IDR 峰生成 75,668 个互不重叠的 1-kb 可及窗口，另加 2,000 个种子固定的 off-peak 阴性窗口，共 77,668 个；blacklist 排除 1,929 个，低信号重叠排除 82,031 个。外部 BED `/home/zz950/DATA/2.PROJECTS/PMA/atac_footprint/processed/round1/regions/k562_speed_1kb.bed` 的 SHA-256 为 `472f82c5d7e412a6cac6aa102b92b93bce0b93fd2c78e0e5771ca4a49906819d`，相邻 manifest 固定来源与计数；独立检查确认宽度、唯一 ID 和无重叠。该 BED 是共同速度搜索空间，不代表逐碱基全基因组覆盖。
 
 独立计数任务 `BG_K562_NON_DUP_COUNT_V1` 退出 0：`samtools view -c -f 67 -F 3332 -q 30` 得到 **110,891,952 个非重复**、MAPQ≥30、主比对且正确配对的 read1 片段，因此 1 亿输入门槛在去重后仍满足。`BG_K562_HINT32_V1` 已于 10:56:35 EDT 在全部 77,668 窗口上启动，32 个 HINT 分块，CPU-only、受 40/44 GiB 地址空间门禁约束；结果与 wall/RSS 待检查。其余三个 caller 需用同一冻结 BED。K562 ENCODE 样本有核小体游离片段 QC 警告，只作速度输入，B3 生物学真值另行判断。
+
+## 2026-10-19 11:08 EDT：四工具 footprint 后的探索性 de novo motif 分析
+
+PR #8 `012ee70` 新增 `prepare_denovo_motif_fasta.py`，SHA-256 `ae54dd7cf2c86ec8086d9deddcf5e4e9e3e49512c6b8492daa216507cdef3084`。每个冻结 1-kb HCT116 ctrl 窗口取最高分原生 footprint 中心 ±25 bp 序列；同一窗口内避开所有原生调用及其 25-bp 两侧，选长度相同、GC 差≤0.1 的背景序列。生成 FASTA、坐标对和 SHA manifest 到仓库外。Argos 已有可运行的 x86-64 STREME 5.5.9；用相同 6–20-bp、最多 10 个 motif、seed 19 设置运行 `BG_B4_EXPLORE_{HINT,PRINT,TOBIAS,TRACE}_012EE70`，均受 44 GiB、CPU-only 门禁约束。HINT 序列准备得到 1,945 对（1,991 个有事件窗口），PRINT r20 得到 1,441 对（1,459 个有事件窗口）；STREME 与其余两工具仍在运行。外部输出为 `processed/round1/motif_explore_012ee70/`。这只是 B4 探索，不是独立验证后的 motif reference，也不能从不同原生阈值推断工具优劣。
+
+用户已明确 ChIP BED6 交由 Claude；本任务后续只操作 footprint/PR #8，不再监控或修改 ChIP/PR #7。
+
+## 2026-10-19 11:09 EDT：修正 B4 背景饱和问题
+
+四个初版 STREME 任务都退出 0，但 TOBIAS 在 1,992 个有事件窗口中仅留下 **39 对**严格避开所有原生事件的同窗口背景；1,906 个窗口找不到背景。这组 TOBIAS motif 只能保留作诊断，不能与其他工具比较。初版 HINT 1,945 对中有 2 个 E<0.05 motif（E=0.002、0.0056），PRINT r20 1,441 对中有 1 个（E=3.4e-10）；这只是探索性序列富集，未确认 TF 身份或准确度赢家。
+
+PR #8 `75420e4` 给 FASTA 脚本增加显式 `--background-exclusion selected_only`：四工具统一使用同一可及窗口、50-bp 长度、GC 差≤0.1 的背景，并避开选中的阳性事件及其侧翼。背景可能落在该工具的其他事件上，所以富集可能被稀释，必须如实报告。新的 Argos 任务 `BG_B4_UNIFORM_{HINT,PRINT,TOBIAS,TRACE}_75420E4` 已在独立外部目录 `processed/round1/motif_explore_75420e4/` 启动；脚本 SHA-256 `4135ea18f9a20af479d0c7f68b98c4acd2b4e4a7813d8f80336a5bd0fc04a6c9`。待核对四组配对数、GC 和 motif E-value，不能混合初版与新版结果。

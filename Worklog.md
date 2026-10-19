@@ -539,3 +539,15 @@ Read real Argos logs and native event BEDs. The ctrl/aux 2,000-region HINT outpu
 ## 2026-10-19 05:47 EDT — four-tool three-group smoke gate passes
 
 Argos TraceBIND v8 smoke now passed all groups under 44-GiB soft/hard RLIMIT_AS: gDNA 363 events (SHA-256 `e301eb2dbab9deb5012aa7894a81a773304fb92a6303db73523c8de7453eb3d5`, wall 9:08.76, max RSS 1,469,368 KB), ctrl 31 (`de627ade7c4e05af906104287b69315633e024f7a39cd86aa22e9c5f8ab49360`, 8:56.61, 8,091,172 KB), aux 29 (`5a273533d40c2dd57ab9e66ea1793a9edcbe8b6a40687e688381bd07643f19cb`, 8:26.31, 7,907,668 KB); each exit 0. Combined with prior three-group HINT, TOBIAS and PRINT smoke, all four callers now run on the frozen 20-region inputs. Quick stage review: L1 PASS for execution/outputs; L2 BLOCKED for comparative accuracy and genome-wide speed; direction ON TRACK, progress REAL, no L3 human acceptance or tool choice. Started full gDNA TraceBIND PRINT-bias task `BG_TRACE_FULL_gdna_V10` with four CPU workers under the same 44-GiB cap. Full ctrl/aux TraceBIND tasks are running. No PR merge.
+
+## 2026-10-19 05:49 EDT — gDNA 2,000-region PRINT completes
+
+`BG_PRINT_FULL_gdna_V2` exited 0 on Argos. It used the frozen 2,000 gDNA tiles and indexed fragment slice (17,544,605 rows), produced PRINT r10/r20 native events 2,943/1,376, with SHA-256 `e12a6d1784b66feb2e1e8fa6260c78d592da8fe0395195722f1ef9207f8f9bd8` / `ff1421c173da71e748a831a57941de62853878b4db59bcf50423f20ebd549b6d`. Caller wall 17:12.08, max RSS 30,121,176 KB; separate slice preparation took ~76 s. This adds a measured naked-DNA output, but B1 false-positive density at matched sensitivity is not yet evaluated. Full gDNA TOBIAS and all TraceBIND groups remain active; no tool selection.
+
+## 2026-10-19 05:50 EDT — prepare whole-sample BAMs for genome-wide speed gate
+
+To move beyond the 2,000-region pilot, started Argos background merge/index tasks `BG_BAM_MERGE_{ctrl,aux}_V1` on the four verified ENCODE filtered BAMs. Ctrl is ENCFF784ATG + ENCFF794FUH; aux is ENCFF877LRY + ENCFF745WLX. `samtools quickcheck` and coordinate-sort headers passed before merge. Each task has finite 44-GiB soft/hard RLIMIT_AS, one samtools worker and no GPU. Outputs will be under external `processed/round1/bam/genome_wide/`; merge/preparation time is recorded separately from the caller speed-gate clock. Both tasks are active, no full-genome caller result yet.
+
+## 2026-10-19 05:54 EDT — frozen first-round report specification prepared
+
+Copied committed `eval_round1.py` (SHA-256 `d5b85b1a3d9946d8da8c8e4a59dfd3e9b9ab2a3aa4e50361026c6a2abe417570`) to external Argos code scratch and wrote external 3-group/5-output spec `processed/round1/benchmark_round1/spec_77d8556.json` (SHA-256 `13fc4061742d9e399795d32bd570cb3ae956a9a97cae0d96c4b0f4aa2a73e184`). It pins each group to the frozen 2,000-region BED and native HINT, TOBIAS, PRINT r10/r20 and TraceBIND files. The evaluator has not run because full gDNA TOBIAS and TraceBIND outputs are pending. It reports descriptive native-threshold event density only, not matched-sensitivity FPR or a winner.

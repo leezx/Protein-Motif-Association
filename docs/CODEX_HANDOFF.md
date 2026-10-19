@@ -306,3 +306,15 @@ benchmark. See `docs/STEP1_*`, `docs/STEP2_*`.
 ### 2026-10-19 05:47 EDT — four-tool smoke gate complete
 
 All four callers now passed the same frozen 20-region smoke inputs for gdna/ctrl/aux. TraceBIND v8 native events: 363/31/29, all exit 0; exact hashes and resource metrics in `docs/handoff/2026-10-19-hint-overlay-smoke.zh-CN.md`. This confirms execution only: no sensitivity matching, B2–B4 truth, accuracy ranking or speed-gate pass. Full 2,000-region TraceBIND ctrl/aux/gdna tasks are running under 44-GiB RLIMIT_AS with four CPU workers. Continue monitoring full calls and evaluating B1 descriptively; do not select a caller yet.
+
+### 2026-10-19 05:49 EDT — gDNA PRINT full output
+
+`BG_PRINT_FULL_gdna_V2` completed: PRINT r10/r20 native events 2,943/1,376 on the 2,000 gDNA tiles; wall 17:12.08, max RSS 30,121,176 KB, plus ~76 s indexed fragment slicing. Hashes and paths in dated handoff. B1 matched-sensitivity FPR remains pending, as do full gDNA TOBIAS and all full TraceBIND outputs.
+
+### 2026-10-19 05:50 EDT — whole-sample speed-gate BAM preparation
+
+`BG_BAM_MERGE_{ctrl,aux}_V1` are active on Argos, merging the four validated ENCODE filtered BAMs into indexed whole-sample ctrl/aux BAMs outside the repository. Inputs pass `samtools quickcheck` and have coordinate-sort headers. Each merge is capped at 44 GiB, one worker, CPU only; prep time is separate from caller timing. Do not claim a genome-wide speed pass until merged BAMs and whole-region caller runs complete.
+
+### 2026-10-19 05:54 EDT — round-one native-density spec
+
+External `processed/round1/benchmark_round1/spec_77d8556.json` pins all three 2,000-region BEDs and the five native event outputs per group; SHA-256 `13fc4061742d9e399795d32bd570cb3ae956a9a97cae0d96c4b0f4aa2a73e184`. Committed evaluator copied to `/home/zz950/PMA_fetch/eval_round1_77d8556.py`, SHA-256 `d5b85b1a3d9946d8da8c8e4a59dfd3e9b9ab2a3aa4e50361026c6a2abe417570`. Do not run until all pinned files exist; output is descriptive native-threshold density only.

@@ -53,3 +53,15 @@ Argos ctrl/aux 的完整 2,000 区域调用已有真实文件：HINT 20,233/20,5
 ## 05:47 EDT 更新：四工具三组 smoke 全通过
 
 TraceBIND v8 的 gDNA/ctrl/aux 20 区域任务均退出 0，事件 363/31/29 行；SHA-256 分别为 `e301eb2dbab9deb5012aa7894a81a773304fb92a6303db73523c8de7453eb3d5`、`de627ade7c4e05af906104287b69315633e024f7a39cd86aa22e9c5f8ab49360`、`5a273533d40c2dd57ab9e66ea1793a9edcbe8b6a40687e688381bd07643f19cb`；wall 9:08.76/8:56.61/8:26.31，最大 RSS 1,469,368/8,091,172/7,907,668 KB。加上已有 HINT、TOBIAS、PRINT，四工具三组 smoke 均已跑通。Quick 阶段核查：L1 对执行和文件 PASS；L2 对准确度与全基因组速度 BLOCKED；方向 ON TRACK、真实进展 REAL；L3 human acceptance 待定，尚不选工具。gDNA 2,000 区域 TraceBIND PRINT-bias 已启动为 `BG_TRACE_FULL_gdna_V10`，ctrl/aux 同规模任务仍在运行；均为 Argos 受限 CPU 任务。
+
+## 05:49 EDT 更新：gDNA 2,000 区域 PRINT 完成
+
+`BG_PRINT_FULL_gdna_V2` 退出 0；PRINT r10/r20 原生事件 2,943/1,376 行，SHA-256 `e12a6d1784b66feb2e1e8fa6260c78d592da8fe0395195722f1ef9207f8f9bd8` / `ff1421c173da71e748a831a57941de62853878b4db59bcf50423f20ebd549b6d`。调用 wall 17:12.08、最大 RSS 30,121,176 KB；索引片段切片预处理另耗约 76 秒。结果位于外部 `runs_full_pr8_22667dc/gdna/print_v2*`。这是 B1 的原生阈值输出，不是匹配灵敏度后的 FPR 比较。
+
+## 05:50 EDT 更新：全基因组速度门槛的输入准备
+
+已在 Argos 启动 `BG_BAM_MERGE_{ctrl,aux}_V1`，将已校验的 ENCODE filtered BAM 按条件合并并建立索引：ctrl = ENCFF784ATG + ENCFF794FUH，aux = ENCFF877LRY + ENCFF745WLX。四个输入通过 `samtools quickcheck`，头部标记为 coordinate sorted。每项设置 44 GiB 软硬地址空间上限、单 worker、无 GPU；输出在外部 `processed/round1/bam/genome_wide/`，准备时间与 caller 速度门槛分开记录。任务尚未完成，不能宣称已跑全基因组 footprint。
+
+## 05:54 EDT 更新：首轮汇总输入清单已冻结
+
+已把 PR #8 的 `eval_round1.py` 复制到 Argos 仓库外代码暂存，SHA-256 `d5b85b1a3d9946d8da8c8e4a59dfd3e9b9ab2a3aa4e50361026c6a2abe417570`；外部 spec `processed/round1/benchmark_round1/spec_77d8556.json` SHA-256 `13fc4061742d9e399795d32bd570cb3ae956a9a97cae0d96c4b0f4aa2a73e184`，逐组固定 2,000 区域 BED 与 HINT、TOBIAS、PRINT r10/r20、TraceBIND 的原生结果路径。因 gDNA TOBIAS 与完整 TraceBIND 尚未完成，汇总尚未运行；输出只能是原生阈值的描述性密度，不能据此选工具。

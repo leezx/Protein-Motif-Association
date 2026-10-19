@@ -85,3 +85,9 @@ ctrl HINT `BG_HINT_GENOME_ctrl_32_V1` 退出 0：91,210 个预定 peak 窗口、
 ## 2026-10-19 06:29 EDT：真实 1 亿片段速度样本
 
 ENCODE 官方记录的 K562 bulk ATAC-seq `ENCSR868FGK` 中，GRCh38 replicate-1 对齐文件 `ENCFF534DCE` 的 QC 报告有 114,471,886 个 usable fragments；官方字节数 10,012,174,956，MD5 `4bd9c1e48617afea2a2cf4834eed961b`。Argos 字节范围请求返回 HTTP 206，已在 44 GiB CPU-only gate 下启动 `BG_FETCH_K562_ATAC_ENCFF534DCE_V1`，将 BAM 下载到仓库外 `raw/2026-10-19/encode_k562/ENCSR868FGK/`；只有字节数、MD5 和 `samtools quickcheck` 通过才会出现最终文件名。ENCODE 对该实验有核小体游离片段比例方面的 QC 警告，因此它目前仅用于计算速度门槛，不作为未经审计的 B3 生物学真值。完整下载后还要按本项目的 MAPQ≥30 定义重新计数，再运行真实速度门槛。官方来源：https://www.encodeproject.org/experiments/ENCSR868FGK/ 和 https://www.encodeproject.org/files/ENCFF534DCE/ 。gDNA TOBIAS 已完成 ATACCorrect 阶段，但整项仍在运行；TraceBIND V11 与 aux HINT 仍在运行。
+
+## 2026-10-19 10:53 EDT：首轮描述报告完成，真实速度输入就绪
+
+三组 TraceBIND V11、aux 全样本 HINT 均在 Argos 退出 0。原 gDNA TOBIAS 2,000 区域评分虽记录 100% 却没有写出 bigWig，整个任务退出 1；同一校正信号的 20 区域探针可以输出轨道。使用该已完成校正信号，改用 `--split 1` 在新目录重试，得到 84,822 条事件，退出 0；原失败日志保留。冻结三组汇总 spec 只更新这一个事件路径；`BG_EVAL_ROUND1_V12` 退出 0，外部报告 SHA-256 `cf5594822431aaa09d2eb679619b644034c013c665f25c3696c5771c2c0b9f32`。三组各有 2,000 区域、2.0 Mb，四工具全部 15 个事件输出存在且区域外事件为 0。原生阈值下 gDNA 每 Mb 事件数：HINT 3,905，PRINT r20 688，TOBIAS 42,411，TraceBIND 14,527。阈值没有匹配灵敏度，不能据此判断准确度赢家。按 `review-task` Quick：本阶段输出 L1 PASS，工具选择的方法学 L2 BLOCKED，方向 ON TRACK，真实进展 REAL，L3 人类验收待定；继续 B1 灵敏度匹配与 B2–B4。
+
+K562 BAM `ENCFF534DCE` 已按官方字节/MD5 校验并通过 quickcheck，SHA-256 `1ed9d63b38d2430bc037493187fc3c0f73478d204dc55d6f1ed7c329f17105df`。独立 Argos 计数得到 MAPQ≥30、primary、proper-pair 的 **110,891,952** 个片段，达到正式 1 亿片段输入。与该 BAM 同实验、同 replicate-1 的 released GRCh38 IDR peaks `ENCFF993BAP` 已校验下载，SHA-256 `c0c1d0b5350a962b9d7a7f1d2edef1ca98005029c79f07979533f3a14cb40945`。BAM 索引任务 `BG_K562_BAM_INDEX_V1` 运行中；接下来冻结同一样本 peak 搜索空间后正式计时。这份样本仅用于计算速度，不能未经 QC 当 B3 生物学真值。

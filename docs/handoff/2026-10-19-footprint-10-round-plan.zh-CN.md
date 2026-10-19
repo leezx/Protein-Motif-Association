@@ -1,8 +1,9 @@
 # Step 4b footprint：十轮内形成可行工具选择
 
-更新时间：2026-10-19 16:02 EDT（UTC 20:02）
+更新时间：2026-10-19 16:04 EDT（UTC 20:04）
 范围：仅 footprint→de novo motif；ChIP BED6 / PR #7 由 Claude 负责，本交接不涉及。  
 PR #8：`task_20261019_hint_overlay_smoke`，OPEN、未合并。固定 PMA 对话 `PMA｜固定阶段审核` 对完整 HEAD `b421864177da5d6eb9fc4b4a206a8c924cf0fe4f` 给出 `APPROVE`，仅限文档/仓库只读方法审计；不批准 Argos、实验数据、下载、分析、环境修改、caller 执行、ChIP 工作或合并。审核确认同 PR 对 HEAD `4f1d2b86e0e15aeda8d5e8766049eff5539150d5` 的三个 finding 已修复（哈希分折/embargo、分数方向、截断 HINT/TraceBIND 事件），且 21-bp adapter 仅用于连续轨 B1 密度，不代表边界准确度。
+固定 PMA 对完整 HEAD `774a3498d7cc17904afe3dc4610711586fe56d82` 再次给出 `APPROVE`：四个 wrapper 的当前接口描述与 canonical §4 一致；缺失/不可评分/运行失败不能混为零；标签、共同分数和折外证据仍缺。无阻塞 finding。仅有一项非阻塞措辞修正：将“二值 BED”改为“阈值后事件 BED”；即使事件列保留 p/score，也不能恢复完整阈值前排序空间。该修正与本次审核记录一并纳入后续文档同步，无需另起重复审查轮次。
 审核明确的科学结论：目前不能确定哪个工具准确度最高。occupancy/扰动标签测的是指定场景的预测一致性，不是碱基级 footprint 边界真值；裸 gDNA 也不是通用真阴性。没有合格标签、四工具共同可评分集和验证过的折外分数，因此没有四工具 AP 排名。审核建议在同 PR 记录此结论，并只用仓库现有源码/文档完成接口与验收规格只读核对。后续复审前从 GitHub 读取完整 live tip，handoff 不自引用其自身 SHA。
 审核边界：此前 `fd0b041` 的 APPROVE 仅覆盖方法文档；`525f0d4` 收到的时间、状态来源、折外边界和事件级备选 findings 已在同 PR 修复，并获当前 `0829b08` 方案级批准。15:41 EDT Argos 队列读取来自当时用户明确要求的 15 分钟监控 heartbeat；只读取调度与已有状态文件，没有读取实验数据，也没有核查 detached processes。该监控授权不扩大为 caller 执行授权。
 
@@ -48,7 +49,7 @@ PR #8：`task_20261019_hint_overlay_smoke`，OPEN、未合并。固定 PMA 对�
 | 工具 | 源码可见的当前输出 | 对中立排序的意义 / 最小缺口 |
 |---|---|---|
 | PRINT | `run_print.R` 将 `aggregateScores` 写入逐位置 `.r<radius>.track.tsv.gz`，另写原生事件 BED；设计指定 r10 候选轨。 | 有候选连续分数接口，但需要锁定软件/偏差与 dispersion 资源哈希、确认方向/坐标与全 callable 覆盖，并实现合格标签上的折外评分；现有速度任务失败不构成准确度成绩。 |
-| TOBIAS | `run_tobias.sh` 产生 `footprints.bw`，然后 `events_from_track.py` 再阈值化成事件 BED。 | BigWig 是候选连续轨；AP 应读原 track 并把缺失/非有限值记不可评分，不能读二值 BED 或填 0。还须核实共同过滤分母、mask、方向、参数/资源哈希与折外运行。 |
+| TOBIAS | `run_tobias.sh` 产生 `footprints.bw`，然后 `events_from_track.py` 再阈值化成事件 BED。 | BigWig 是候选连续轨；AP 应读原 track 并把缺失/非有限值记不可评分。阈值后事件 BED只保留过阈值的事件，不能恢复完整分数空间或把缺失分数填 0。还须核实共同过滤分母、mask、方向、参数/资源哈希与折外运行。 |
 | HINT | `run_hint.sh` 汇总并排序 RGT 的 `fp.bed` 到 `events.bed`。 | 当前接口为阈值事件；没有阈值前逐候选连续分数接口，不能进入连续 AP。保留原生区间和工作点做事件级/描述性比较；边界 QC 与聚合 RSS 仍是调用产物发布前缺项。 |
 | TraceBIND | `run_tracebind.R` 运行 NB footprinting 后调用 `binding_sites_pval(..., pval_threshold=...)`，只写过阈值事件及其调整 p 值。 | 已截断事件不能提供完整排序；本 wrapper 明确是 PRINT-bias reduced mode，不代表完整 mtDNA-calibrated TraceBIND。保持该原生工作点；除非来源接口证明完整阈值前分数/阈值空间，否则不报 AP 或匹配召回。 |
 
@@ -89,7 +90,7 @@ PR #8：`task_20261019_hint_overlay_smoke`，OPEN、未合并。固定 PMA 对�
 每个工具/模式的 score adapter 输出逐候选位点长表，至少包含：`tool_id`、`mode_id`、软件/容器与参数/参考资源哈希、`sample_id`、`condition`、`fold_id`、`chrom`、0-based 半开 `start/end`、`score`、`score_status`、`missing_reason`、固定分数方向/单位、源文件/track 和已核实的最大上下文半径。合法 `score_status` 至少区分 `finite`、`unscorable`、`missing`、`run_failed`；非有限值、未输出事件和失败运行绝不填成 0。分数方向须由该固定版本的已记录统计定义/源码确认；若无法确认则该分数不可评分。主分析不根据训练标签翻转方向；若另做训练标签定向，只能单列为监督校准敏感性分析，不并入主 AP 排名。
 
 - PRINT：候选原始连续值为当前 r10 track 中 `aggregateScores`（设计定义为越高越强的 `−log10(p)`）；先核实其坐标覆盖、方向、资源哈希及可重复性。
-- TOBIAS：候选原始连续值为 ATACorrect 后的 `footprints.bw` (`footprint` score)，不是 `events_from_track.py` 的二值 BED。BigWig 未定义/NaN 必须标成不可评分，不能转零。
+- TOBIAS：候选原始连续值为 ATACorrect 后的 `footprints.bw` (`footprint` score)，不是 `events_from_track.py` 生成的阈值后事件 BED。BigWig 未定义/NaN 必须标成不可评分，不能转零；事件 BED保留分数列也不等于保留了完整的阈值前排序空间。
 - HINT：当前 wrapper 只输出阈值事件 BED；除非找到/实现并冻结阈值前连续统计量，否则不进入 AP。
 - TraceBIND：当前 wrapper 为 `PRINT-bias` reduced mode，按 `p_threshold` 截断输出；不能把已截断 BED score 当完整连续轨。full mtDNA-calibrated mode 是另一个 `mode_id`，须单独验收。
 

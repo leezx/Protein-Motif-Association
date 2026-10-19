@@ -73,11 +73,11 @@ REMOTE
 
 **Observed result (one invocation):** exit code `0`. stdout contained one line: `REFERENCE_CANDIDATE name='hg38.chrom.sizes' symlink=False regular_file=True`. No `MANIFEST_CANDIDATE` line was emitted, meaning the streaming parser found no MD5SUMS line in the expected GNU-style form with a chromosome/size-like path. This establishes that the named reference file exists as a regular, non-symlink entry and that the query found no matching manifest candidate; it does not establish why the manifest differs, verify the file checksum/content, or prove other manifest formats absent. stderr contained only the SSH post-quantum key-exchange warning. Complete local stdout/stderr and exit status are retained outside the repository at `/tmp/pma_pr7_manifest_diag_1478fb7.RLXv0N/` (SHA-256 stdout `f800af4128b3ce247863b197ef628bc6040a905d3e26a1fa2980a83976e31b78`; stderr `048e2ba89ae430962e02f5341cf60c694fb7e131cb417790075a56b32ca09992`). No input checksum, source-content, output-capacity, tool, or cgroup check was performed. The one-time diagnostic authorization is consumed. No additional remote command is authorized by this result; a next query or full preflight requires fresh exact-head/scope review. Builder, QC, tests, benchmark, install, and merge remain outside this scope.
 
-## Local evidence review and proposed next remote query — not approved or run
+## Checksum-name discovery — GPT-approved and executed once at PR HEAD `b347d8e`
 
 GPT's technical recommendation was to check existing local staging/download records first, then—only if those do not establish checksum provenance—request a new narrow remote discovery operation that lists checksum-like names and types in the fixed RAW root and `reference/`, without reading their contents. The following local-only search was performed: repository docs, Worklog, handoffs, and retained local Codex session JSONL for `MD5SUMS.refs` and `hg38.chrom.sizes`. It confirmed the design identifies `reference/hg38.chrom.sizes` as a UCSC source with 455 contigs, and older Step 4b logs mention `MD5SUMS.refs` for the separate ATAC raw dataset. It found no local record showing the ChIP-Atlas reference checksum manifest path or checksum. The ATAC manifest mention is not evidence that an occupancy-ChIP-Atlas companion manifest exists.
 
-If a fresh exact-head GPT review approves, the proposed independent query below will only list candidate manifest/checksum-like entry names and non-following type metadata in the fixed RAW root and its `reference/` child. It will not read file contents, source data, hashes, output/storage/tool/cgroup state, and will create no files. This is not yet authorized or run.
+GPT approved the exact-name discovery command at PR #7 HEAD `b347d8e87bfc541990bab1647119dc848056ac87` / base `3c0e48e699073726b9ef7453644cabbe8b277ca4` for one invocation. It only listed candidate manifest/checksum-like names and no-follow types in the fixed RAW root and `reference/` child; it did not read file contents, source data, hashes, output/storage/tool/cgroup state, and created no files.
 
 ```bash
 ssh -o BatchMode=yes zz950@rcapps3.dfci.harvard.edu 'bash -s' <<'REMOTE'
@@ -137,7 +137,77 @@ PY
 REMOTE
 ```
 
-The proposed query is read-only, but it would create one SSH session and enumerate two directories. Any path/type error or candidate overflow must stop with a nonzero exit; no follow-up command is implied. A fresh full-HEAD review and separate one-time scope approval are required before execution.
+**Observed result (one invocation):** exit code `0`. stdout listed exactly two candidates: `RAW/MD5SUMS` and `reference/MD5SUMS`, both regular files. It did not find a name containing `MD5SUMS.refs`, `SHA256`, `checksum`, or `manifest` in either scanned top-level directory. stderr contained only the SSH post-quantum warning. Complete stdout/stderr/exit record is outside the repository at `/tmp/pma_pr7_checksum_discovery_b347d8e.ofZvuy/`; stdout SHA-256 `00ee47447c514792aa69a9c1e92d40d91cb1f3133adf0514c09e1baf81006117`, stderr SHA-256 `048e2ba89ae430962e02f5341cf60c694fb7e131cb417790075a56b32ca09992`. This establishes candidate names and file types only. It does not establish the contents, provenance, or expected hash in either manifest. The one-time scope is consumed.
+
+## Proposed next query — inspect the exact reference checksum manifest; not approved or run
+
+The next minimal read is limited to the observed regular file `reference/MD5SUMS`. It first resolves and guards the fixed RAW/reference path, opens only this manifest with `O_NOFOLLOW`, confirms via `fstat()` that the opened descriptor is a regular file no larger than 64 KiB, then reads at most 65,537 bytes to fail closed if it changed/grows beyond the cap. It prints the bounded manifest lines with line numbers and `repr`, plus byte/line counts. It does not read `RAW/MD5SUMS`, any sequencing/peak source data, or other files, and performs no hashing, output/storage/tool/cgroup check, write, install, or analysis. A new exact-head GPT review and one-time scope approval are required before any SSH.
+
+```bash
+ssh -o BatchMode=yes zz950@rcapps3.dfci.harvard.edu 'bash -s' <<'REMOTE'
+set -euo pipefail
+RAW=/home/zz950/DATA/2.PROJECTS/PMA/occupancy_chipatlas/raw/2026-10-17
+PY=/home/zz950/softwares/miniforge3/envs/pmafp/bin/python
+"$PY" - "$RAW" <<'PY'
+import os, stat, sys
+from pathlib import Path
+MAX_BYTES = 65536
+logical_root = Path(os.path.abspath(sys.argv[1]))
+logical_parent = logical_root.parent.parent.resolve(strict=True)
+raw_parent = logical_parent / logical_root.parent.name
+root = raw_parent / logical_root.name
+if raw_parent.is_symlink() or not raw_parent.is_dir():
+    raise SystemExit("RAW parent is missing or symlinked")
+if root.is_symlink() or not root.is_dir() or root.resolve(strict=True) != root:
+    raise SystemExit("RAW root is missing, symlinked, or resolves unexpectedly")
+def safe_path(value):
+    logical = Path(os.path.abspath(value))
+    try:
+        relative = logical.relative_to(logical_root)
+    except ValueError:
+        raise SystemExit(f"path outside logical RAW: {logical}")
+    if not relative.parts or ".." in relative.parts:
+        raise SystemExit(f"invalid relative path: {relative}")
+    current = root
+    for part in relative.parts:
+        current = current / part
+        if current.is_symlink():
+            raise SystemExit(f"symlink inside RAW: {current}")
+    resolved = current.resolve(strict=True)
+    if os.path.commonpath((str(root), str(resolved))) != str(root) or resolved != current:
+        raise SystemExit(f"path escapes canonical RAW: {current}")
+    return current
+reference = safe_path(logical_root / "reference")
+manifest = safe_path(logical_root / "reference" / "MD5SUMS")
+if not reference.is_dir():
+    raise SystemExit("reference is not a directory")
+if not hasattr(os, "O_NOFOLLOW"):
+    raise SystemExit("O_NOFOLLOW is unavailable")
+fd = os.open(str(manifest), os.O_RDONLY | os.O_NOFOLLOW)
+try:
+    st = os.fstat(fd)
+    if not stat.S_ISREG(st.st_mode):
+        raise SystemExit("reference/MD5SUMS is not a regular file")
+    if st.st_size > MAX_BYTES:
+        raise SystemExit("reference/MD5SUMS exceeds 64 KiB; report incomplete")
+    with os.fdopen(fd, "rb") as stream:
+        fd = -1
+        data = stream.read(MAX_BYTES + 1)
+    if len(data) > MAX_BYTES:
+        raise SystemExit("reference/MD5SUMS grew beyond 64 KiB; report incomplete")
+finally:
+    if fd >= 0:
+        os.close(fd)
+text = data.decode("ascii")
+lines = text.splitlines()
+print(f"MANIFEST_BYTES={len(data)} MANIFEST_LINES={len(lines)}")
+for line_no, line in enumerate(lines, 1):
+    print(f"MANIFEST_LINE number={line_no} text={line!r}")
+PY
+REMOTE
+```
+
+Any path guard, type, size, or decode error must stop the command with a nonzero exit. This query would only reveal the contents of the observed reference manifest; it would not itself authorize changing the preflight contract or hashing data. No further remote operation is authorized until GPT reviews this exact HEAD and command.
 
 ## Direction and current progress
 

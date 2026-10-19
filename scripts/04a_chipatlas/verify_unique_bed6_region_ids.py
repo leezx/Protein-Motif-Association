@@ -67,6 +67,26 @@ def reject_repo_path(path: Path) -> None:
             raise ValueError(f"QC input/work path is inside a Git checkout: {path.resolve()}")
 
 
+def read_background_builder_measurement(time_log: Path, status_file: Path,
+                                        expected_task_id: str) -> dict[str, int | str]:
+    """Bind the completed builder's peak RSS to its immutable task ID and logs."""
+    status = status_file.read_text(encoding="utf-8")
+    if not re.fullmatch(rf"ID={re.escape(expected_task_id)} EXIT=0 END=\S+\n", status):
+        raise ValueError("builder status does not confirm successful completion of this task")
+    log = time_log.read_text(encoding="utf-8")
+    matches = re.findall(r"^\s*Maximum resident set size \(kbytes\):\s*(\d+)\s*$",
+                         log, re.MULTILINE)
+    exit_codes = re.findall(r"^\s*Exit status:\s*(\d+)\s*$", log, re.MULTILINE)
+    if len(matches) != 1 or exit_codes != ["0"] or int(matches[0]) <= 0:
+        raise ValueError("builder time log lacks one successful peak-RSS measurement")
+    return {
+        "peak_rss_bytes": int(matches[0]) * 1024,
+        "peak_rss_status": "MEASURED_BY_USR_BIN_TIME_V",
+        "peak_rss_log_sha256": sha256_file(time_log),
+        "builder_status_sha256": sha256_file(status_file),
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--bed", required=True, type=Path, help="completed external BED6 .bed.gz")
@@ -74,6 +94,10 @@ def main() -> int:
     parser.add_argument("--work-dir", required=True, type=Path, help="external scratch for compact ID sort")
     parser.add_argument("--sort-buffer", default="4G")
     parser.add_argument("--sort-workers", type=int, default=2)
+    parser.add_argument("--builder-time-log", type=Path,
+                        help="completed background builder /usr/bin/time -v stderr")
+    parser.add_argument("--builder-status-file", type=Path,
+                        help="completed background builder status with matching task ID and EXIT=0")
     args = parser.parse_args()
 
     bed, chrom_sizes, work = args.bed.resolve(), args.chrom_sizes.resolve(), args.work_dir.resolve()
@@ -88,6 +112,9 @@ def main() -> int:
     if shutil.which("sort") is None:
         parser.error("GNU sort is required")
     memory_guard = require_gridengine_memory_limit()
+    if memory_guard["mode"] == "argos_background_rlimit_as" and not (
+            args.builder_time_log and args.builder_status_file):
+        parser.error("background release QC requires builder time log and status file")
     work.mkdir(parents=True, exist_ok=True)
     release_dir = bed.parent
     qc_path = release_dir / "region_id_collision_qc.json"
@@ -95,6 +122,16 @@ def main() -> int:
     if not qc_path.is_file() or not manifest_path.is_file():
         parser.error("release region-ID QC sidecar and MANIFEST.json must exist")
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if memory_guard["mode"] == "argos_background_rlimit_as":
+        builder_task_id = manifest.get("resource_measurement", {}).get("task_id")
+        if not isinstance(builder_task_id, str) or not builder_task_id.startswith("BG_BED6_"):
+            raise ValueError("manifest lacks the expected background builder task ID")
+        measurement = read_background_builder_measurement(args.builder_time_log.resolve(),
+                                                          args.builder_status_file.resolve(),
+                                                          builder_task_id)
+        manifest["resource_measurement"].update(measurement)
+        manifest["resource_measurement"].pop("gridengine_slots", None)
+        manifest["resource_measurement"]["task_slots"] = 1
     input_hash = sha256_file(bed)
     declared_hash = manifest.get("output_sha256", {}).get(bed.name)
     if (not isinstance(declared_hash, str) or len(declared_hash) != 64

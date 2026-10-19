@@ -578,3 +578,7 @@ Argos 作业 58 运行 10,272 秒后退出 2，stderr 为 `unexpected class-memb
 ## 2026-10-19 05:37 EDT：三类别微型端到端验证
 
 同一修复后的 Argos checkout `a3c0c68`，在 44 GiB 软硬地址空间上限下运行 `BG_BED6_FIXTURE_A3C0C68`，退出 0。外部小样例覆盖三个纳入类别、同一实验重复峰、跨实验同坐标、hg19 排除；5 条源行 → 4 条纳入行 → 3 个 region-experiment 关系 → 2 个唯一 BED6 区域，完整 manifest 已产生。位置 `/home/zz950/PMA_fetch/pma_bed6_fixture_a3c0c68/`。这只验证代码路径；全量 release 仍在重跑，不能用样例替代全量 QC。
+
+## 2026-10-19 06:02 EDT：正式 QC 绑定真实资源记录
+
+全量重跑持续运行，已读取约 4.37/21.40 GB 压缩源文件。独立 collision-QC 脚本现要求读取该 builder 的退出状态文件及 `/usr/bin/time -v` stderr，核对任务 ID、退出码 0 和唯一的峰值 RSS，并把测量值及日志 SHA-256 写入正式 manifest。此前背景作业留下的 `qacct` 占位状态不得作为发布资源记录。构建尚未结束，独立 QC 尚未执行，不能宣称 BED6 reference 完成。

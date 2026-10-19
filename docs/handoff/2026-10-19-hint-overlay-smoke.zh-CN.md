@@ -69,3 +69,7 @@ TraceBIND v8 的 gDNA/ctrl/aux 20 区域任务均退出 0，事件 363/31/29 行
 ## 2026-10-19 06:06 EDT：全样本 BAM 与 HINT 速度实测
 
 Argos 的 ctrl/aux 双重复 BAM 合并和索引均退出 0，分别为 4,960,640,917 与 4,877,771,562 字节，SHA-256 为 `a87821a4c33544f6534d7a1d51c6a54241af0f09c98dca7e652e491dd5ed452d` / `2259792d005017284166fad448783418dd4d97bcf16bff8c743e2df6dc47ca88`，`samtools quickcheck` 通过。合并准备时间与 caller 时间分开记录。06:06:37 EDT 已用完整 ctrl BAM、91,210 个预设 HCT116 peak 窗口、32 个 HINT 分块启动 `BG_HINT_GENOME_ctrl_32_V1`，44 GiB 软硬地址空间上限、CPU-only；日志在 `/home/zz950/PMA_fetch/pma_bg_pr8_20261019/`，结果在外部 `processed/round1/runs_genomewide_pr8_77d8556/ctrl/hint_32`。尚无退出码、全量输出或速度门槛结论；gDNA TOBIAS 与三组 TraceBIND 首轮仍在运行。
+
+## 2026-10-19 06:18 EDT：TraceBIND 序列 I/O 修复
+
+检查已安装 `tracebind::get_bias()` 后确认：若工作目录有 `regionSeqs.txt`，它会跳过对远端 2bit 文件逐区域反复执行的 `getSeq()`。原三组 V10 运行约半小时仍无结果，抽查 worker 已各自读取 15–24 GB 远端 2bit；因此主动停止，仅这三组进程树收到 TERM，gate 记录退出码 143，日志完整保留。新增脚本从已索引、已校验的 hg38 FASTA 预计算区域两侧各 50 bp，20 区域 ctrl 小样例与原 BSgenome 输出逐字节一致、退出 0。ctrl/aux/gDNA 的 2,000 区域预计算均在 44 GiB CPU-only 任务下退出 0，序列 SHA-256 为 `c071c1cd80e229510ac2f96ac552548e70b3e41ec8fdeea11c6e24ab82f5e91a`、`c071c1cd80e229510ac2f96ac552548e70b3e41ec8fdeea11c6e24ab82f5e91a`、`d821f7654bab067df730112bfb1979748bd179331756aedf784370ad819bbfff`。已用同一原生 R 统计调用和预计算序列启动三组 V11；退出与事件文件仍待核验。新外部汇总 spec 为 `spec_trace_v11_77d8556.json`，SHA-256 `2f182a61960a39606b5712e97e7c68d11799e1362bfafacf5064c4a2debe08a0`。尚无准确度结论。

@@ -1,8 +1,8 @@
 # PMA — handoff to Codex (2026-10-17, written by Claude Code)
 
-## Live status update — 2026-10-18 23:15 EDT — diagnostic safety finding repaired; fresh review required
+## Live status update — 2026-10-18 23:18 EDT — second diagnostic finding repaired; fresh review required
 
-PR #7 was OPEN at prior HEAD `5ebe91181231f19b06238f81fab8176e3fba187b` (base `3c0e48e699073726b9ef7453644cabbe8b277ca4`). GPT approved the implementation static audit but returned `REQUEST_CHANGES` for the proposed one-time read-only diagnostic because `Path.is_file()` follows symlinks. The command proposal is repaired in the dated handoff: reference candidates use `lstat()` plus `stat.S_ISLNK/S_ISREG`, names use `repr`, manifest parsing streams line-by-line, directory listing is unsorted, and candidate output has a hard limit that exits nonzero with an incomplete-report message. This command remains unrun and requires a fresh exact-HEAD review and new one-time scope approval. Do not contact Argos before that. No reference build/QC or footprint comparison has completed.
+PR #7 was OPEN at HEAD `6faa99c1a07cb35df748e0a2011349fd4d57859b` (base `3c0e48e699073726b9ef7453644cabbe8b277ca4`). GPT approved implementation/audit with zero blockers, but returned `REQUEST_CHANGES` for the proposed one-time read-only diagnostic: `Path.iterdir()` materializes all directory entries, so a cap on matching candidates does not bound directory-enumeration memory. Repaired the command to use `os.scandir()` streaming, retaining `DirEntry.stat(follow_symlinks=False)`. It caps matching candidate records at 100; this is not a strict output-byte limit, and individual manifest line size is not separately bounded. The command is unrun and needs fresh exact-HEAD review and one-time scope approval. Do not contact Argos before that. No reference build/QC or footprint comparison has completed.
 
 ## Live status update — 2026-10-18 23:10 EDT — recovered preflight result; manifest gate failed
 

@@ -20,6 +20,8 @@ import json
 import math
 import os
 import random
+import re
+import resource
 import shutil
 import subprocess
 import sys
@@ -81,27 +83,30 @@ def write_json(path: Path, value: object) -> None:
     path.write_text(json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2) + "\n", encoding="utf-8")
 
 
-def require_memory_cgroup() -> dict[str, int | str]:
-    """Fail closed unless this process is under the required cgroup-v2 limits."""
+def require_gridengine_memory_limit() -> dict[str, int | str]:
+    """Fail closed unless this is a one-slot Grid Engine job capped by h_vmem."""
     maximum = 44 * (1 << 30)
     try:
-        memberships = Path("/proc/self/cgroup").read_text(encoding="ascii").splitlines()
-        membership = next(line[3:] for line in memberships if line.startswith("0::/"))
-        relative = Path(membership.lstrip("/"))
-        if ".." in relative.parts:
-            raise ValueError("unsafe cgroup path")
-        cgroup = Path("/sys/fs/cgroup") / relative
-        memory_max = (cgroup / "memory.max").read_text(encoding="ascii").strip()
-        swap_max = (cgroup / "memory.swap.max").read_text(encoding="ascii").strip()
-        peak = int((cgroup / "memory.peak").read_text(encoding="ascii").strip())
-        if memory_max == "max" or int(memory_max) <= 0 or int(memory_max) > maximum:
-            raise ValueError(f"memory.max must be finite and <=44 GiB, got {memory_max!r}")
-        if swap_max != "0":
-            raise ValueError(f"memory.swap.max must be 0, got {swap_max!r}")
-    except (OSError, StopIteration, ValueError) as exc:
-        raise RuntimeError(f"required cgroup-v2 memory guard unavailable or invalid: {exc}") from exc
-    return {"path": membership, "memory_max_bytes": int(memory_max),
-            "memory_swap_max_bytes": int(swap_max), "memory_peak_bytes_at_start": peak}
+        job_id = os.environ.get("JOB_ID", "")
+        slots = os.environ.get("NSLOTS", "")
+        if not job_id.isdecimal() or slots != "1":
+            raise ValueError(f"expected a one-slot Grid Engine job, got JOB_ID={job_id!r}, NSLOTS={slots!r}")
+        if not hasattr(resource, "RLIMIT_AS"):
+            raise ValueError("RLIMIT_AS is unavailable")
+        soft, hard = resource.getrlimit(resource.RLIMIT_AS)
+        if any(value == resource.RLIM_INFINITY or value <= 0 or value > maximum for value in (soft, hard)):
+            raise ValueError(f"RLIMIT_AS soft/hard must be finite and <=44 GiB, got {(soft, hard)!r}")
+        if soft > hard:
+            raise ValueError(f"RLIMIT_AS soft limit exceeds hard limit: {(soft, hard)!r}")
+        qstat = subprocess.run(["qstat", "-j", job_id], check=True, capture_output=True, text=True,
+                               encoding="utf-8", timeout=10).stdout
+        if not re.search(r"(?:^|[,\s])h_vmem=44G(?:[,\s]|$)", qstat):
+            raise ValueError("qstat does not confirm the exact hard request h_vmem=44G")
+    except (OSError, subprocess.SubprocessError, ValueError) as exc:
+        raise RuntimeError(f"required Grid Engine h_vmem/RLIMIT_AS guard unavailable or invalid: {exc}") from exc
+    return {"mode": "gridengine_h_vmem_single_slot_plus_rlimit_as", "job_id": job_id, "slots": 1,
+            "rlimit_as_soft_bytes": int(soft), "rlimit_as_hard_bytes": int(hard),
+            "memory_cap_bytes": maximum}
 
 
 def load_metadata(path: Path) -> tuple[dict[str, list[list[str]]], str]:
@@ -306,12 +311,12 @@ def main() -> int:
     reject_repo_output(workdir)
     if outdir.exists() and any(outdir.iterdir()):
         parser.error(f"output directory must be absent or empty: {outdir}")
+    memory_guard = require_gridengine_memory_limit()
     outdir.mkdir(parents=True, exist_ok=True)
     workdir.mkdir(parents=True, exist_ok=True)
     if shutil.which("sort") is None or shutil.which("bgzip") is None or shutil.which("tabix") is None:
         parser.error("GNU sort, bgzip, and tabix must be available in the approved external environment")
 
-    memory_guard = require_memory_cgroup()
     repo_root = Path(__file__).resolve().parents[2]
     builder_path = Path(__file__).resolve()
     tracked = subprocess.run(["git", "-C", str(repo_root), "ls-files", "--error-unmatch",
@@ -634,13 +639,15 @@ def main() -> int:
         "tool_versions": {"python": sys.version.split()[0], "gnu_sort": tool_version(["sort", "--version"]),
                            "bgzip": tool_version(["bgzip", "--version"]),
                            "tabix": tool_version(["tabix", "--version"])},
-        "resource_measurement": {"memory_cap_bytes": memory_guard["memory_max_bytes"],
-                                 "memory_swap_max_bytes": memory_guard["memory_swap_max_bytes"],
-                                 "cgroup_path": memory_guard["path"],
-                                 "cgroup_memory_peak_bytes": int((Path("/sys/fs/cgroup") /
-                                     str(memory_guard["path"]).lstrip("/") / "memory.peak").read_text().strip()),
+        "resource_measurement": {"memory_limit_mode": memory_guard["mode"],
+                                 "memory_limit_semantics": "Grid Engine h_vmem=44G hard job request on one slot; process RLIMIT_AS soft/hard also verified",
+                                 "memory_cap_bytes": memory_guard["memory_cap_bytes"],
+                                 "gridengine_job_id": memory_guard["job_id"],
+                                 "gridengine_slots": memory_guard["slots"],
+                                 "rlimit_as_soft_bytes": memory_guard["rlimit_as_soft_bytes"],
+                                 "rlimit_as_hard_bytes": memory_guard["rlimit_as_hard_bytes"],
                                  "peak_rss_bytes": None,
-                                 "peak_rss_status": "NOT_MEASURED"},
+                                 "peak_rss_status": "COLLECT_FROM_GRIDENGINE_QACCT_AFTER_JOB"},
     }
     write_json(outdir / "MANIFEST.json", manifest)
     print(json.dumps({"status": "complete", "reconciliation": reconciliation,

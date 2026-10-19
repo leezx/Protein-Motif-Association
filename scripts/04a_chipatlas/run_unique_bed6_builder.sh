@@ -1,16 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Fail closed unless the entire builder and all GNU sort/tabix children run in a
-# cgroup with a hard memory ceiling. The capped scope is below the PI's 50 GiB
-# per-task limit; sort's -S setting alone is not considered a process limit.
-if ! command -v systemd-run >/dev/null 2>&1; then
-  echo "ERROR: systemd-run is required to enforce the builder memory ceiling" >&2
-  exit 2
-fi
-
-exec systemd-run --user --scope --quiet \
-  --property=MemoryMax=44G \
-  --property=MemorySwapMax=0 \
-  --property=TasksMax=8 \
-  -- "$@"
+# Run only inside a single-slot Grid Engine job requested with h_vmem=44G.
+# Grid Engine applies h_vmem as a per-job combined-virtual-memory hard limit;
+# Python rechecks the job record and process RLIMIT_AS before reading inputs.
+[[ -n "${JOB_ID:-}" && "${NSLOTS:-}" == 1 ]] || { echo "ERROR: submit as a one-slot Grid Engine job" >&2; exit 2; }
+for value in "$(ulimit -Sv)" "$(ulimit -Hv)"; do
+  [[ "$value" =~ ^[0-9]+$ ]] || { echo "ERROR: finite soft/hard RLIMIT_AS required" >&2; exit 2; }
+  (( 10#$value > 0 && 10#$value <= 44*1024*1024 )) || { echo "ERROR: RLIMIT_AS exceeds 44 GiB" >&2; exit 2; }
+done
+exec "$@"

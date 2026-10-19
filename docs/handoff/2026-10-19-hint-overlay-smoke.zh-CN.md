@@ -91,3 +91,7 @@ ENCODE 官方记录的 K562 bulk ATAC-seq `ENCSR868FGK` 中，GRCh38 replicate-1
 三组 TraceBIND V11、aux 全样本 HINT 均在 Argos 退出 0。原 gDNA TOBIAS 2,000 区域评分虽记录 100% 却没有写出 bigWig，整个任务退出 1；同一校正信号的 20 区域探针可以输出轨道。使用该已完成校正信号，改用 `--split 1` 在新目录重试，得到 84,822 条事件，退出 0；原失败日志保留。冻结三组汇总 spec 只更新这一个事件路径；`BG_EVAL_ROUND1_V12` 退出 0，外部报告 SHA-256 `cf5594822431aaa09d2eb679619b644034c013c665f25c3696c5771c2c0b9f32`。三组各有 2,000 区域、2.0 Mb，四工具全部 15 个事件输出存在且区域外事件为 0。原生阈值下 gDNA 每 Mb 事件数：HINT 3,905，PRINT r20 688，TOBIAS 42,411，TraceBIND 14,527。阈值没有匹配灵敏度，不能据此判断准确度赢家。按 `review-task` Quick：本阶段输出 L1 PASS，工具选择的方法学 L2 BLOCKED，方向 ON TRACK，真实进展 REAL，L3 人类验收待定；继续 B1 灵敏度匹配与 B2–B4。
 
 K562 BAM `ENCFF534DCE` 已按官方字节/MD5 校验并通过 quickcheck，SHA-256 `1ed9d63b38d2430bc037493187fc3c0f73478d204dc55d6f1ed7c329f17105df`。独立 Argos 计数得到 MAPQ≥30、primary、proper-pair 的 **110,891,952** 个片段，达到正式 1 亿片段输入。与该 BAM 同实验、同 replicate-1 的 released GRCh38 IDR peaks `ENCFF993BAP` 已校验下载，SHA-256 `c0c1d0b5350a962b9d7a7f1d2edef1ca98005029c79f07979533f3a14cb40945`。BAM 索引任务 `BG_K562_BAM_INDEX_V1` 运行中；接下来冻结同一样本 peak 搜索空间后正式计时。这份样本仅用于计算速度，不能未经 QC 当 B3 生物学真值。
+
+## 2026-10-19 10:57 EDT：K562 索引与速度搜索空间脚本
+
+K562 BAM 索引任务已退出 0，索引 SHA-256 `9566848400900c465d450bc1c942a61207fc7bb7439403fcbcc86b0c349330d4`。新增 `scripts/04b_footprint/prepare_speed_regions.py`，复用 HCT116 的峰强度优先、summit ±500 bp 去重规则，在同一样本的 K562 IDR peak 上形成窗口，并按固定随机种子加入 2,000 个与原始峰和 blacklist 都不重叠的阴性窗口。脚本记录过滤计数和输入输出 SHA-256，输出只允许在仓库外。代码已通过语法与差异检查，尚未运行全量 K562 区域准备或正式速度比较。

@@ -1,8 +1,9 @@
 # Step 4b footprint：十轮内形成可行工具选择
 
-更新时间：2026-10-19 15:58 EDT（UTC 19:58）
+更新时间：2026-10-19 16:00 EDT（UTC 20:00）
 范围：仅 footprint→de novo motif；ChIP BED6 / PR #7 由 Claude 负责，本交接不涉及。  
 PR #8：`task_20261019_hint_overlay_smoke`，OPEN、未合并。固定 PMA 对话 `PMA｜固定阶段审核` 对完整 HEAD `a602373a1849588c6bdce2356791afc3ac7a5d72` 给出 `APPROVE`，仅限文档/方法与仓库只读审计；不批准任何 Argos 或数据操作。固定 handoff 不自引用更新自身 commit SHA，后续复审前从 GitHub 读取实时完整 tip。
+该对话对后续 exact HEAD `4f1d2b86e0e15aeda8d5e8766049eff5539150d5` 返回 `REQUEST_CHANGES`；关于分折、分数方向及阈值截断事件的三项最小方法修订已同 PR 推送为 `a443c70`，等待在同一固定对话 exact-head 复审。此过程没有启动 Argos 或读取实验数据。
 审核边界：此前 `fd0b041` 的 APPROVE 仅覆盖方法文档；`525f0d4` 收到的时间、状态来源、折外边界和事件级备选 findings 已在同 PR 修复，并获当前 `0829b08` 方案级批准。15:41 EDT Argos 队列读取来自当时用户明确要求的 15 分钟监控 heartbeat；只读取调度与已有状态文件，没有读取实验数据，也没有核查 detached processes。该监控授权不扩大为 caller 执行授权。
 
 ## 现在能确定什么

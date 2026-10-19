@@ -1,6 +1,6 @@
 # PMA — handoff to Codex (2026-10-17, written by Claude Code)
 
-## Current live status — 2026-10-19 15:58 EDT — ranking contract under same-PR repair
+## Current live status — 2026-10-19 16:00 EDT — ranking contract repair pushed
 
 Footprint-only. PR #8 is OPEN, unmerged, on `task_20261019_hint_overlay_smoke`. Fixed PMA conversation
 `PMA｜固定阶段审核` approved exact HEAD `a602373a1849588c6bdce2356791afc3ac7a5d72` for a
@@ -9,11 +9,12 @@ documentation-only ranking contract, then returned `REQUEST_CHANGES` on exact HE
 neighboring blocks separate and using embargo rather than re-folding them, (2) fixing score direction
 from source definitions instead of choosing it from training labels, and (3) not using already
 threshold-truncated HINT/TraceBIND BED files to claim matched-recall or fixed-budget ranking. Minimal
-same-PR documentation corrections are in progress. Neither review authorized Argos, experimental
+same-PR documentation corrections were pushed as `a443c70`; the exact new head is pending review in
+the same fixed PMA conversation. Neither review authorized Argos, experimental
 data, analysis, environment changes, caller execution, or merge. The user requests a credible answer
 within ten iterations; round 10 may conclude “cannot rank” if independent labels and comparable
 held-out outputs remain unavailable.
-The current local correction keeps neighboring hash-assigned blocks separate and relies on embargo,
+The correction keeps neighboring hash-assigned blocks separate and relies on embargo,
 fixes score direction from the pinned tool definition, and limits event-threshold tuning to complete
 score/call spaces. Threshold-truncated native HINT/TraceBIND BED outputs remain fixed operating points
 unless a complete threshold grid is validated; filtering already-emitted rows cannot support

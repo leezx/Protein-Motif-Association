@@ -1,5 +1,24 @@
 # PMA — handoff to Codex (2026-10-17, written by Claude Code)
 
+## Current live status — 2026-10-19 15:20 EDT — fixed-thread review findings being repaired
+
+Footprint-only scope; do not touch Claude's ChIP BED6 or PR #7. PR #8 is OPEN on
+`task_20261019_hint_overlay_smoke`, with remote HEAD `25343902cd2618fff8fbea37e32b80d2ea3ef1f8`.
+The fixed PMA project conversation `PMA｜固定阶段审核` returned `REQUEST_CHANGES` on this exact
+HEAD. Three documentation findings are being repaired in this same PR: the four-tool leader rule
+must compare its three opponents (while correcting all six pairs); naked-DNA Tn5 insertions cannot
+be described as absent; and current handoff status must distinguish pushed GitHub state from local
+work. The design now states a deterministic B1 QNAME-hash rule, score ties, plateau representative,
+inclusive cutoff, exact 21-bp NMS, fold-territory execution, and the no-protein-protection-truth
+interpretation. This is protocol text only; no data, Argos command, analysis, or environment change.
+
+Accuracy has not been ranked: ChIP truth provenance/replicates and a four-way common continuous
+score field are not established. No winner or cancer-wide output exists. The current edit remains
+local until committed/pushed; older live-status paragraphs below are timestamped snapshots and are
+superseded by this newest block. Next: complete same-PR audit updates, inspect the named-file diff,
+push, then request exact-head review only in the fixed PMA conversation. No dependent compute before
+APPROVE and human stage acceptance; do not merge PR #8.
+
 ## Current live status — 2026-10-19 15:15 EDT — PR #8 method revision after fixed-thread review
 
 Footprint-only scope. GitHub PR #8 is OPEN at base HEAD `069d5ccd4de99888f8fac29b93e1f1b0dd7b9ecf` on

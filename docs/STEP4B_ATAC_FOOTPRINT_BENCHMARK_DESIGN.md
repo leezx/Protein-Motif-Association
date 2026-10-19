@@ -1,9 +1,10 @@
 # Step 4b — Genome-wide, motif-free ATAC-seq footprinting: benchmark design
 
 **Status.** The earlier benchmark design was approved by ChatGPT on 2026-10-17 with revisions.
-Section 4 was materially revised on 2026-10-19 after exact-head review feedback and is pending
-review of the revised PR HEAD; the earlier approval does not cover these changes. No caller is
-selected, and no C/C++ port is approved. Both decisions wait for a measured benchmark (§6).
+That approval does not cover the material Section 4 revisions. The fixed PMA project conversation
+returned `REQUEST_CHANGES` on the 2026-10-19 exact-head review; its remaining documentation findings
+are being addressed in the same PR. No caller is selected, and no C/C++ port is approved. Both
+decisions wait for a measured benchmark (§6).
 
 **PI direction.**
 - Read Hu et al. 2025 *Nature* ("Multiscale footprints reveal the organization of cis-regulatory
@@ -216,22 +217,33 @@ motif-free event precision.
    it excludes refitting variability and does not establish cross-experiment generalization. Treating
    1-Mb blocks as independent is an approximation; long-range dependence and shared training models
    remain. If a caller has an invalid run, report its pairwise estimands unavailable instead of
-   changing the frozen universe. A local AP leader requires all five simultaneous intervals against
-   the other callers to have lower bounds above zero in the four-way common score set.
+   changing the frozen universe. A local AP leader requires the candidate's three pairwise AP-difference
+   intervals against the other three callers to have lower bounds above zero. All six pairwise
+   comparisons remain in the Bonferroni family.
 5. **B1–B4 and selection.** B1 naked gDNA is specificity evidence only: apply the same training-fold
    cutoff and one frozen event adapter (21-bp event width, peak at local maximum, greedy NMS with
    minimum center distance 21 bp) to report naked-DNA false-event density per callable Mb and per
-   million usable aligned fragment ends after matching depth. Naked gDNA has no biological Tn5 cuts;
-   do not call this conventional FPR or normalize by “cuts.” Freeze chromosome order, score-tie
-   resolution, whether exactly 21-bp center distance is retained, missing/nonfinite-score handling,
-   and whether NMS runs over each complete fold territory before event assignment. An event counts
-   only if its full interval lies in callable territory and mask; missing coverage, failed calls and
+   million usable aligned fragment ends after matching depth. Naked-DNA runs can contain Tn5 insertions
+   and cut sites, but they lack protein-protection footprint truth; report this as false-event density,
+   not conventional binary FPR. If inferred insertion endpoints are additionally reported, freeze the
+   fragment-to-insertion coordinate transform (including any +4/−4 shift) and its denominator.
+   Freeze chromosome order and score ties: score descending, then frozen `chrom.sizes` order,
+   coordinate ascending and stable event ID; a plateau's representative local maximum is its leftmost
+   base. Apply an inclusive raw-score cutoff (`score >= cutoff`). Greedy NMS keeps centers at exactly
+   21 bp apart (`distance >= 21 bp`). Run NMS once over each complete fold's callable territory after
+   mask/embargo exclusions and before assigning events to candidate windows; an event counts only if
+   its full 21-bp interval lies within that territory and mask. Missing coverage, failed calls and
    nonfinite scores invalidate the fold/run rather than being zero-filled or silently dropped.
-   Apply each caller's unchanged, fold-specific HCT116 training cutoff to B1; use the same frozen
-   model/resources and do not adapt, refit or recalibrate on naked-DNA reads. Depth-match by
-   deterministic downsampling to a common usable-fragment-end count per callable base; report
-   usable fragment ends, callable bases, raw cutoff, per-fold recall, and pooled
-   `sum(events)/sum(callable Mb)` plus fold-specific rates. B1 is not positive truth. Report the
+   Apply each caller's unchanged, fold-specific HCT116 training cutoff to the corresponding B1
+   genomic fold using the same frozen score field, model and resources; do not fit, adapt or recalibrate
+   on naked-DNA reads. For each eligible B1 library `i`, let `E_i` be its usable fragment-end count,
+   `C_i` its callable bases, `r_min = min_i(E_i/C_i)`, and `T_i = floor(r_min*C_i)`. Sort eligible
+   paired fragments by ascending SHA-256 of `PMA-4b-B1-depth-20261019|<QNAME>`, breaking hash ties
+   by QNAME byte order. Retain the longest prefix whose cumulative usable ends do not exceed `T_i`
+   (do not split pairs); report `T_i`, the attained count and any residual. Count only ends passing
+   the frozen usability predicate. Report usable ends,
+   callable bases, raw cutoff, per-fold rate and pooled `sum(events)/sum(callable Mb)`. B1 is not
+   positive truth. Report the
    corresponding held-out HCT116
    retained-site recall separately. B2 tests the paired ctrl→aux score change at ChIP-depleted
    versus retained loci; it reuses the primary labels and is not independent validation. B3 uses
@@ -240,8 +252,8 @@ motif-free event precision.
    TraceBIND developers' HCT116 degron set is an author-benchmark reanalysis, not independent
    validation. B4 replicate reproducibility and motif-family recovery are supporting evidence only.
    Declare a **local HCT116 CTCF AP leader** only when one caller's held-out AP exceeds every other
-   caller in the four-way common mask and all five simultaneous pairwise AP-difference intervals
-   have lower bounds above zero. Otherwise
+   caller in the four-way common mask and the candidate's three simultaneous pairwise AP-difference
+   intervals have lower bounds above zero. Otherwise
    report no AP leader or only the supported pairwise subset. Report B1 specificity and B2 direction
    separately; if either materially conflicts with the AP result, say evidence is mixed and do not
    name an overall best tool. Do not add post-hoc weights. This benchmark cannot establish a

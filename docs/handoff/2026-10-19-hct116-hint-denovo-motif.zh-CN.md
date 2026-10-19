@@ -1,5 +1,18 @@
 # HCT116 HINT motif 与 K562 TOBIAS 里程碑
 
+## 最新状态 — 2026-10-19 15:20 EDT — 固定 PMA 审核指出的文档问题正在同一 PR 修复
+
+PR #8 仍 OPEN，远端 HEAD 为 `25343902cd2618fff8fbea37e32b80d2ea3ef1f8`。固定 PMA 项目对话
+`PMA｜固定阶段审核` 对该 exact HEAD 返回 `REQUEST_CHANGES`。本轮仅在同一 PR 修订方法与交接文档：
+把四工具 leader 写成候选工具相对其余三者的区间判断，同时保留六个配对比较的校正族；修正裸
+gDNA 可有 Tn5 插入/切割、但没有蛋白保护 footprint 真值的表述；并冻结 B1 的 score tie、平台峰值、
+inclusive cutoff、21-bp NMS、折内 territory 和 QNAME-hash 深度匹配规则。
+
+当前这些更正仍在本地，尚未进入 GitHub。文档本身不构成分析：没有 Argos 任务、数据读取/下载、
+环境变更、评分或合并；准确度排名、tool winner 和癌症全局结果仍不存在。下方 15:15 及更早章节是
+当时状态快照，由本节覆盖。接下来完成 Worklog/CODEX_HANDOFF 同步、检查差异、推送同一 PR，并仅在
+固定 PMA 对话请求新 HEAD 复审。
+
 ## 2026-10-19 15:15 EDT — 固定 PMA 审核会话的技术反馈已落实到同一 PR
 
 PR #8 HEAD `069d5ccd4de99888f8fac29b93e1f1b0dd7b9ecf` 在固定 PMA 项目对话

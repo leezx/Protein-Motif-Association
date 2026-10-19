@@ -574,3 +574,7 @@ Argos 作业 58 运行 10,272 秒后退出 2，stderr 为 `unexpected class-memb
 ## 2026-10-19 05:34 EDT：全量重跑已启动
 
 新 Argos checkout 固定为 `a3c0c68` 且干净。后台任务 `BG_BED6_RETRY_A3C0C68` 已于 05:31 EDT 启动，44 GiB 软硬地址空间上限、单 CPU 槽语义、无 GPU。新输出和工作路径分别为 `processed/unique_bed6_v1_retry_a3c0c68` 与同名 `_work`；独立 PID、日志、退出码位于 `/home/zz950/PMA_fetch/pma_bg_pr8_20261019/`。修复的代码还未完成本次全量运行，因此结果仍未验收。独立 region-ID collision QC 已支持同样的受限后台模式，将在 release manifest 存在后运行。
+
+## 2026-10-19 05:37 EDT：三类别微型端到端验证
+
+同一修复后的 Argos checkout `a3c0c68`，在 44 GiB 软硬地址空间上限下运行 `BG_BED6_FIXTURE_A3C0C68`，退出 0。外部小样例覆盖三个纳入类别、同一实验重复峰、跨实验同坐标、hg19 排除；5 条源行 → 4 条纳入行 → 3 个 region-experiment 关系 → 2 个唯一 BED6 区域，完整 manifest 已产生。位置 `/home/zz950/PMA_fetch/pma_bed6_fixture_a3c0c68/`。这只验证代码路径；全量 release 仍在重跑，不能用样例替代全量 QC。

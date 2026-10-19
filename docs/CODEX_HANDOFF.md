@@ -374,3 +374,7 @@ Grid Engine job 58 exited 2 after 10,272 s at a deterministic finalization bug (
 ### 2026-10-19 05:34 EDT — active BED6 retry
 
 `BG_BED6_RETRY_A3C0C68` is active on Argos from clean code HEAD `a3c0c68`, with external output `unique_bed6_v1_retry_a3c0c68`, one task, 44-GiB finite soft/hard RLIMIT_AS, no GPU. Job 58's partial sidecars remain separate. Do not run collision QC until the new manifest and BED6 exist and the retry exits 0. The collision-QC script has been adapted to the same capped background mode because Grid Engine `normal.q` remains QERROR.
+
+### 2026-10-19 05:37 EDT — BED6 mini fixture
+
+The corrected builder `a3c0c68` completed a capped Argos end-to-end fixture: five source rows, four included rows across three classes, three experiment links, two unique BED6 coordinates, and a complete manifest, exit 0. External fixture: `/home/zz950/PMA_fetch/pma_bed6_fixture_a3c0c68/`. The full 4.43e8-row retry remains active and is the only candidate release; do not substitute fixture success for full QC.

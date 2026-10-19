@@ -761,3 +761,7 @@ Argos Grid Engine job 58 exited 2 after 10,272 s. It generated region/experiment
 ## 2026-10-19 05:34 EDT — started capped BED6 retry; prepared collision QC for same execution mode
 
 Argos source checkout `/home/zz950/PMA_fetch/pma_pr7_builder_a3c0c68` is clean at `a3c0c68`. Started background task `BG_BED6_RETRY_A3C0C68` at 05:31 EDT with one process, CPU only, finite 44-GiB soft/hard RLIMIT_AS, independent PID/exit/log records, and fresh external output/work paths `unique_bed6_v1_retry_a3c0c68{,_work}`. The process is active. The only Grid Engine queue remains QERROR, so the independent release collision-QC script was also adapted to the same explicit capped background mode; it will run only after a complete BED6 manifest exists. No release or QC pass is yet claimed.
+
+## 2026-10-19 05:37 EDT — mini end-to-end BED6 fixture passes under Argos cap
+
+To catch another late finalization error before the multi-hour retry ends, ran `BG_BED6_FIXTURE_A3C0C68` on Argos under the same 44-GiB soft/hard RLIMIT_AS. A small external fixture with three included classes, one duplicate experiment/coordinate row and one hg19 exclusion completed end-to-end: 5 source rows, 4 included rows, 3 region-experiment pairs, 2 unique BED6 regions; exit 0 and release manifest emitted. Fixture inputs/results are outside the repo at `/home/zz950/PMA_fetch/pma_bed6_fixture_a3c0c68/`. This validates code path and class-mask fix, not the full 4.43e8-row release. Full retry remains active.

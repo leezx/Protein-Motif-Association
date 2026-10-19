@@ -1,15 +1,14 @@
 # PMA — handoff to Codex (2026-10-17, written by Claude Code)
 
-## Current live status — 2026-10-19 15:46 EDT — ten-round plan corrected after exact-head review
+## Current live status — 2026-10-19 15:51 EDT — ten-round plan and eligibility audit
 
-Footprint-only. PR #8 is OPEN, unmerged, on `task_20261019_hint_overlay_smoke`. The fixed PMA
-conversation `PMA｜固定阶段审核` returned `REQUEST_CHANGES` on prior HEAD
-`525f0d4f8e617349836c9ea94870c92cc08fb5ae`; its documentation repair (`6840d83`) and following
-handoff-sync commit have been pushed to the same PR. Before review, resolve the live PR head from
-GitHub; the handoff does not self-reference the commit that updates itself. The earlier `fd0b041`
-approval covered method documentation only, not execution. This revision does not authorize Argos
-or experimental work. The PR description is synchronized with this bounded ten-round plan and the
-current no-winner evidence state; resolve its live HEAD from GitHub for exact-head review.
+Footprint-only. PR #8 is OPEN, unmerged, on `task_20261019_hint_overlay_smoke`. Fixed PMA conversation
+`PMA｜固定阶段审核` reviewed exact HEAD `0829b0886777637a88fb3925ce9d1f511b1a00dd` and returned
+`APPROVE` for the ten-round method document plus repository-only read audit. It explicitly did not
+authorize Argos, experimental data, analysis, environment changes, caller execution, or merge. The
+current local change adds the approved data-admission/adapter/fold-exclusion evidence checklist;
+after it is pushed, resolve the live PR head from GitHub for exact-head review. The PR description
+matches the bounded plan and states that no accuracy winner is established.
 
 The user-requested 15-minute monitoring instruction authorized the 15:41 EDT read-only queue check;
 `qstat -u zz950` listed no scheduler jobs for that account. Detached/background processes were not
@@ -32,15 +31,14 @@ score coverage and verified fold-excluded scores remain absent. Therefore no fou
 accuracy winner is justified. Do not run dependent compute until a new exact-head execution review
 and human stage acceptance.
 
-The fixed-thread review also found the ten-round protocol needed a fair event-level fallback if
-continuous scores cannot be exposed, and a no-ranking terminal outcome if no valid test is possible.
-The revision allows held-out reads/sequence as frozen-predictor inputs while forbidding held-out labels
-or score distributions for fitting, adaptation, tuning or tool selection. It keeps event-level
-matching, fold-trained threshold calibration, test-fold recall and naked-DNA false-event density
-separate from AP. GNU `time -v` process elapsed (28:18.88) and the job timestamp interval (28:24) are
-identified as distinct clocks. HCT116 HINT-derived STREME is labeled exploratory motif output, not B4
-reproducibility/family-recovery evidence. These are same-PR documentation repairs only; exact-head
-review of the complete live branch tip is pending in the fixed PMA conversation.
+The fixed-thread review found the ten-round protocol needed a fair event-level fallback if continuous
+scores cannot be exposed and a no-ranking terminal outcome if no valid test is possible. The approved
+revision allows held-out reads/sequence as frozen-predictor inputs while forbidding held-out labels or
+score distributions for fitting, adaptation, tuning or selection. It keeps event-level matching,
+fold-trained threshold calibration, test-fold recall and naked-DNA false-event density separate from
+AP. GNU `time -v` process elapsed (28:18.88) and the job timestamp interval (28:24) are identified as
+distinct clocks. HCT116 HINT-derived STREME is labeled exploratory motif output, not B4 evidence.
+This approval is limited to repository documents/read-only audit and does not permit external work.
 
 ## Current live status — 2026-10-19 15:23 EDT — review fixes and audit sync pushed
 

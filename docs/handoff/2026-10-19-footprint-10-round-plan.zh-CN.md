@@ -1,9 +1,9 @@
 # Step 4b footprint：十轮内形成可行工具选择
 
-更新时间：2026-10-19 15:46 EDT（UTC 19:46）
+更新时间：2026-10-19 15:51 EDT（UTC 19:51）
 范围：仅 footprint→de novo motif；ChIP BED6 / PR #7 由 Claude 负责，本交接不涉及。  
-PR #8：`task_20261019_hint_overlay_smoke`，OPEN、未合并。固定 PMA 对话对前一 HEAD `525f0d4f8e617349836c9ea94870c92cc08fb5ae` 返回 `REQUEST_CHANGES`；同 PR 修订和后续 handoff-sync 已推送。提交/复审前从 GitHub 读取当前完整 branch tip；交接文件不自引用更新它自己的 commit SHA。
-审核边界：固定 PMA 项目对话 `PMA｜固定阶段审核` 对 `fd0b041` 的 APPROVE 仅覆盖文档/方法设计，不批准计算。随后针对 `525f0d4` 的反馈要求修正时间、状态来源表述、折外预测/适配边界和事件级备用终点。Argos 队列状态检查属于用户明确要求的 15 分钟监控 heartbeat；该次检查只读取调度队列，不读取实验数据，也不检查 detached processes。该监控授权不扩大为 caller 执行授权。
+PR #8：`task_20261019_hint_overlay_smoke`，OPEN、未合并。固定 PMA 对话对完整 HEAD `0829b0886777637a88fb3925ce9d1f511b1a00dd` 给出 `APPROVE`，仅限文档/方法与仓库只读审计；不批准任何 Argos 或数据操作。固定 handoff 不自引用更新自身 commit SHA，后续复审前从 GitHub 读取实时完整 tip。
+审核边界：此前 `fd0b041` 的 APPROVE 仅覆盖方法文档；`525f0d4` 收到的时间、状态来源、折外边界和事件级备选 findings 已在同 PR 修复，并获当前 `0829b08` 方案级批准。15:41 EDT Argos 队列读取来自当时用户明确要求的 15 分钟监控 heartbeat；只读取调度与已有状态文件，没有读取实验数据，也没有核查 detached processes。该监控授权不扩大为 caller 执行授权。
 
 ## 现在能确定什么
 
@@ -34,16 +34,34 @@ PR #8：`task_20261019_hint_overlay_smoke`，OPEN、未合并。固定 PMA 对�
 | 9 | 公平速度/端到端癌症试用，若有合格候选 | 统一线程、资源、输入和过滤；包含 fragment prep 的端到端 wall、core-hours、峰值聚合 RSS、输出完整性。只对最多两个有资格的候选做冻结癌症 ATAC 全可及区域 footprint→STREME/TOMTOM 试用；motif 数不回流作准确度。若没有合格候选，不启动新试用，改交不可排名/证据缺口。若精度赢家慢，先 profiler 定位热点，后续另立 C/C++ 优化；本十轮不重写。 |
 | 10 | 最终工具决策备忘录；若适用则交付 de novo motif | 若同一场景有可靠领先证据且 B1–B3 不冲突，选择该场景工具；准确度不可区分时可按可用性/端到端速度选部署工具，但必须写“准确度未证优”；若准确度/特异性/速度冲突，保留最多两个 Pareto 候选；资格不满足则以“当前数据不能排名”封板，写清缺少什么以及工程基线的局限，不强求新 footprint/motif 结果。只有此前资格和人类阶段门禁均通过，才交付工具的 footprint、背景匹配、de novo motif 与稳定性/QC。第十轮后不再扩展 benchmark。 |
 
-## 对 `525f0d4` 审核反馈的修正（本地待提交）
+## 对 `525f0d4` 审核反馈的修正（已推送并获方案审核）
 
 固定 PMA 项目对话对 `525f0d4` 返回 `REQUEST_CHANGES`。同 PR 修订及 handoff-sync 已推送：不再把空 `qstat` 解释为无后台任务；把 15:41 队列读取归因于用户的 15 分钟监控指示，并与实验数据访问分开；将 GNU `time` 子进程 28:18.88 与 job 时间戳 28:24 标明为不同口径；允许 held-out 输入用于冻结 caller 的预测，同时禁止用 held-out 标签/分数分布进行拟合、适配或选择；补充连续分数不可用时的事件级备选，并允许第十轮以不可排名结束。HCT116 HINT→STREME 输出改列为探索性 motif 结果，不作为 B4 验证。复审前从 GitHub 确认完整 live branch tip，并在固定 PMA 对话审核该 SHA。
 
-本次审核不放行 Argos、数据、环境变更或分析。它只要求修正文档；修订和 audit sync 已推送至同一 PR，仍需在同一固定 PMA 对话对实时完整 tip 做 exact-head 复审。即使文档获批，运行依赖任务仍须满足相应人类阶段接受。
+固定 PMA 对话对精确 HEAD `0829b08` 审核为 `APPROVE`。审核确认：空 qstat 仅表示无队列作业；状态查询授权与实验数据访问已分开；时间/HEAD/计时口径已说明；允许冻结 caller 预测时使用 held-out 输入，禁止利用 held-out 标签/分数拟合或选择；事件级替代与“不能排名”停止条件已写明；HINT-STREME 仅属探索。仍未建立真值、共同连续分数或折外 score。此 APPROVE 只放行基于仓库现有材料整理准入/adapter/fold-exclusion 清单和同 PR 审计记录，不放行 Argos、实验数据、分析、环境改动或 caller 运行。
+
+## 仓库证据资格清单（只读审计，2026-10-19）
+
+下表只根据 PR 分支源码、设计文档及既有 handoff 记录判断；本轮没有重新访问 Argos/实验数据。`eligible` 表示可以进入相应准确度比较的前置资格，不表示结果已生成。
+
+| 项目 | 仓库证据 | 当前判定 | 解除条件 / 允许的结论 |
+|---|---|---|---|
+| 独立 occupancy/扰动标签 | 设计 §4 要求同一 HCT116 CTCF 体系的匹配 ChIP、输入、独立生物学重复和可解释校准。CODEX_HANDOFF 既有记录称候选 ChIP 文件/manifest 尚未在此前搜索的 PMA raw/processed 路径验证，已有的是 ATAC BAM 与校验清单。 | BLOCKED；不得把 ATAC 校验或 HINT footprint 当 ChIP 真值。 | 先有可追溯、独立重复、匹配对照和 QC 的标签资产；否则第 3 轮记录无合格标签并停止准确度排名，或另选经阶段审核的标签体系。 |
+| PRINT score | `scripts/04b_footprint/run_print.R` 写 `.r<radius>.track.tsv.gz`，列 `score = aggregateScores`，并另写原生事件；设计固定 r10 作为候选连续轨。 | CANDIDATE；当前速度尝试 EXIT=1，不能作为成绩。资源哈希、正式输出完整性和折外计算均未通过。 | 先完成有效运行、固定代码/参数/资源摘要与完整 callable coverage，再判断能否提供严格 OOF continuous score。 |
+| TOBIAS score | `scripts/04b_footprint/run_tobias.sh` 输出 `footprints.bw` 连续 track，再调用 `events_from_track.py` 生成 BED。 | CANDIDATE；工程速度 EXIT=0，但既有 handoff 报告与其他工具的过滤数不一致且 K562 有 NFR 警告；无准确度资格。 | 对齐片段谓词/分母和 BW mask；确认分数方向、完整性、参数/资源哈希及 fold-excluded 生成。 |
+| HINT output | `scripts/04b_footprint/run_hint.sh` 只运行 RGT caller 并汇总 `events.bed`。 | 当前仅阈值化事件；不进入 AP。已知 K562 全窗口任务有 3,125 个跨边界事件，32 路聚合 RSS 未测。 | 如需连续 AP，须添加和冻结文档化 threshold-free adapter；否则仅按第 6 轮事件级方案比较，先修事件边界/聚合内存审计。 |
+| TraceBIND output/mode | `scripts/04b_footprint/run_tracebind.R` 对每区段跑 NB footprinting 后以 `p_threshold` 输出事件 BED；注释明确本 wrapper 是 PRINT-bias mode，无 mtDNA fine-tuning、无 mito FDR。 | 当前 threshold-truncated，输出不能当连续轨；full TraceBIND 不等同本 wrapper。 | AP 前须提供阈值前全分数且冻结 full/reduced mode；若仅有事件，走合法事件级比较；完整模式须记录 mtDNA 校准资格。 |
+| 缺失值/公共 score 集 | 设计 §4.3 指明 absent event 不是 0；`events_from_track.py` 的事件输出不适合作 AP adapter。 | BLOCKED；PRINT/TOBIAS 是候选连续轨，HINT/TraceBIND 目前没有共同连续输出。 | 每工具显式区分 finite score、missing/unscorable、run failure；锁定共同 candidate mask 和共同可评分集合。四方 AP 仅在共同完整覆盖成立时可报。 |
+| 折外隔离 | 当前 caller wrappers 接受整份 BAM/regions 或全量 fragments；本审计在 `scripts/04b_footprint/` 未发现已实现的 1-Mb folds、embargo、OOF score manifest 或适配训练折隔离。 | BLOCKED；当前没有验证过的 fold-excluded scores。 | 先落地并经静态/小型合成核对的 fold manifest、context-radius 说明、训练/测试读段隔离与 embargo 审计。不能证明则不报严格 held-out AP。 |
+| B1 负控与事件比较 | `scripts/04b_footprint/eval_round1.py` 只按 native thresholds 统计相同窗口的 event rows / callable Mb；脚本声明不做准确度排名。 | 仅描述性；不同阈值未匹配灵敏度。 | 在合格训练标签上冻结目标召回与参数，测试报告 recall、naked-DNA false-event density；一对一匹配、共同定位窗口及固定事件/bp预算按第 6 轮执行。 |
+| 癌症全局 caller 与 de novo motif | 当前 HCT116 HINT-STREME 是已记录的探索结果，不等于独立 B4；Cancer ATAC 全区域结果尚未在本 PR 证据中形成经 QC 的统一产物。 | 暂缓选择/生产发布。 | 只对符合准确度/特异性门槛或明确标注工程基线的最多两个候选启动后续阶段；第 10 轮允许不可排名，不用 motif 数反推准确度。 |
+
+**本轮可测进展：**把“缺什么才可能排准确度”从概念写成逐工具准入表。当前可行结论仍是：尚不能可信地宣布四工具中谁最准；现有证据支持 HINT 是已测工程基线、TOBIAS 有一次有效速度记录、PRINT 有一次失败记录、TraceBIND wrapper 是 reduced mode。要在十轮内给出答案，必须在第 3–6 轮拿到合格标签/可用事件终点；若未拿到，第 10 轮明确报告“当前数据不能排名”，不追加无期限工具工程。
 
 ## 本轮 Review (Quick)
 
-**L1：PASS（文档状态与范围核对）**；**L2：BLOCKED（无合格共同真值/共同分数）**；独立性 LIMITED。方向 ON TRACK：用有限轮次回答是否可排名，而不是用运行数代替进展。进展 PARTIAL：有真实运行失败与工程时长，但没有准确度比较。可信性 usable with limits。观察到：TOBIAS 固定窗口速度有效；PRINT 速度运行失败；HINT motif 探索已结束。支持：这些记录不能选准确度赢家。未确立：四工具共同 AP、可靠工具排名、泛癌赢家。建议 REVISE：修正文档后对新完整 PR tip 复审；本轮不启动 Argos。**HUMAN DECISION: PENDING**。
+固定 PMA 项目对话已对 PR #8 exact HEAD `0829b0886777637a88fb3925ce9d1f511b1a00dd` 给出文档/方法 `APPROVE`，且批准范围明确不含执行。L1：PASS（GitHub PR 与三份文件核对）；L2：BLOCKED（无合格共同真值、连续分数和验证的折外结果）；独立性 LIMITED。方向 ON TRACK：十轮内先判断能否可信排名。进展 PARTIAL：首次把现有脚本状态变成逐工具资格表，仍没有准确度结果。可信性 usable with limits。观察到：TOBIAS 有一次可用工程速度，PRINT 失败，HINT 有事件边界/内存缺项，TraceBIND wrapper 是 reduced mode。支持：现有证据不能定准确度赢家。未确立：四工具 AP、可靠排名或泛癌赢家。GPT 只批准了基于仓库材料的准入/adapter/fold-exclusion 清单；人类阶段接受及任何计算授权仍未获得。**HUMAN DECISION: PENDING**。
 
 ## 下一项唯一高价值动作
 
-按 GPT 本次批准的窄范围，在 PR #8 同一分支补齐并审计这份准入/adapter/fold-exclusion 清单，逐项引用仓库现有脚本/文档证据；随后在固定 PMA 对话审查新 HEAD。该审核只放行文档/只读审计，不自动许可任何 Argos 计算。执行阶段需另申请明确范围与人类接受。
+准入/adapter/fold-exclusion 清单已按批准范围写入本交接。下一步仅将本次三份文件的审计记录提交到 PR #8，并在固定 PMA 对话审核完整新 HEAD。此审核只放行文档/只读审计，不自动许可任何 Argos 计算。执行阶段需另有明确范围和人类接受。

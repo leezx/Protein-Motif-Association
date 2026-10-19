@@ -139,3 +139,9 @@ PR #8 `75420e4` 给 FASTA 脚本增加显式 `--background-exclusion selected_on
 已在 Argos 启动 `BG_B4_HCT116_HINT_CTRL_80FCAC9`、`BG_B4_HCT116_HINT_AUX_80FCAC9`。两组输入均为 HCT116 的 91,210 个全样本固定窗口与 HINT 事件；在完整包含于窗口的事件里，每窗口取最高分调用中心 ±25 bp；负集为同窗口、50 bp、GC 差≤0.1 的匹配片段，采用统一 `selected_only` 背景规则；STREME 5.5.9 参数 6–20 bp、最多10个 motif、seed 19。脚本 SHA-256：wrapper `6e0f5920b866e6f09f087c129ae4dd67d236ef62d1b21271f9bdb36f8068ed3b`，FASTA builder `4135ea18f9a20af479d0c7f68b98c4acd2b4e4a7813d8f80336a5bd0fc04a6c9`。任务逐个运行于不可变 44-GiB gate，CPU-only；外部结果写到 `processed/round1/motif_hct116_genomehint_80fcac9/{ctrl,aux}/`。当前搜索空间为 91.210 Mb 可及窗口，并非 hg38 每个碱基。
 
 K562 HINT 独立边界 QC 显示 3,125 个事件跨窗口边界，0 个完全不相交；motif 输入 builder 排除所有不完全位于窗口内的事件。K562 PRINT/TraceBIND 共用片段预处理 `BG_K562_FRAG_PREP_V1` 在 11:36 EDT 仍处于单核 CPU BAM 扫描，约19分钟，unsorted 文件约2.6 GB，尚无最终压缩索引片段；完成后其耗时计入这两个工具速度。继续检查 HCT116 两组配对数、GC QC、STREME 输出以及 K562 prep。B1–B4/独立验证和候选工具准确度排名仍未完成；PR #8 不合并。
+
+## 2026-10-19 11:43 EDT：全窗口 motif 配对完成，STREME 正在迭代
+
+HCT116 HINT ctrl/aux 的序列准备均已退出 0。ctrl 配出 **90,387** 对，来自 91,184 个有事件窗口/924,139 条完整包含事件；566 个边界阳性与 231 个 GC 不匹配被排除。aux 配出 **88,444** 对，来自 91,103 个有事件窗口/944,467 条完整包含事件；排除2,401个边界阳性、1条非ACGT序列和257个GC不匹配。manifest显示序列均为50 bp、背景在同一窗口、绝对GC差最大0.1。FASTA哈希：ctrl positive/background `a13292e373f6cd64514551d6a54d9cd83f95b6ac2111599ab215ffc228731a69` / `d9fc17f6716e7bc7b0e555645a7c3971665998450bdee0ee9c87799fccdbd791`；aux `eeae3edbe963825c1240be6202bdc31d588839608785c628e30d1e49836a8dbb` / `011d36ed901f413b772d2d393589c40c24bb2d62e6e9c79fc47da6a654b745db`。
+
+`BG_B4_HCT116_HINT_CTRL_80FCAC9` 和 `...AUX...` 中的 STREME 均仍在活动，日志已从初始 suffix-tree 阶段推进到 candidate refinement，ctrl 到候选22、aux到候选23；每进程 RSS约4.3 GB，低于44-GiB限制。无最终 motif/退出码。K562 `BG_K562_FRAG_PREP_V1` 已结束 BAM 扫描并进入 GNU sort，临时排序约1.6 GB；待最终 bgzip/tabix 与片段数/hash核验后，才启动 PRINT/TraceBIND 同输入速度比较。

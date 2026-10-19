@@ -1,5 +1,12 @@
 # Step 4b HINT 隔离环境与真实小样本调用
 
+## 最新状态 — 2026-10-19 15:23 EDT — 同一 PR 更正与交接同步均已推送
+
+只处理 footprint；PR #8 仍 OPEN。固定 PMA 对话 `PMA｜固定阶段审核` 对旧 HEAD
+`25343902cd2618fff8fbea37e32b80d2ea3ef1f8` 返回 `REQUEST_CHANGES`。方法更正 `e1b99cf` 及交接
+同步 `c2083d7` 均已推送到同一 PR；当前完整 tip 将在唯一固定 PMA 对话请求 exact-head review。
+准确度排名和工具赢家仍未建立。没有运行 Argos、访问数据、改环境、触碰 PR #7 或合并。
+
 ## 最新状态 — 2026-10-19 15:22 EDT — 同一 PR 更正已推送，交接同步进行中
 
 只处理 footprint；PR #8 仍 OPEN。固定 PMA 对话 `PMA｜固定阶段审核` 对前一 HEAD

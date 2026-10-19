@@ -139,9 +139,13 @@ REMOTE
 
 **Observed result (one invocation):** exit code `0`. stdout listed exactly two candidates: `RAW/MD5SUMS` and `reference/MD5SUMS`, both regular files. It did not find a name containing `MD5SUMS.refs`, `SHA256`, `checksum`, or `manifest` in either scanned top-level directory. stderr contained only the SSH post-quantum warning. Complete stdout/stderr/exit record is outside the repository at `/tmp/pma_pr7_checksum_discovery_b347d8e.ofZvuy/`; stdout SHA-256 `00ee47447c514792aa69a9c1e92d40d91cb1f3133adf0514c09e1baf81006117`, stderr SHA-256 `048e2ba89ae430962e02f5341cf60c694fb7e131cb417790075a56b32ca09992`. This establishes candidate names and file types only. It does not establish the contents, provenance, or expected hash in either manifest. The one-time scope is consumed.
 
-## Proposed next query — exact reference checksum manifest read; GPT REQUEST_CHANGES, repaired, not approved or run
+## Live update — 2026-10-18 23:38 EDT — two-manifest read-only preflight repaired locally
 
-The next minimal read is limited to the observed regular file `reference/MD5SUMS`. GPT reviewed PR #7 HEAD `9138d5bca5a0f9b59bf2724a7ec4481b681306b8` and returned `REQUEST_CHANGES` for two file-descriptor boundary issues: buffered `fdopen().read()` may prefetch more than requested, and blocking `os.open()` could hang if a path race replaces the target with a FIFO. It also recommended a strict formatted-output cap. The command below is repaired to open with `O_NOFOLLOW | O_NONBLOCK`, verify the opened descriptor using `fstat()`, read through an unbuffered stream in chunks totaling at most 65,537 bytes, reject >64 KiB, and build/check the complete formatted output against 16 KiB before writing it. It still reads only `reference/MD5SUMS`, creates no files, and performs no hashing or analysis. It is unrun and needs a new exact-head review and one-time scope approval.
+After the one-time approved reference-manifest read, corrected the draft preflight mapping: the two source inputs are matched only against `RAW/MD5SUMS`; `reference/hg38.chrom.sizes` is matched against `RAW/reference/MD5SUMS` using the basename `hg38.chrom.sizes`. The parser uses an explicit three-file map, rejects duplicate/unsafe manifest names, caps manifest reads at 1 MiB, and checks source MD5s only after both required manifest entries are present. Static embedded-Python parsing, `bash -n`, and `git diff --check` pass. This new command has not been reviewed or run. No Argos access, input hashing, storage/tool/cgroup inspection, build, QC, or analysis occurred. It requires a new exact-head review and one-time scope approval.
+
+## One-time reference/MD5SUMS read — GPT-approved and executed at PR HEAD `4212f78`
+
+The command below reads only the observed regular file `reference/MD5SUMS`. GPT reviewed PR #7 HEAD `9138d5bca5a0f9b59bf2724a7ec4481b681306b8` and returned `REQUEST_CHANGES` for two file-descriptor boundary issues: buffered `fdopen().read()` may prefetch beyond the requested amount, and blocking `os.open()` could hang if a path race replaces the target with a FIFO. It also recommended a strict formatted-output cap. The command was repaired to open with `O_NOFOLLOW | O_NONBLOCK`, verify the opened descriptor using `fstat()`, read through an unbuffered stream in chunks totaling at most 65,537 bytes, reject >64 KiB, and build/check the complete formatted output against 16 KiB before writing it. GPT approved this exact command at HEAD `4212f782f5936ebc8c6456a17d4de3263aa56911` / base `3c0e48e699073726b9ef7453644cabbe8b277ca4` for one execution.
 
 ```bash
 ssh -o BatchMode=yes zz950@rcapps3.dfci.harvard.edu 'bash -s' <<'REMOTE'
@@ -220,7 +224,17 @@ PY
 REMOTE
 ```
 
-Any path guard, type, size, or decode error must stop the command with a nonzero exit. This query would only reveal the contents of the observed reference manifest; it would not itself authorize changing the preflight contract or hashing data. No further remote operation is authorized until GPT reviews this exact HEAD and command.
+**Observed result (one invocation):** exit code `0`. stdout reported 274 bytes and five ASCII lines:
+
+```text
+83fe6bf8187a64dee8079b80f75ba289  hg38-blacklist.v2.bed.gz
+c42e9f75fff906c6a7143cb2fac86602  hg38.chrom.sizes
+cfb3e2337755e56baa4fa648a96765b2  hgnc_complete_set.txt
+41fc0baff1d7012a94cc2fb9d97c366b  lambert2018_TF_names_v_1.01.txt
+296c7c3951482117b55c6b6a68dfa371  MD5SUMS
+```
+
+The manifest uses basenames, so the `hg38.chrom.sizes` record is `c42e9f75fff906c6a7143cb2fac86602`; the previous preflight expected the prefixed path `reference/hg38.chrom.sizes` in the root manifest and therefore failed. This is an observed manifest-format/path mismatch, not verification that the file contents match the expected MD5. stderr contained only the SSH post-quantum warning. Complete stdout/stderr/exit record is outside the repository at `/tmp/pma_pr7_ref_manifest_read_4212f78.dYuB9u/` (stdout SHA-256 `2bdaf495ffa6a903782b256163c1a1bf465476fed428a151ac8394d6fdf60195`; stderr SHA-256 `048e2ba89ae430962e02f5341cf60c694fb7e131cb417790075a56b32ca09992`). The one-time scope is consumed. It did not read the root manifest, hash any reference or source input, inspect resources, or run analysis.
 
 ## Direction and current progress
 
@@ -251,7 +265,7 @@ PR #6's current design-only approval does not include implementation or Argos op
 
 The code review passed for PR #7 exact HEAD `1432f6211b3e3411bf62a6f5e5f951bf9df17863`. GPT approved one execution of the read-only preflight at the same SHA. It stopped at the source-path symlink guard (`/home`); see the live update. The remainder of the proposal documents the intended scope and was not reached in that run. No second SSH invocation is authorized by the one-time approval.
 
-Revised read-only preflight proposal (not yet approved; the prior version stopped at the first path guard):
+Corrected read-only Argos preflight proposal — not yet approved; requires fresh exact-head review and one execution approval. It reads `RAW/MD5SUMS` for the two raw inputs and `RAW/reference/MD5SUMS` for chromosome sizes, mapping each basename only to its fixed allowlisted path before hashing.
 
 ```bash
 ssh -o BatchMode=yes zz950@rcapps3.dfci.harvard.edu 'bash -s' <<'REMOTE'
@@ -267,7 +281,7 @@ GIT_OPTIONAL_LOCKS=0 git -c core.fsmonitor=false -C "$CODE" status --short --bra
 git -C "$CODE" rev-parse HEAD
 git ls-remote https://github.com/leezx/Protein-Motif-Association.git refs/heads/task_20261019_chipatlas_bed6_builder
 "$PY" - "$RAW/MD5SUMS" "$RAW" <<'PY'
-import hashlib, os, re, sys
+import hashlib, os, re, sys, stat
 from pathlib import Path, PurePosixPath
 logical_root = Path(os.path.abspath(sys.argv[2]))
 logical_parent = logical_root.parent.parent.resolve(strict=True)
@@ -292,36 +306,70 @@ def guarded_path(value):
         if current.is_symlink():
             raise SystemExit(f"symlink inside raw root: {current}")
     resolved = current.resolve(strict=True)
-    if os.path.commonpath((str(root), str(resolved))) != str(root):
-        raise SystemExit(f"resolved path escapes raw root: {resolved}")
-    if resolved != current:
-        raise SystemExit(f"unexpected path resolution: {current}")
+    if os.path.commonpath((str(root), str(resolved))) != str(root) or resolved != current:
+        raise SystemExit(f"path escapes or resolves unexpectedly: {current}")
     return current
-manifest = guarded_path(sys.argv[1])
-if not manifest.is_file():
-    raise SystemExit("missing checksum manifest")
-allowed = {"allPeaks_light.hg38.05.bed.gz", "experimentList.tab", "reference/hg38.chrom.sizes"}
-seen, expected = set(), {}
-for line_no, line in enumerate(manifest.read_text(encoding="ascii").splitlines(), 1):
-    if not line:
-        continue
-    match = re.fullmatch(r"([0-9A-Fa-f]{32}) [ *](.+)", line)
-    if not match:
-        raise SystemExit(f"invalid MD5SUMS row {line_no}")
-    digest, raw_name = match.groups()
-    name_path = PurePosixPath(raw_name)
-    if name_path.is_absolute() or ".." in name_path.parts:
-        raise SystemExit(f"unsafe MD5SUMS path at row {line_no}")
-    name = name_path.as_posix()
-    if name in seen:
-        raise SystemExit(f"duplicate MD5SUMS path: {name}")
-    seen.add(name)
-    if name in allowed:
-        expected[name] = digest.lower()
-if set(expected) != allowed:
-    raise SystemExit(f"required checksum entries missing/ambiguous: {sorted(allowed-set(expected))}")
-for name in sorted(allowed):
-    path = guarded_path(logical_root / name)
+
+def parse_manifest(relpath, required_names):
+    manifest = guarded_path(logical_root / relpath)
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+    fd = os.open(manifest, flags)
+    try:
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode) or st.st_size > (1 << 20):
+            raise SystemExit(f"unsafe, missing, or oversized manifest: {relpath}")
+        chunks, total = [], 0
+        while total <= (1 << 20):
+            block = os.read(fd, min(65536, (1 << 20) + 1 - total))
+            if not block:
+                break
+            chunks.append(block)
+            total += len(block)
+        if total > (1 << 20):
+            raise SystemExit(f"manifest grew beyond 1 MiB: {relpath}")
+        raw = b"".join(chunks)
+    finally:
+        os.close(fd)
+    try:
+        rows = raw.decode("ascii").splitlines()
+    except UnicodeError as exc:
+        raise SystemExit(f"non-ASCII checksum manifest {relpath}: {exc}")
+    seen, found = set(), {}
+    for line_no, line in enumerate(rows, 1):
+        if not line:
+            continue
+        match = re.fullmatch(r"([0-9A-Fa-f]{32}) [ *](.+)", line)
+        if not match:
+            raise SystemExit(f"invalid checksum row {relpath}:{line_no}")
+        digest, raw_name = match.groups()
+        name_path = PurePosixPath(raw_name)
+        if name_path.is_absolute() or ".." in name_path.parts or "\\" in raw_name:
+            raise SystemExit(f"unsafe manifest path {relpath}:{line_no}")
+        name = name_path.as_posix()
+        if name in seen:
+            raise SystemExit(f"duplicate manifest path {relpath}:{name}")
+        seen.add(name)
+        if name in required_names:
+            found[name] = digest.lower()
+    missing = set(required_names) - set(found)
+    if missing:
+        raise SystemExit(f"required entries missing in {relpath}: {sorted(missing)}")
+    return found
+
+# The two manifests use paths relative to their own directories.
+expected = {}
+expected.update(parse_manifest("MD5SUMS", {"allPeaks_light.hg38.05.bed.gz", "experimentList.tab"}))
+for name, digest in parse_manifest("reference/MD5SUMS", {"hg38.chrom.sizes"}).items():
+    expected[f"reference/{name}"] = digest
+source_paths = {
+    "allPeaks_light.hg38.05.bed.gz": logical_root / "allPeaks_light.hg38.05.bed.gz",
+    "experimentList.tab": logical_root / "experimentList.tab",
+    "reference/hg38.chrom.sizes": logical_root / "reference/hg38.chrom.sizes",
+}
+if set(expected) != set(source_paths):
+    raise SystemExit("checksum manifest mapping is incomplete or ambiguous")
+for name in sorted(source_paths):
+    path = guarded_path(source_paths[name])
     if not path.is_file():
         raise SystemExit(f"unsafe or missing input file: {name}")
     digest = hashlib.md5()

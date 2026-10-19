@@ -753,7 +753,7 @@ Committed the same-PR design correction as `e1b99cf58f11e20b3ec4bde810a1caea0f12
 
 Verified PR #8 branch commit `c2083d7430c59c295595967998f7a8c0b7a7deb8` is present on origin and the PR is OPEN. Updated the current handoff tops to say the method and audit-sync commits are pushed, replacing the now-stale “sync in progress” wording; retained earlier status text as dated snapshots. The complete branch still has no exact-head review outcome; this commit is being prepared as same-PR audit synchronization, after which the complete branch tip will be submitted in the fixed PMA review conversation. `git diff --check` passed. No tests, Argos, data access, analysis, environment changes, PR #7 work, or merge.
 
-2026-10-19 19:42 EDT — bounded 10-round footprint plan and read-only status refresh
+2026-10-19 15:42 EDT (19:42 UTC) — bounded 10-round footprint plan and read-only status refresh
 
 Re-read PR #8 actual local/remote state: clean baseline before this documentation update was
 `fd0b04113f4d906eb0bc422d3d2ac714c966847f`, branch `task_20261019_hint_overlay_smoke`; GitHub says
@@ -761,14 +761,14 @@ OPEN, unmerged, base `step4b-atac-footprinting`. The fixed PMA review conversati
 documentation/method stage and expressly did not authorize execution. Its permitted next scope is
 same-PR review recording and a data-admission / adapter / fold-exclusion checklist.
 
-Read-only Argos check at 15:41 EDT: `qstat -u zz950` empty. Status files confirm HCT116 unfiltered BAM
+Read-only Argos check at 15:41 EDT, performed under the user's explicit 15-minute monitoring instruction: `qstat -u zz950` listed no scheduler jobs for the account. This did not inspect detached/background processes and does not establish that Argos was idle. Status files confirm HCT116 unfiltered BAM
 verify V3 EXIT=0 for all four official byte counts/MD5/SHA-256/quickcheck/chrM; K562 TOBIAS timing
 EXIT=0 (77,668 windows, 3,319,912 events, 1:02:16 wall, 1,267,312 KB max RSS); K562 PRINT timing
 EXIT=1 because its R worker could not load `cladoRcpp` after all 39 chunks (36:19.75 wall,
 34,130,552 KB max RSS); K562 fragment prep EXIT=0 at 110,891,807 fragments and 28:18.88 wall. This
 does not match the independent 110,891,952 proper-pair count (145 difference); speed denominators
 must be reconciled. HCT116 HINT-derived exploratory STREME EXIT=0 at 90,387 ctrl and 88,444 aux
-GC-matched pairs with 10 motifs each. These motifs are not accuracy truth. No Argos tasks were active.
+GC-matched pairs with 10 motifs each. These motifs are not accuracy truth. The scheduler query listed no jobs; detached/background process status was not checked.
 
 Added `docs/handoff/2026-10-19-footprint-10-round-plan.zh-CN.md` and refreshed the current-status
 header in `docs/CODEX_HANDOFF.md`. The plan sets a ten-round cap and explicit stop decisions, separates
@@ -778,3 +778,7 @@ were added. No compute, Argos submission, data access, environment change, ChIP 
 or test suite run occurred. Next: inspect only the named documentation diff, validate formatting/status,
 then request exact-head review in the same fixed PMA conversation. This documentation approval does
 not authorize dependent compute.
+
+2026-10-19 15:46 EDT — exact-head REQUEST_CHANGES repaired locally in the same PR
+
+The fixed `PMA｜固定阶段审核` conversation returned `REQUEST_CHANGES` on exact PR #8 HEAD `525f0d4f8e617349836c9ea94870c92cc08fb5ae`. Findings: an empty `qstat` did not justify saying no Argos work was active; the 15:41 queue read needed its authorization source; handoff timestamps and current-versus-prior HEAD needed disambiguation; GNU process time and job timestamp duration have different scopes; held-out prediction input must be distinguished from held-out fitting/selection; and the ten-round plan needed both an event-level fallback and a valid terminal “cannot rank” outcome. Repaired the same-PR documents: status now reports queue-only evidence without claiming background processes absent; the 15-minute user instruction is documented; local versus pushed review SHAs and EDT/UTC are clear; 28:18.88 GNU process time and 28:24 job interval are both retained; frozen callers may predict on held-out inputs but cannot use held-out labels/scores to fit, adapt, tune or select; event fallback specifies one-to-one matching, common window/localization, fold-trained cutoff calibration, test recall, naked-DNA false-event density and fixed event/bp budget. Round 10 explicitly allows an unrankable conclusion with no forced motif output. HCT116 HINT-derived STREME is labeled exploratory, not B4 validation. No Argos command, experimental-data read, environment update, analysis, ChIP/PR #7 work or merge occurred. Documentation changes remain local; next run `git diff --check`, inspect only the named PR files, push to PR #8, update its description, and request exact-head review in the same fixed PMA conversation. No dependent computation is authorized.

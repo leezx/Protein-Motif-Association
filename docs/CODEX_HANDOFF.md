@@ -1,30 +1,42 @@
 # PMA — handoff to Codex (2026-10-17, written by Claude Code)
 
-## Current live status — 2026-10-19 19:42 EDT — ten-round footprint decision plan
+## Current live status — 2026-10-19 15:46 EDT — ten-round plan corrected after exact-head review
 
-Footprint-only. PR #8 is OPEN, unmerged, at exact HEAD `fd0b04113f4d906eb0bc422d3d2ac714c966847f` on
-`task_20261019_hint_overlay_smoke`. The fixed PMA conversation `PMA｜固定阶段审核` approved this
-documentation/method stage only and explicitly did not approve Argos execution. Its approved next
-scope is limited to same-PR review recording plus a data-admission, adapter, and fold-exclusion
-eligibility checklist. The ten-round checklist is in
-`docs/handoff/2026-10-19-footprint-10-round-plan.zh-CN.md`.
+Footprint-only. PR #8 is OPEN, unmerged, on `task_20261019_hint_overlay_smoke`. The last pushed HEAD
+is `525f0d4f8e617349836c9ea94870c92cc08fb5ae`; fixed PMA conversation `PMA｜固定阶段审核` returned
+`REQUEST_CHANGES` on that exact tip. The current two-file documentation revision is local and
+uncommitted. The earlier `fd0b041` approval covered method documentation only, not execution. This
+revision incorporates the exact-head feedback; it does not authorize Argos or experimental work.
 
-Fresh read-only Argos check at 15:41 EDT: `qstat -u zz950` is empty. Actual task statuses under
+The user-requested 15-minute monitoring instruction authorized the 15:41 EDT read-only queue check;
+`qstat -u zz950` listed no scheduler jobs for that account. Detached/background processes were not
+checked, so this does not establish that Argos is idle. The status files previously read under
 `/home/zz950/PMA_fetch/pma_bg_pr8_20261019/`: HCT116 unfiltered BAM verification V3 EXIT=0 (all four
 ENCODE byte counts, MD5, SHA-256, quickcheck and chrM header passed); K562 TOBIAS speed EXIT=0 on
 77,668 frozen 1-kb windows, 3,319,912 events, 1:02:16 wall and 1,267,312 KB max RSS; K562 PRINT speed
 EXIT=1 after 39/39 chunks due to missing `cladoRcpp` in worker namespace (36:19.75 wall, 34,130,552
 KB max RSS), so it is not a valid speed/call result; K562 fragment preparation EXIT=0 (110,891,807
-fragments, 28:18.88 wall). The independent K562 filter count is 110,891,952, so the denominator
-mismatch must be resolved before a comparable speed table. HCT116 HINT-derived exploratory STREME
-EXIT=0: 90,387 ctrl and 88,444 aux GC-matched pairs, 10 motifs each; this is exploratory B4 support,
-not accuracy evidence or motif-reference validation. No process is active. These outcomes are now
-measured facts; HCT116 ChIP truth labels, HINT/TraceBIND threshold-free score adapters, common four-way
+fragments). GNU `time -v` reports fragment-prep wall 28:18.88; job start/end timestamps span 28:24,
+so both clocks are retained and the primary process wall is 28:18.88. The independent K562 filter
+count is 110,891,952, so the 145-fragment denominator mismatch must be resolved before a comparable
+speed table. HCT116 HINT-derived exploratory STREME
+EXIT=0: 90,387 ctrl and 88,444 aux GC-matched pairs, 10 motifs each; this is exploratory motif
+output, not B4 reproducibility/family-recovery evidence, accuracy evidence, or motif-reference
+validation. These status-file outcomes are recorded;
+the queue query does not establish whether detached processes exist. HCT116 ChIP truth labels,
+HINT/TraceBIND threshold-free score adapters, common four-way
 score coverage and verified fold-excluded scores remain absent. Therefore no four-tool AP ranking or
 accuracy winner is justified. Do not run dependent compute until a new exact-head execution review
 and human stage acceptance.
 
-## Current live status — 2026-10-19 15:23 EDT — prior snapshot
+The fixed-thread review also found the ten-round protocol needed a fair event-level fallback if
+continuous scores cannot be exposed, and a no-ranking terminal outcome if no valid test is possible.
+The revision allows held-out reads/sequence as frozen-predictor inputs while forbidding held-out labels
+or score distributions for fitting, adaptation, tuning or tool selection. It keeps event-level
+matching, fold-trained threshold calibration, test-fold recall and naked-DNA false-event density
+separate from AP. GNU `time -v` process elapsed (28:18.88) and the job timestamp interval (28:24) are
+identified as distinct clocks. HCT116 HINT-derived STREME is labeled exploratory motif output, not B4
+reproducibility/family-recovery evidence. These are same-PR documentation repairs only.
 
 ## Current live status — 2026-10-19 15:23 EDT — review fixes and audit sync pushed
 

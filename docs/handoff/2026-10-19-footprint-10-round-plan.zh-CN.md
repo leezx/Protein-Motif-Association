@@ -1,13 +1,28 @@
 # Step 4b footprint：十轮内形成可行工具选择
 
-更新时间：2026-10-19 16:20 EDT（UTC 20:20）
+更新时间：2026-10-19 16:27 EDT（UTC 20:27）
 范围：仅 footprint→de novo motif；ChIP BED6 / PR #7 由 Claude 负责，本交接不涉及。  
-PR #8：`task_20261019_hint_overlay_smoke`，OPEN、未合并。固定 PMA 对话 `PMA｜固定阶段审核` 对完整 HEAD `b421864177da5d6eb9fc4b4a206a8c924cf0fe4f` 给出 `APPROVE`，仅限文档/仓库只读方法审计；不批准 Argos、实验数据、下载、分析、环境修改、caller 执行、ChIP 工作或合并。审核确认同 PR 对 HEAD `4f1d2b86e0e15aeda8d5e8766049eff5539150d5` 的三个 finding 已修复（哈希分折/embargo、分数方向、截断 HINT/TraceBIND 事件），且 21-bp adapter 仅用于连续轨 B1 密度，不代表边界准确度。
+PR #8：`task_20261019_hint_overlay_smoke`，OPEN、未合并。固定 PMA 对话 `PMA｜固定阶段审核` 对完整 HEAD `03dbdd9a5bc8f54e1ef09056e3f4cc755e71ae2a` 给出 `APPROVE`，允许第 3 轮仅查公开研究元数据并生成候选准入表；不批准生物学数据文件、Argos、caller、分析、环境修改、ChIP 数据处理或合并。以下第 3 轮仅使用 ENCODE、GEO、4DN 公共页面/API 和论文书目元数据；未下载或读取 BAM、FASTQ、BED、BigWig、矩阵等实验数据文件。
 固定 PMA 对完整 HEAD `774a3498d7cc17904afe3dc4610711586fe56d82` 再次给出 `APPROVE`：四个 wrapper 的当前接口描述与 canonical §4 一致；缺失/不可评分/运行失败不能混为零；标签、共同分数和折外证据仍缺。无阻塞 finding。仅有一项非阻塞措辞修正：将“二值 BED”改为“阈值后事件 BED”；即使事件列保留 p/score，也不能恢复完整阈值前排序空间。该修正与本次审核记录一并纳入后续文档同步，无需另起重复审查轮次。
 审核明确的科学结论：目前不能确定哪个工具准确度最高。occupancy/扰动标签测的是指定场景的预测一致性，不是碱基级 footprint 边界真值；裸 gDNA 也不是通用真阴性。没有合格标签、四工具共同可评分集和验证过的折外分数，因此没有四工具 AP 排名。审核建议在同 PR 记录此结论，并只用仓库现有源码/文档完成接口与验收规格只读核对。后续复审前从 GitHub 读取完整 live tip，handoff 不自引用其自身 SHA。
 审核边界：此前 `fd0b041` 的 APPROVE 仅覆盖方法文档；`525f0d4` 收到的时间、状态来源、折外边界和事件级备选 findings 已在同 PR 修复，并获当前 `0829b08` 方案级批准。15:41 EDT Argos 队列读取来自当时用户明确要求的 15 分钟监控 heartbeat；只读取调度与已有状态文件，没有读取实验数据，也没有核查 detached processes。该监控授权不扩大为 caller 执行授权。
 
 ## 现在能确定什么
+
+### 第 3 轮：公开元数据准入盘点（2026-10-19 16:27 EDT）
+
+| 候选体系 | 公开元数据观察 | 当前准入结论 |
+|---|---|---|
+| HCT116 CTCF degron，ENCODE `ENCSR059BCO` 未处理 / `ENCSR160GVO` 6 h 1 μM 5-Ph-IAA；分别匹配 `ENCSR229ZIR` / `ENCSR862XXV` control ChIP | 每条件各 1 个 biological replicate、2 个 technical replicates；GRCh38 文件 assembly 有记录。配套 ATAC `ENCSR328JGW` / `ENCSR260SWI` 各有 2 个 biological replicates。ENCODE 对两个 ChIP experiment 标记 `unreplicated experiment`；不能把技术重复计为独立重复。 | **与当前 §4 资格不符**：未达到至少 3 对独立 biological replicates；peak/QC、抗体/audit 详情、spike-in 和逐样本对应仍未核实。不可据此生成标签。 |
+| HCT116 CTCF degron，GEO `GSE179540` | GEO 元数据列出 20 个样本；CTCF untreated/auxin-treated 各 2 个生物重复，input DNA 各条件列 2 个样本；样本页将基因组标成 hg19。GEO 样本方法记录的 auxin 剂量与 ENCODE 1 μM 记录不一致，且没有确认固定 spike-in 设计。 | **候选，但当前不合格**：重复数不足现行 §4 门槛；剂量/样本配对/校准需从原论文及数据来源再核；hg19 需经审核的坐标处理方案。此处不推断文件 QC 或 ChIP 标签质量。 |
+| K562 CTCF ChIP，ENCODE `ENCSR000DMA` / matched input `ENCSR000DMB` | ChIP 有 3 个 biological replicates，匹配 input 元数据存在；公开 audit 含 low/insufficient read-depth 与 read-length 项。基因组文件元数据同时出现 GRCh38、hg19。 | **备选候选，不可直接替代**：不符合 canonical HCT116 CTCF degron 场景；公共 audit 和 assembly 需逐文件核对；与本轮 HCT116 主标签设计不同。 |
+| HCT116 CTCF ChIP，4DN `4DNEXFB8OQ210` / replicate `4DNES5X392R6` | 页面标为 released、human HCT116、CTCF、no-auxin condition；目前查到的是一个 replicate set。matched control、独立生物重复数、spike-in、assembly 与 QC 仍 unknown。 | **待核实候选**：现有元数据不足以判定满足准入门槛。 |
+
+**第 3 轮结论：当前公开元数据未找到满足现行 canonical §4 的合格标签集。**因此标签资格为 `BLOCKED`，不能计算独立占据一致性 AP，也不能选出最准确工具。公开候选不等于实验数据已核实，更不等于标签已建立。此次没有访问/下载实验数据文件或访问 Argos。
+
+来源：ENCODE experiment records [`ENCSR059BCO`](https://www.encodeproject.org/experiments/ENCSR059BCO/?format=json)、[`ENCSR160GVO`](https://www.encodeproject.org/experiments/ENCSR160GVO/?format=json)、[`ENCSR229ZIR`](https://www.encodeproject.org/experiments/ENCSR229ZIR/?format=json)、[`ENCSR862XXV`](https://www.encodeproject.org/experiments/ENCSR862XXV/?format=json)、[`ENCSR328JGW`](https://www.encodeproject.org/experiments/ENCSR328JGW/?format=json)、[`ENCSR260SWI`](https://www.encodeproject.org/experiments/ENCSR260SWI/?format=json)、[`ENCSR000DMA`](https://www.encodeproject.org/experiments/ENCSR000DMA/?format=json)、[`ENCSR000DMB`](https://www.encodeproject.org/experiments/ENCSR000DMB/?format=json)；GEO [`GSE179540`](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE179540)；4DN [搜索结果中的 `4DNEXFB8OQ210`](https://data.4dnucleome.org/search/?experiments_in_set.accession=4DNEXFB8OQ21&type=ExperimentSet)。检查字段仅为公开研究元数据、replicate/control/assembly 与 audit 摘要；没有下载任何关联 data file。
+
+**唯一有价值的下一步**：在固定 PMA 对话审查这张准入表，并决定是否继续扩大公开元数据候选搜索或将第 3 轮结论定为“当前无合格标签”。在该范围得到新的阶段批准前，不运行 Argos、不下载/读取实验数据、不生成标签或 caller 输出。
 
 2026-10-19 15:41 EDT Argos 只读核查：按当时用户的 15 分钟监控指示运行 `qstat -u zz950`，未列出该账户的调度作业。没有检查 detached/background processes，因此不能据此声称 Argos 上“没有任务”。只读取已有任务状态文件，未读取实验数据。状态文件在 `/home/zz950/PMA_fetch/pma_bg_pr8_20261019/`。
 
@@ -27,7 +42,7 @@ PR #8：`task_20261019_hint_overlay_smoke`，OPEN、未合并。固定 PMA 对�
 |---|---|---|
 | 1（本轮，已核对） | 四工具运行状态与可信性清单 | 仅 EXIT=0 且输出完整者算有效；PRINT 失败不算成绩，HCT116 BAM 校验不算标签，STREME motif 数不算准确度。输出已记录在本文。 |
 | 2（人类已选终点） | 目标与唯一主终点冻结 | 用户选择“与独立 ChIP/CUT&RUN occupancy 标签的一致性”，而非碱基级 footprint 边界准确度。主终点是共同、独立标注位点上的 held-out AP；HCT116 CTCF degron最多支持该局部保留/耗竭场景，不得声称通用真值或 pan-cancer 排名。标签不合格即允许结论为“当前不能排名”。 |
-| 3 | 数据准入表 | 每个候选 ChIP/CUT&RUN/降解数据列出 accession、细胞、处理、replicate、生物重复、matched input、spike-in 时点/固定投入、基因组、开发集重用及 QC。达不到预设标签资格即 fail closed；无峰区域不能自动当真阴性。 |
+| 3（元数据盘点完成；无合格标签） | 候选准入表 | 公开元数据候选已列于上节。现阶段全部不满足或不足以判定当前 §4：HCT116 ENCODE biological replicate 不足；GEO 有两重复但门槛/组装/剂量/校准不符或未知；K562 不可无审核替换 HCT116 主场景；4DN 重复与对照未知。该结论是数据准入 BLOCKED，不产生标签或排名。 |
 | 4 | 每工具 adapter/模式资格表 | 冻结四工具版本、模式、资源哈希、连续分数字段、方向/单位、阈值前覆盖和 missingness。当前 PRINT/TOBIAS只是候选连续轨；HINT/TraceBIND当前 wrappers 为阈值事件，缺失事件不能填 0。无法阈值前打分的工具退出 AP 主比较，不能虚构四方 AP。TraceBIND 的 reduced PRINT-bias 与完整 mtDNA-calibrated 模式分开记账。把一次最相关作者基准的小规模模式核对/复现并入本轮；失败最多做一次针对性修复，然后如实标记不可复现。 |
 | 5 | 公共输入和折外执行清单 | 同一 BAM/核内 fragment 过滤谓词、固定候选窗口/callable mask、hg38 资源哈希；按设计冻结 1-Mb block folds，并逐工具核实最大 score-context radius。允许 frozen caller 将 held-out reads/sequence 作为预测输入；禁止以 held-out 标签或其分数分布拟合、适配、选参、定阈值或选择工具。需要 sample-specific adaptation 的 caller 必须仅用训练折拟合，并隔离其所需上下文与 embargo；不能隔离则不参加严格 OOF AP。 |
 | 6 | 主准确度结果或事件级备选／不可评分报告 | 若合格连续分数和标签存在，报共同位点 pooled OOF AP、覆盖、有效 n、paired block bootstrap 和六对校正。若任何工具无连续分数，则不造 AP；若所有比较者都能生成合法调用，使用预先冻结的事件级备选：一对一事件匹配、共同匹配窗口及定位误差；阈值只在训练折校准到预设标签召回，测试折报告实际召回和 naked-DNA false-event density，并补固定 event/bp budget 下召回。单阈值工具不能达到共同召回时只报原生工作点和 Pareto 关系，不声称匹配灵敏度。缺标签/共同终点/合法调用时，交付“不可排名”与具体缺项，不补造数据。 |

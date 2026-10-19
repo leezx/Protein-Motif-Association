@@ -1,8 +1,8 @@
 # PMA — handoff to Codex (2026-10-17, written by Claude Code)
 
-## Live status update — 2026-10-18 23:18 EDT — second diagnostic finding repaired; fresh review required
+## Live status update — 2026-10-18 23:22 EDT — one-time manifest diagnostic completed
 
-PR #7 was OPEN at HEAD `6faa99c1a07cb35df748e0a2011349fd4d57859b` (base `3c0e48e699073726b9ef7453644cabbe8b277ca4`). GPT approved implementation/audit with zero blockers, but returned `REQUEST_CHANGES` for the proposed one-time read-only diagnostic: `Path.iterdir()` materializes all directory entries, so a cap on matching candidates does not bound directory-enumeration memory. Repaired the command to use `os.scandir()` streaming, retaining `DirEntry.stat(follow_symlinks=False)`. It caps matching candidate records at 100; this is not a strict output-byte limit, and individual manifest line size is not separately bounded. The command is unrun and needs fresh exact-HEAD review and one-time scope approval. Do not contact Argos before that. No reference build/QC or footprint comparison has completed.
+PR #7 was OPEN at exact HEAD `1478fb71bfe7b8e4dce19d4b3360ee4a6d8697da` (base `3c0e48e699073726b9ef7453644cabbe8b277ca4`). GPT approved implementation/audit and exactly one execution of the new diagnostic. The single command exited `0`: `reference/hg38.chrom.sizes` exists as a regular, non-symlink file, but the parser emitted no matching MD5SUMS candidate. It did not hash/read source data or inspect storage/tools/cgroup. Complete logs and hashes are preserved outside the repository in `/tmp/pma_pr7_manifest_diag_1478fb7.RLXv0N/`; interpretation and scope limits are in the dated handoff. That one-time approval is consumed. Any further Argos operation needs its own fresh exact-head/scope review. No BED6 build/QC or footprint comparison has completed.
 
 ## Live status update — 2026-10-18 23:10 EDT — recovered preflight result; manifest gate failed
 

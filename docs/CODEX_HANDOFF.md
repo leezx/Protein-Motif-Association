@@ -2,11 +2,11 @@
 
 ## Current live status — 2026-10-19 15:46 EDT — ten-round plan corrected after exact-head review
 
-Footprint-only. PR #8 is OPEN, unmerged, on `task_20261019_hint_overlay_smoke`. The last pushed HEAD
-is `525f0d4f8e617349836c9ea94870c92cc08fb5ae`; fixed PMA conversation `PMA｜固定阶段审核` returned
-`REQUEST_CHANGES` on that exact tip. The current two-file documentation revision is local and
-uncommitted. The earlier `fd0b041` approval covered method documentation only, not execution. This
-revision incorporates the exact-head feedback; it does not authorize Argos or experimental work.
+Footprint-only. PR #8 is OPEN, unmerged, on `task_20261019_hint_overlay_smoke`. Current pushed HEAD is
+`6840d837434998f1b0864d3571dd5964263ef5a2`. The fixed PMA conversation `PMA｜固定阶段审核` returned
+`REQUEST_CHANGES` on prior HEAD `525f0d4f8e617349836c9ea94870c92cc08fb5ae`; this same-PR documentation
+repair is pushed and pending exact-head review. The earlier `fd0b041` approval covered method
+documentation only, not execution. This revision does not authorize Argos or experimental work.
 
 The user-requested 15-minute monitoring instruction authorized the 15:41 EDT read-only queue check;
 `qstat -u zz950` listed no scheduler jobs for that account. Detached/background processes were not
@@ -36,7 +36,8 @@ or score distributions for fitting, adaptation, tuning or tool selection. It kee
 matching, fold-trained threshold calibration, test-fold recall and naked-DNA false-event density
 separate from AP. GNU `time -v` process elapsed (28:18.88) and the job timestamp interval (28:24) are
 identified as distinct clocks. HCT116 HINT-derived STREME is labeled exploratory motif output, not B4
-reproducibility/family-recovery evidence. These are same-PR documentation repairs only.
+reproducibility/family-recovery evidence. These are same-PR documentation repairs only; exact-head
+review of `6840d83` is pending in the fixed PMA conversation.
 
 ## Current live status — 2026-10-19 15:23 EDT — review fixes and audit sync pushed
 

@@ -1,9 +1,9 @@
 # Step 4b footprint：十轮内形成可行工具选择
 
-更新时间：2026-10-19 16:00 EDT（UTC 20:00）
+更新时间：2026-10-19 16:02 EDT（UTC 20:02）
 范围：仅 footprint→de novo motif；ChIP BED6 / PR #7 由 Claude 负责，本交接不涉及。  
-PR #8：`task_20261019_hint_overlay_smoke`，OPEN、未合并。固定 PMA 对话 `PMA｜固定阶段审核` 对完整 HEAD `a602373a1849588c6bdce2356791afc3ac7a5d72` 给出 `APPROVE`，仅限文档/方法与仓库只读审计；不批准任何 Argos 或数据操作。固定 handoff 不自引用更新自身 commit SHA，后续复审前从 GitHub 读取实时完整 tip。
-该对话对后续 exact HEAD `4f1d2b86e0e15aeda8d5e8766049eff5539150d5` 返回 `REQUEST_CHANGES`；关于分折、分数方向及阈值截断事件的三项最小方法修订已同 PR 推送为 `a443c70`，等待在同一固定对话 exact-head 复审。此过程没有启动 Argos 或读取实验数据。
+PR #8：`task_20261019_hint_overlay_smoke`，OPEN、未合并。固定 PMA 对话 `PMA｜固定阶段审核` 对完整 HEAD `b421864177da5d6eb9fc4b4a206a8c924cf0fe4f` 给出 `APPROVE`，仅限文档/仓库只读方法审计；不批准 Argos、实验数据、下载、分析、环境修改、caller 执行、ChIP 工作或合并。审核确认同 PR 对 HEAD `4f1d2b86e0e15aeda8d5e8766049eff5539150d5` 的三个 finding 已修复（哈希分折/embargo、分数方向、截断 HINT/TraceBIND 事件），且 21-bp adapter 仅用于连续轨 B1 密度，不代表边界准确度。
+审核明确的科学结论：目前不能确定哪个工具准确度最高。occupancy/扰动标签测的是指定场景的预测一致性，不是碱基级 footprint 边界真值；裸 gDNA 也不是通用真阴性。没有合格标签、四工具共同可评分集和验证过的折外分数，因此没有四工具 AP 排名。审核建议在同 PR 记录此结论，并只用仓库现有源码/文档完成接口与验收规格只读核对。后续复审前从 GitHub 读取完整 live tip，handoff 不自引用其自身 SHA。
 审核边界：此前 `fd0b041` 的 APPROVE 仅覆盖方法文档；`525f0d4` 收到的时间、状态来源、折外边界和事件级备选 findings 已在同 PR 修复，并获当前 `0829b08` 方案级批准。15:41 EDT Argos 队列读取来自当时用户明确要求的 15 分钟监控 heartbeat；只读取调度与已有状态文件，没有读取实验数据，也没有核查 detached processes。该监控授权不扩大为 caller 执行授权。
 
 ## 现在能确定什么
@@ -40,6 +40,19 @@ PR #8：`task_20261019_hint_overlay_smoke`，OPEN、未合并。固定 PMA 对�
 固定 PMA 项目对话对 `525f0d4` 返回 `REQUEST_CHANGES`。同 PR 修订及 handoff-sync 已推送：不再把空 `qstat` 解释为无后台任务；把 15:41 队列读取归因于用户的 15 分钟监控指示，并与实验数据访问分开；将 GNU `time` 子进程 28:18.88 与 job 时间戳 28:24 标明为不同口径；允许 held-out 输入用于冻结 caller 的预测，同时禁止用 held-out 标签/分数分布进行拟合、适配或选择；补充连续分数不可用时的事件级备选，并允许第十轮以不可排名结束。HCT116 HINT→STREME 输出改列为探索性 motif 结果，不作为 B4 验证。复审前从 GitHub 确认完整 live branch tip，并在固定 PMA 对话审核该 SHA。
 
 固定 PMA 对话对精确 HEAD `0829b08` 审核为 `APPROVE`。审核确认：空 qstat 仅表示无队列作业；状态查询授权与实验数据访问已分开；时间/HEAD/计时口径已说明；允许冻结 caller 预测时使用 held-out 输入，禁止利用 held-out 标签/分数拟合或选择；事件级替代与“不能排名”停止条件已写明；HINT-STREME 仅属探索。仍未建立真值、共同连续分数或折外 score。此 APPROVE 只放行基于仓库现有材料整理准入/adapter/fold-exclusion 清单和同 PR 审计记录，不放行 Argos、实验数据、分析、环境改动或 caller 运行。
+
+## 评分接口只读核对（2026-10-19 16:02 EDT）
+
+本次按固定 PMA 审核建议只检查 PR #8 中已有 caller wrapper 和 canonical benchmark design；没有访问 Argos、实验数据或结果，没有运行 caller，也没有改实现。
+
+| 工具 | 源码可见的当前输出 | 对中立排序的意义 / 最小缺口 |
+|---|---|---|
+| PRINT | `run_print.R` 将 `aggregateScores` 写入逐位置 `.r<radius>.track.tsv.gz`，另写原生事件 BED；设计指定 r10 候选轨。 | 有候选连续分数接口，但需要锁定软件/偏差与 dispersion 资源哈希、确认方向/坐标与全 callable 覆盖，并实现合格标签上的折外评分；现有速度任务失败不构成准确度成绩。 |
+| TOBIAS | `run_tobias.sh` 产生 `footprints.bw`，然后 `events_from_track.py` 再阈值化成事件 BED。 | BigWig 是候选连续轨；AP 应读原 track 并把缺失/非有限值记不可评分，不能读二值 BED 或填 0。还须核实共同过滤分母、mask、方向、参数/资源哈希与折外运行。 |
+| HINT | `run_hint.sh` 汇总并排序 RGT 的 `fp.bed` 到 `events.bed`。 | 当前接口为阈值事件；没有阈值前逐候选连续分数接口，不能进入连续 AP。保留原生区间和工作点做事件级/描述性比较；边界 QC 与聚合 RSS 仍是调用产物发布前缺项。 |
+| TraceBIND | `run_tracebind.R` 运行 NB footprinting 后调用 `binding_sites_pval(..., pval_threshold=...)`，只写过阈值事件及其调整 p 值。 | 已截断事件不能提供完整排序；本 wrapper 明确是 PRINT-bias reduced mode，不代表完整 mtDNA-calibrated TraceBIND。保持该原生工作点；除非来源接口证明完整阈值前分数/阈值空间，否则不报 AP 或匹配召回。 |
+
+统一候选 adapter 的验收：固定列/坐标和 score 方向；逐候选行输出 finite、unscorable、missing、run_failed 状态及原因；对四工具共同可评分集计算折外 AP，另报覆盖率、正负例数和同步 genomic-block 配对不确定性。PRINT/TOBIAS 的连续轨不能自动让 HINT/TraceBIND 可评分；不得把“无事件”编码为 score=0。若独立标签或任何必要接口缺失，第 10 轮结论应为当前不可排名；如需部署工程基线，单独按完成率/端到端时间选择并标注准确度未证优。
 
 ## 仓库证据资格清单（只读审计，2026-10-19）
 

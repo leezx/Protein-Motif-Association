@@ -1,19 +1,19 @@
 # PMA — handoff to Codex (2026-10-17, written by Claude Code)
 
-## Current live status — 2026-10-19 16:00 EDT — ranking contract repair pushed
+## Current live status — 2026-10-19 16:02 EDT — exact-head approval; accuracy remains unranked
 
-Footprint-only. PR #8 is OPEN, unmerged, on `task_20261019_hint_overlay_smoke`. Fixed PMA conversation
-`PMA｜固定阶段审核` approved exact HEAD `a602373a1849588c6bdce2356791afc3ac7a5d72` for a
-documentation-only ranking contract, then returned `REQUEST_CHANGES` on exact HEAD
-`4f1d2b86e0e15aeda8d5e8766049eff5539150d5`. Its three findings concern (1) keeping hash-assigned
-neighboring blocks separate and using embargo rather than re-folding them, (2) fixing score direction
-from source definitions instead of choosing it from training labels, and (3) not using already
-threshold-truncated HINT/TraceBIND BED files to claim matched-recall or fixed-budget ranking. Minimal
-same-PR documentation corrections were pushed as `a443c70`; the exact new head is pending review in
-the same fixed PMA conversation. Neither review authorized Argos, experimental
-data, analysis, environment changes, caller execution, or merge. The user requests a credible answer
-within ten iterations; round 10 may conclude “cannot rank” if independent labels and comparable
-held-out outputs remain unavailable.
+Footprint-only. PR #8 is OPEN, unmerged, on `task_20261019_hint_overlay_smoke`. The fixed PMA
+conversation `PMA｜固定阶段审核` approved exact HEAD
+`b421864177da5d6eb9fc4b4a206a8c924cf0fe4f` for a documentation/repository read-only method audit.
+It confirmed that the three findings on `4f1d2b86e0e15aeda8d5e8766049eff5539150d5` are resolved:
+keep hash-assigned blocks separate and use embargo; derive score direction from pinned definitions;
+and preserve threshold-truncated HINT/TraceBIND operating points. It also confirms that current
+evidence cannot identify an accuracy winner: occupancy/perturbation labels measure scenario-specific
+prediction concordance, not base-resolution footprint-boundary truth. No qualified labels, common
+four-tool score set, or validated held-out scores exist, so there is no four-tool AP ranking. This
+approval does not authorize Argos, experimental data, analysis, downloads, environment changes,
+caller runs, ChIP work or merge. Round 10 may conclude “cannot rank” if prerequisites remain
+unavailable.
 The correction keeps neighboring hash-assigned blocks separate and relies on embargo,
 fixes score direction from the pinned tool definition, and limits event-threshold tuning to complete
 score/call spaces. Threshold-truncated native HINT/TraceBIND BED outputs remain fixed operating points

@@ -15,6 +15,7 @@ import collections
 import gzip
 import hashlib
 import io
+import itertools
 import json
 import math
 import os
@@ -162,7 +163,10 @@ def validate_emitted_sidecars(outdir: Path, archive_sha: str, regions: int, link
             raise RuntimeError("region summary header mismatch")
         if next(links, None) != "region_id\texperiment_id\n":
             raise RuntimeError("region-experiment header mismatch")
-        for row_number, (bed_line, summary_line) in enumerate(zip(bed, summary), start=1):
+        for row_number, (bed_line, summary_line) in enumerate(
+                itertools.zip_longest(bed, summary, fillvalue=None), start=1):
+            if bed_line is None or summary_line is None:
+                raise RuntimeError(f"BED6 and region summary row counts differ at row {row_number}")
             b = bed_line.rstrip("\r\n").split("\t")
             s = summary_line.rstrip("\r\n").split("\t")
             if len(b) != 6 or len(s) != 7:
@@ -170,7 +174,10 @@ def validate_emitted_sidecars(outdir: Path, archive_sha: str, regions: int, link
             chrom, start, end, rid, score, strand = b
             srid, schrom, sstart, send, support_s, source_s, mask_s = s
             start_i, end_i, support, source_count, class_mask = map(int, (start, end, support_s, source_s, mask_s))
-            if (rid != srid or chrom != schrom or start_i != int(sstart) or end_i != int(send)
+            if (rid != srid or rid != region_id(chrom, start_i, end_i)
+                    or chrom not in chromosome_order
+                    or not (0 <= start_i < end_i <= chromosome_order[chrom][1])
+                    or chrom != schrom or start_i != int(sstart) or end_i != int(send)
                     or strand != "." or int(score) != min(1000, support) or support < 1
                     or source_count < support or not 1 <= class_mask <= 7):
                 raise RuntimeError(f"BED6 and region summary disagree at row {row_number}")
@@ -277,12 +284,16 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--peaks", required=True, type=Path, help="pinned allPeaks_light.hg38.05.bed.gz")
     parser.add_argument("--metadata", required=True, type=Path, help="pinned experimentList.tab")
+    parser.add_argument("--metadata-release", required=True,
+                        help="explicit ChIP-Atlas release identifier for experimentList.tab")
     parser.add_argument("--chrom-sizes", required=True, type=Path, help="hg38.chrom.sizes with canonical sort order")
     parser.add_argument("--output-dir", required=True, type=Path, help="new directory outside the Git checkout")
     parser.add_argument("--work-dir", required=True, type=Path, help="external scratch with enough space for sort files")
     parser.add_argument("--sort-buffer", default="4G", help="GNU sort memory buffer; default 4G")
     parser.add_argument("--sort-workers", type=int, default=2, help="GNU sort workers; default 2")
     args = parser.parse_args()
+    if not args.metadata_release.strip():
+        parser.error("--metadata-release must be non-empty and name the source release, not a local directory")
 
     peaks, metadata, chrom_sizes = args.peaks.resolve(), args.metadata.resolve(), args.chrom_sizes.resolve()
     outdir, workdir = args.output_dir.resolve(), args.work_dir.resolve()
@@ -606,7 +617,7 @@ def main() -> int:
         "builder_source_sha256": builder_sha,
         "builder": "scripts/04a_chipatlas/build_unique_bed6.py",
         "argv": sys.argv,
-        "metadata_release": metadata.parent.name,
+        "metadata_release": args.metadata_release.strip(),
         "metadata_filename": metadata.name,
         "counts": {
             "source_rows": expected_source_rows,

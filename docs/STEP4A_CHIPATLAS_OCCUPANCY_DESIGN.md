@@ -104,6 +104,9 @@ unverified until that run.
   alone is not a process-memory limit. If the cgroup cannot be created or verified, fail closed. The actual disk peak is
   unknown until a read-only Argos preflight estimates scratch/output needs from the pinned inputs;
   do not infer disk feasibility from the memory cap or start the full build without adequate space.
+- The manifest's ChIP-Atlas metadata release must be passed explicitly as `--metadata-release`
+  (the pinned `experimentList.tab` release is 2026-10-14); never infer source release from a local
+  staging-directory name.
 - The builder writes 48 deterministic random 1 kb BED0 windows plus one guaranteed positive-control
   region query and compares each indexed `tabix` result byte-for-byte with unindexed BED6 rows.
   Before `PASS`, it fully rereads and cross-reconciles BED6, region summary, region–experiment links,

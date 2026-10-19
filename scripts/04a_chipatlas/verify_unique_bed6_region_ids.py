@@ -90,7 +90,10 @@ def main() -> int:
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     input_hash = sha256_file(bed)
     declared_hash = manifest.get("output_sha256", {}).get(bed.name)
-    if declared_hash is not None and declared_hash != input_hash:
+    if (not isinstance(declared_hash, str) or len(declared_hash) != 64
+            or any(char not in "0123456789abcdef" for char in declared_hash)):
+        raise ValueError("release manifest must declare a valid BED6 SHA-256")
+    if declared_hash != input_hash:
         raise ValueError("BED6 SHA-256 does not match the release manifest")
     sort_rows = 0
     hash_mismatches = 0

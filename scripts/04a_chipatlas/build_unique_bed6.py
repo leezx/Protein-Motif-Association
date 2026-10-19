@@ -245,16 +245,25 @@ def validate_emitted_sidecars(outdir: Path, archive_sha: str, regions: int, link
             "gzip_crc_checked": True}
 
 
-def metadata_status(fields: list[str] | None) -> str:
-    if fields is None:
+def hg38_metadata_row(fields: list[list[str]] | None) -> list[str] | None:
+    """Select the unique hg38 record for an experiment also listed on hg19."""
+    if not fields:
+        return None
+    matches = [row for row in fields if len(row) >= 3 and row[1] == "hg38"]
+    return matches[0] if len(matches) == 1 else None
+
+
+def metadata_status(fields: list[list[str]] | None) -> str:
+    if not fields:
         return "MISSING_METADATA"
-    if len(fields) != 1:
+    hg38_rows = [row for row in fields if len(row) >= 3 and row[1] == "hg38"]
+    if len(hg38_rows) > 1:
         return "AMBIGUOUS_METADATA"
-    row = fields[0]
-    if len(row) < 3:
-        return "MISSING_METADATA"
-    if row[1] != "hg38":
+    if not hg38_rows:
+        if any(len(row) < 3 for row in fields):
+            return "MISSING_METADATA"
         return "OUT_OF_SCOPE_GENOME"
+    row = hg38_rows[0]
     if row[2] not in CLASS_BITS:
         return "OUT_OF_SCOPE_CLASS"
     return "INCLUDED"
@@ -335,6 +344,9 @@ def main() -> int:
     builder_sha = sha256_file(builder_path)
 
     metadata_rows, metadata_sha = load_metadata(metadata)
+    metadata_status_by_eid = {eid: metadata_status(rows) for eid, rows in metadata_rows.items()}
+    hg38_metadata_by_eid = {eid: row for eid, rows in metadata_rows.items()
+                            if (row := hg38_metadata_row(rows)) is not None}
     chroms, chrom_sha = load_chrom_sizes(chrom_sizes)
     queries = make_queries(chroms)
     queries_by_chrom: dict[str, list[dict[str, object]]] = collections.defaultdict(list)
@@ -350,9 +362,9 @@ def main() -> int:
     rows_by_metadata_class_genome: collections.Counter[str] = collections.Counter()
     experiments_with_peaks: set[str] = set()
     class_experiments: collections.Counter[str] = collections.Counter()
-    for eid, candidates in metadata_rows.items():
-        if metadata_status(candidates) == "INCLUDED":
-            class_experiments[candidates[0][2]] += 1
+    for eid, status in metadata_status_by_eid.items():
+        if status == "INCLUDED":
+            class_experiments[hg38_metadata_by_eid[eid][2]] += 1
 
     with tempfile.TemporaryDirectory(prefix="pma-chipatlas-unique-", dir=workdir) as tmp:
         tmpdir = Path(tmp)
@@ -368,9 +380,8 @@ def main() -> int:
                     status = "MALFORMED_SOURCE_ROW"
                 else:
                     chrom, raw_start, raw_end, eid, raw_score = fields
-                    candidates = metadata_rows.get(eid)
-                    if candidates and len(candidates) == 1 and len(candidates[0]) >= 3:
-                        meta_row = candidates[0]
+                    meta_row = hg38_metadata_by_eid.get(eid)
+                    if meta_row is not None:
                         rows_by_metadata_class_genome[f"{meta_row[1]}|{meta_row[2]}"] += 1
                     try:
                         start, end, qscore = int(raw_start), int(raw_end), float(raw_score)
@@ -384,11 +395,11 @@ def main() -> int:
                     elif end > chroms[chrom][1]:
                         status = "INVALID_COORDINATE"
                     else:
-                        mstatus = metadata_status(metadata_rows.get(eid))
+                        mstatus = metadata_status_by_eid.get(eid, "MISSING_METADATA")
                         if mstatus != "INCLUDED":
                             status = mstatus
                         else:
-                            meta = metadata_rows[eid][0]
+                            meta = hg38_metadata_by_eid[eid]
                             bit = CLASS_BITS[meta[2]]
                             spool.write(f"{chroms[chrom][0]}\t{chrom}\t{start}\t{end}\t{eid}\t{ordinal}\t{qscore:.17g}\t{bit}\n")
                             rows_by_class[meta[2]] += 1
@@ -561,8 +572,8 @@ def main() -> int:
     exp_path, exp_raw = open_text_gz(outdir / "experiment_metadata.tsv.gz")
     exp_path.write("experiment_id\tgenome\tantigen_class\tantigen\tmetadata_fields_json\n")
     for eid in sorted(metadata_rows):
-        if metadata_status(metadata_rows[eid]) == "INCLUDED":
-            row = metadata_rows[eid][0]
+        if metadata_status_by_eid[eid] == "INCLUDED":
+            row = hg38_metadata_by_eid[eid]
             exp_path.write(f"{eid}\t{row[1]}\t{row[2]}\t{row[3] if len(row) > 3 else ''}\t{json.dumps(row, ensure_ascii=False, separators=(',', ':'))}\n")
     exp_path.close(); exp_raw.close()
 
@@ -588,7 +599,7 @@ def main() -> int:
         },
         "metadata_experiments_without_included_peaks": sorted(
             eid for eid, rows in metadata_rows.items()
-            if metadata_status(rows) == "INCLUDED" and eid not in experiments_with_peaks
+            if metadata_status_by_eid[eid] == "INCLUDED" and eid not in experiments_with_peaks
         ),
         "region_class_membership_mask_counts": mask_report,
         "regions_with_multiple_experiments": n_multi_experiment_regions,

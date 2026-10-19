@@ -1,5 +1,9 @@
 # PMA — handoff to Codex (2026-10-17, written by Claude Code)
 
+## Live status update — 2026-10-19 00:19 EDT — HINT runtime restored; BED6 build continues
+
+Argos Grid Engine job `58` is running the human hg38 ChIP-Atlas unique BED6 builder under one-slot `h_vmem=44G`; code commit `15ed3d644283e56a2223e86a82623862181173f4`, result and QC pending. For Step 4b, the existing `pmafp` RGT/HINT CLI failed with NumPy 2 (`numpy.mat` removed). An external venv overlay at `/home/zz950/PMA_fetch/pma_hint_overlay_v1` now uses pinned NumPy 1.26.4 and SciPy 1.11.4 wheels over the unchanged `pmafp` packages. Grid Engine job `60` passed RGT import and HINT CLI help; source `pmafp` pip-freeze SHA-256 remained `5d413fd24ed1f812ff05aa562e960f30a2c83fdc33ad72478d4b052216d3a207`. A direct HINT CLI call in job `62` produced 234 footprint BED rows from the existing 20-region HCT116 control smoke input, exit 0, output SHA-256 `ec51ecd31ca5d8bac90bc959d9a812a67b6bb0b5706d0f002a4e75dd195e223e`. The repository wrapper failed in job `61` because it did not create each chunk's output directory; a one-line fix is being committed on branch `task_20261019_hint_overlay_smoke`. These are smoke results only; no accuracy/speed comparison or tool selection yet. See `docs/handoff/2026-10-19-hint-overlay-smoke.zh-CN.md`.
+
 **Read this first, then `docs/PROJECT_CHARTER.md`, the workspace `AGENTS.md` and `HANDOFF.md`, and the step design
 doc for whatever you touch.** Everything below was true at handoff time; verify live state before acting.
 

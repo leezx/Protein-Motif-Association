@@ -370,3 +370,7 @@ Argos is Grid Engine 6.2u5, not Slurm; cgroups are v1 and the SSH service memory
 ### 2026-10-19 05:31 EDT — BED6 job 58 correction
 
 Grid Engine job 58 exited 2 after 10,272 s at a deterministic finalization bug (integer/string class-mask key comparison). It left only partial sidecars in external `unique_bed6_v1/`; there is no BED6 release or manifest. `normal.q` is QERROR and cannot be reset by this account. PR #7 fixes the comparison and allows a separately logged Argos background retry only under one-slot, CPU-only, finite 44-GiB soft/hard RLIMIT_AS. Rebuild to a new external output path, then run independent region-ID collision QC. Do not claim ChIP reference complete until all release files and QC pass.
+
+### 2026-10-19 05:34 EDT — active BED6 retry
+
+`BG_BED6_RETRY_A3C0C68` is active on Argos from clean code HEAD `a3c0c68`, with external output `unique_bed6_v1_retry_a3c0c68`, one task, 44-GiB finite soft/hard RLIMIT_AS, no GPU. Job 58's partial sidecars remain separate. Do not run collision QC until the new manifest and BED6 exist and the retry exits 0. The collision-QC script has been adapted to the same capped background mode because Grid Engine `normal.q` remains QERROR.

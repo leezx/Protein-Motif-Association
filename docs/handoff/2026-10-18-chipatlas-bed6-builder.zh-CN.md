@@ -570,3 +570,7 @@ Next: commit/push this complete resource-adaptation phase and request one GPT ph
 ## 2026-10-19 05:31 EDT：Job 58 末段失败与受限重跑
 
 Argos 作业 58 运行 10,272 秒后退出 2，stderr 为 `unexpected class-membership mask`。根因是整数 `mask_counts` 键与字符串 `mask_report` 键比较，所有合法 mask 都被误判。已修正比较。作业 58 的 `region_experiment.tsv.gz`、`region_summary.tsv.gz`、`peak_provenance.tsv.gz` 保留在 `processed/unique_bed6_v1/` 作为失败证据；BED6、manifest 和最终 QC 尚不存在。唯一队列 `normal.q` 因作业 85/86 处于 QERROR，当前账户无权清除。代码增加 Argos 后台模式，仍要求单任务、44 GiB 的软硬 `RLIMIT_AS`、CPU 与独立退出日志；将在全新输出目录重跑。不能将旧的部分侧表视为可发布 reference。
+
+## 2026-10-19 05:34 EDT：全量重跑已启动
+
+新 Argos checkout 固定为 `a3c0c68` 且干净。后台任务 `BG_BED6_RETRY_A3C0C68` 已于 05:31 EDT 启动，44 GiB 软硬地址空间上限、单 CPU 槽语义、无 GPU。新输出和工作路径分别为 `processed/unique_bed6_v1_retry_a3c0c68` 与同名 `_work`；独立 PID、日志、退出码位于 `/home/zz950/PMA_fetch/pma_bg_pr8_20261019/`。修复的代码还未完成本次全量运行，因此结果仍未验收。独立 region-ID collision QC 已支持同样的受限后台模式，将在 release manifest 存在后运行。

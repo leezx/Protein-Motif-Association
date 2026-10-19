@@ -1,6 +1,6 @@
 # ChIP-Atlas unique BED6 builder implementation handoff
 
-Updated: 2026-10-18 23:10 EDT
+Updated: 2026-10-19 03:30 UTC
 Branch: `task_20261019_chipatlas_bed6_builder`  
 Parent design PR: [#6](https://github.com/leezx/Protein-Motif-Association/pull/6), exact GPT-approved design HEAD `3c0e48e699073726b9ef7453644cabbe8b277ca4`, OPEN/unmerged.  
 Implementation PR: [#7](https://github.com/leezx/Protein-Motif-Association/pull/7), OPEN/unmerged, stacked on PR #6. Verify the complete live HEAD on GitHub before review or execution; this handoff is a timestamped snapshot.
@@ -8,9 +8,9 @@ Implementation PR: [#7](https://github.com/leezx/Protein-Motif-Association/pull/
 ## Live update — 2026-10-18 23:10 EDT / 2026-10-19 03:10 UTC — local transcript recovered; preflight stopped at manifest gate
 
 PR #7 remains OPEN at `012b59c35bae3271605b00d8c3a77ed82061e27a` (base `3c0e48e699073726b9ef7453644cabbe8b277ca4`). GPT approved the exact static implementation/audit and one execution of this revised read-only preflight. The one-time command ran once; its result was recovered from the local Codex session rollout `01a14d07-a237-7ca2-ae3e-6c61140234bd`, tool call `call_f154707f9548495583f795ac1154580a` (result record ordinal 34954). The recorded tool result has exit code `1`; it reports the existing Argos checkout `task_20261018_step4b_setup_fix` at `4d099df44dc4bb48a93e110241168fadea1b1de6`, remote PR branch ref `012b59c35bae3271605b00d8c3a77ed82061e27a`, and canonical RAW path `/data/sysdir/home/zz950/DATA/2.PROJECTS/PMA/occupancy_chipatlas/raw/2026-10-17`. It then stopped with `required checksum entries missing/ambiguous: ['reference/hg38.chrom.sizes']`. Thus the command read the MD5SUMS manifest but did not hash or stat any of the three data inputs, inspect output paths or filesystems, report tool versions, or create the transient cgroup. No checksum, capacity, tool, or cgroup check passed; neither build nor output was produced. The one-time authorization is consumed. Do not rerun the command. Any manifest investigation or corrected preflight requires a newly reviewed, exact-scope operation. Outcomes 1 and 2 remain incomplete.
-## Proposed next query — not approved or run
+## Proposed next query — repaired after GPT REQUEST_CHANGES; not approved or run
 
-Purpose: identify why the approved preflight's MD5SUMS parser did not find the exact `reference/hg38.chrom.sizes` key. This is a new, independent one-time read-only query, not a retry of the consumed preflight. It reads only `MD5SUMS` content and inspects names/type metadata for matching entries in the `reference/` directory; it does not open or hash any ChIP-Atlas data file, inspect output/storage/tool/cgroup state, or create files. It will stop on any path/symlink guard failure. Exact command proposed for GPT review:
+Purpose: identify why the approved preflight's MD5SUMS parser did not find the exact `reference/hg38.chrom.sizes` key. This is a new, independent one-time read-only query, not a retry of the consumed preflight. It reads only `MD5SUMS` content and inspects names/type metadata for matching entries in the `reference/` directory; it does not open or hash any ChIP-Atlas data file, inspect output/storage/tool/cgroup state, or create files. It will stop on any path/symlink guard failure. GPT found that `Path.is_file()` would follow a matching symlink. The proposal now inspects `lstat()` mode only, streams the manifest, avoids sorting, caps candidate output at 100 with a nonzero incomplete-report exit, and repr-escapes names. It remains unapproved and unrun. Exact command proposed for fresh GPT review:
 
 ```bash
 ssh -o BatchMode=yes zz950@rcapps3.dfci.harvard.edu 'bash -s' <<'REMOTE'
@@ -18,7 +18,7 @@ set -euo pipefail
 RAW=/home/zz950/DATA/2.PROJECTS/PMA/occupancy_chipatlas/raw/2026-10-17
 PY=/home/zz950/softwares/miniforge3/envs/pmafp/bin/python
 "$PY" - "$RAW" <<'PY'
-import os, re, sys
+import os, re, stat, sys
 from pathlib import Path
 logical_root = Path(os.path.abspath(sys.argv[1]))
 logical_parent = logical_root.parent.parent.resolve(strict=True)
@@ -50,13 +50,22 @@ reference = safe_path(logical_root / "reference")
 if not manifest.is_file() or not reference.is_dir():
     raise SystemExit("MD5SUMS or reference directory has unexpected type")
 pattern = re.compile(r"([0-9A-Fa-f]{32}) [ *](.+)")
-for line_no, line in enumerate(manifest.read_text(encoding="ascii").splitlines(), 1):
-    match = pattern.fullmatch(line)
-    if match and "chrom" in match.group(2).lower() and "size" in match.group(2).lower():
-        print(f"MANIFEST_CANDIDATE line={line_no} path={match.group(2)}")
-for entry in sorted(reference.iterdir(), key=lambda p: p.name):
+candidate_count = 0
+def emit_candidate(line):
+    global candidate_count
+    candidate_count += 1
+    if candidate_count > 100:
+        raise SystemExit("candidate limit exceeded; report incomplete")
+    print(line)
+with manifest.open(encoding="ascii") as manifest_stream:
+    for line_no, line in enumerate(manifest_stream, 1):
+        match = pattern.fullmatch(line.rstrip("\n"))
+        if match and "chrom" in match.group(2).lower() and "size" in match.group(2).lower():
+            emit_candidate(f"MANIFEST_CANDIDATE line={line_no} path={match.group(2)!r}")
+for entry in reference.iterdir():
     if "chrom" in entry.name.lower() and "size" in entry.name.lower():
-        print(f"REFERENCE_CANDIDATE name={entry.name} symlink={entry.is_symlink()} regular_file={entry.is_file()}")
+        mode = entry.lstat().st_mode
+        emit_candidate(f"REFERENCE_CANDIDATE name={entry.name!r} symlink={stat.S_ISLNK(mode)} regular_file={stat.S_ISREG(mode)}")
 PY
 REMOTE
 ```

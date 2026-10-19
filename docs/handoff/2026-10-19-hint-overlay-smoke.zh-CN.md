@@ -81,3 +81,7 @@ ctrl HINT `BG_HINT_GENOME_ctrl_32_V1` 退出 0：91,210 个预定 peak 窗口、
 ## 2026-10-19 06:24 EDT：aux 片段数
 
 `BG_COUNT_AUX_FRAGMENTS_V1` 在 Argos 退出 0，用与 ctrl 相同的 `-f 0x43 -F 0x904 -q 30` 定义得到 44,789,228 个片段。aux HINT 全样本 32 分块仍在运行。两种 HCT116 条件都不足 1 亿片段，不能冒充正式速度门槛。
+
+## 2026-10-19 06:29 EDT：真实 1 亿片段速度样本
+
+ENCODE 官方记录的 K562 bulk ATAC-seq `ENCSR868FGK` 中，GRCh38 replicate-1 对齐文件 `ENCFF534DCE` 的 QC 报告有 114,471,886 个 usable fragments；官方字节数 10,012,174,956，MD5 `4bd9c1e48617afea2a2cf4834eed961b`。Argos 字节范围请求返回 HTTP 206，已在 44 GiB CPU-only gate 下启动 `BG_FETCH_K562_ATAC_ENCFF534DCE_V1`，将 BAM 下载到仓库外 `raw/2026-10-19/encode_k562/ENCSR868FGK/`；只有字节数、MD5 和 `samtools quickcheck` 通过才会出现最终文件名。ENCODE 对该实验有核小体游离片段比例方面的 QC 警告，因此它目前仅用于计算速度门槛，不作为未经审计的 B3 生物学真值。完整下载后还要按本项目的 MAPQ≥30 定义重新计数，再运行真实速度门槛。官方来源：https://www.encodeproject.org/experiments/ENCSR868FGK/ 和 https://www.encodeproject.org/files/ENCFF534DCE/ 。gDNA TOBIAS 已完成 ATACCorrect 阶段，但整项仍在运行；TraceBIND V11 与 aux HINT 仍在运行。

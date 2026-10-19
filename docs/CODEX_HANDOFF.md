@@ -1,5 +1,13 @@
 # PMA — handoff to Codex (2026-10-17, written by Claude Code)
 
+## Live status update — 2026-10-19 13:48 EDT — PR #8 method/fix commit pushed; Argos rerun awaits exact-head review
+
+Verified PR #8 OPEN at HEAD `69e2efa592187883ce98ac624eb1d07ed5f8d589` (`task_20261019_hint_overlay_smoke`). Commit `69e2efa` contains the neutral accuracy-ranking proposal, fresh HCT116 input/PRINT failure evidence, and the three-site `R_LIBS` fix. `git diff --check` passed before commit; no test suite or analysis was run after this change. No PR merge.
+
+The exact PR #8 review prompt cannot yet be delivered to the persistent PMA ChatGPT conversation: the connector reports that conversation is already responding to an earlier PR #6 request, and the last readable turns still show that prior request. The project rule forbids opening another reviewer conversation. Therefore no dependent Argos retry is started until the exact current PR #8 head has a review and human stage acceptance. ChIP BED6/PR #7 remains out of scope.
+
+Fresh truth-data discovery: official ENCODE lists HCT116 CTCF ChIP-seq `ENCSR059BCO` (untreated CTCF-degron line) and `ENCSR160GVO` (six-hour 5-Ph-IAA-treated), in the same degron system as the already verified ATAC pair `ENCSR328JGW` / `ENCSR260SWI`. The ChIP files, exact biosample mapping, replicates, audits and peak outputs are not yet inspected, so these are candidate occupancy labels only; they are not yet validated B2/B3 truth.
+
 ## Live status update — 2026-10-19 13:43 EDT — neutral accuracy ranking protocol; PRINT speed failure isolated
 
 Footprint-only scope. PR #8 remains OPEN at HEAD `b2ea5c760d12d56e54fa01fa398b52c1d2521925`; do not inspect or modify ChIP BED6/PR #7.

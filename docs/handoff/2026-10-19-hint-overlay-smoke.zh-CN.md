@@ -251,3 +251,15 @@ Measured project progress: HINT motif-free calls already cover 91,210 fixed HCT1
 - HCT116 HINT 仍覆盖 91,210 个固定 1-kb 可及窗口；ctrl/aux STREME 仍无最终 `streme.txt`，不可用于选工具。
 
 **下一步**：静态检查 PR 的最小 R_LIBS 修复；只读确认 matched HCT116 CTCF ChIP label/site 表、B3 独立真值是否存在；完成 TraceBIND 全模式校准后，在所有 caller 的共同位点表上跑 held-out AUPRC/B1–B3。PR gate 通过后再同步修正外部速度 launcher 并受控重跑 PRINT。没有完成前，不报告赢家或开始泛癌全局调用。外部数据/结果未进入仓库；未合并 PR。
+
+## 2026-10-19 13:48 EDT — PR #8 已推送，等待当前 HEAD 阶段审核
+
+PR #8 当前 GitHub 状态为 OPEN，准确 HEAD `69e2efa592187883ce98ac624eb1d07ed5f8d589`。同一 PR 提交了中立准确度排名方案、PRINT R 库路径修复及 Worklog/handoff 更新。`git diff --check` 在提交前通过；提交后未运行测试或分析。未合并。
+
+PRINT 失败根因已由只读环境检查确定：原速度 launcher 的 `R_LIBS` 只有两个共享库，`requireNamespace('cladoRcpp')` 为 FALSE；前置隔离库 `/home/zz950/PMA_fetch/pma_r_print_overlay_v1/lib` 后为 TRUE。修复已写入 `run_4b1.sh` 和 `run_round1.sh` 的 PRINT 调用点，尚未获 exact-head reviewer review，故未同步外部 runner 或重跑。
+
+发现 ENCODE HCT116 CTCF ChIP 候选：未处理 `ENCSR059BCO`、六小时 5-Ph-IAA `ENCSR160GVO`，与已核验 ATAC `ENCSR328JGW` / `ENCSR260SWI` 属于同一 degron 系统。尚未检查 ChIP 文件、精确生物样本/技术重复关系、ENCODE audit 或峰文件，故只能标记为候选标签，不能宣称 B2/B3 真值已建立。
+
+准确度方案：固定共同、caller-independent 的候选位点；以训练区块定阈值，held-out AUPRC/平均精确率为主，配对 1-Mb 区块 bootstrap 并校正四工具比较；B1 naked gDNA 同召回下报告每 callable Mb/百万有效切点假阳性；B2 测 CTCF degron 位点 paired score 变化；B3 使用独立占据证据；B4 motif 家族恢复仅作支持。AUPRC 与 gDNA specificity 冲突时报告 trade-off，不加事后权重；CI不能区分则并列，单一 HCT116 CTCF 不能推出普适赢家。
+
+持久 PMA ChatGPT 审核线程仍在处理早先 PR #6 请求；新消息调用返回 “already responding”，所以 PR #8 exact-head review 尚未送达。项目规则禁止另开 reviewer 会话；在当前 HEAD 审核和人类阶段接受前不重跑 PRINT/TraceBIND。无准确度结果、无赢家、未做 ChIP BED6/PR #7、无合并、无外部数据进入仓库。

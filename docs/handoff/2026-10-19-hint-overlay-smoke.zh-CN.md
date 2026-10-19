@@ -73,3 +73,7 @@ Argos 的 ctrl/aux 双重复 BAM 合并和索引均退出 0，分别为 4,960,64
 ## 2026-10-19 06:18 EDT：TraceBIND 序列 I/O 修复
 
 检查已安装 `tracebind::get_bias()` 后确认：若工作目录有 `regionSeqs.txt`，它会跳过对远端 2bit 文件逐区域反复执行的 `getSeq()`。原三组 V10 运行约半小时仍无结果，抽查 worker 已各自读取 15–24 GB 远端 2bit；因此主动停止，仅这三组进程树收到 TERM，gate 记录退出码 143，日志完整保留。新增脚本从已索引、已校验的 hg38 FASTA 预计算区域两侧各 50 bp，20 区域 ctrl 小样例与原 BSgenome 输出逐字节一致、退出 0。ctrl/aux/gDNA 的 2,000 区域预计算均在 44 GiB CPU-only 任务下退出 0，序列 SHA-256 为 `c071c1cd80e229510ac2f96ac552548e70b3e41ec8fdeea11c6e24ab82f5e91a`、`c071c1cd80e229510ac2f96ac552548e70b3e41ec8fdeea11c6e24ab82f5e91a`、`d821f7654bab067df730112bfb1979748bd179331756aedf784370ad819bbfff`。已用同一原生 R 统计调用和预计算序列启动三组 V11；退出与事件文件仍待核验。新外部汇总 spec 为 `spec_trace_v11_77d8556.json`，SHA-256 `2f182a61960a39606b5712e97e7c68d11799e1362bfafacf5064c4a2debe08a0`。尚无准确度结论。
+
+## 2026-10-19 06:22 EDT：HINT 全样本实测与片段数
+
+ctrl HINT `BG_HINT_GENOME_ctrl_32_V1` 退出 0：91,210 个预定 peak 窗口、32/32 分块结果齐全，wall 10:03.94，927,584 条原生 footprint 事件，SHA-256 `ea2b730c79e82637a63bf18f0493b689d3ad40f8f6c81b011ebeaee8660225d5`；单子进程最大 RSS 239,532 KB，32 进程抽样合计约 7.25 million KiB。独立 Argos 片段计数任务退出 0，合并 ctrl BAM 中 MAPQ≥30、primary、proper-pair 的 read1 数为 46,158,731。因此此结果是真实全样本运行，但未达到预设 1 亿片段速度门槛，不可声称通过门槛。已启动 aux 的相同 HINT 运行和片段计数；gDNA TOBIAS、三组 TraceBIND V11 仍在运行。需要真实 1 亿片段 ATAC 样本再做正式速度门槛。

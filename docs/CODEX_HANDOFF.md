@@ -1,5 +1,18 @@
 # PMA — handoff to Codex (2026-10-17, written by Claude Code)
 
+## Current live status — 2026-10-19 15:22 EDT — reviewer fixes pushed; audit sync in same PR
+
+Footprint-only scope. PR #8 remains OPEN on `task_20261019_hint_overlay_smoke`. The fixed PMA project
+conversation `PMA｜固定阶段审核` returned `REQUEST_CHANGES` on prior HEAD
+`25343902cd2618fff8fbea37e32b80d2ea3ef1f8`. The same-PR correction commit `e1b99cf` is pushed and
+fixes the three findings: correct three-opponent/six-comparison leader wording, accurate naked-DNA
+Tn5/footprint-truth wording, and deterministic B1 scoring/depth-match rules. This live-status and
+handoff sync is being added to the same PR; after it is pushed, request review of the complete tip in
+the fixed PMA conversation. No result ranking exists: HCT116 ChIP provenance/biological replication
+and a four-way common continuous score field are unavailable. No Argos task, data access, analysis,
+environment change, ChIP BED6/PR #7 work, or merge occurred. Do not start dependent compute until
+exact-head `APPROVE` and human stage acceptance; do not merge PR #8.
+
 ## Current live status — 2026-10-19 15:20 EDT — fixed-thread review findings being repaired
 
 Footprint-only scope; do not touch Claude's ChIP BED6 or PR #7. PR #8 is OPEN on

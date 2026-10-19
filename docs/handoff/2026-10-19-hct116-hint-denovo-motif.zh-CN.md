@@ -1,5 +1,15 @@
 # HCT116 HINT motif 与 K562 TOBIAS 里程碑
 
+## 最新状态 — 2026-10-19 15:22 EDT — 更正已推送，交接同步同 PR 进行中
+
+PR #8 仍 OPEN。固定 PMA 对话 `PMA｜固定阶段审核` 对前一 HEAD
+`25343902cd2618fff8fbea37e32b80d2ea3ef1f8` 返回 `REQUEST_CHANGES`；同一 PR 更正提交
+`e1b99cf` 已推送，修复三项文档问题，并明确 B1 的确定性 QNAME-hash 深度匹配、事件 ties、
+inclusive cutoff、21-bp NMS 和 fold territory。当前这份交接状态同步正在加入同一 PR；随后会在
+固定对话请求完整新 tip 的 exact-head 审核。准确度排名仍不可计算：HCT116 ChIP 来源/生物学重复
+未确立，四工具共同连续 score 也未建立。没有 Argos、数据访问或分析运行，没有修改环境、PR #7
+或合并。下方较早条目是历史状态快照。
+
 ## 最新状态 — 2026-10-19 15:20 EDT — 固定 PMA 审核指出的文档问题正在同一 PR 修复
 
 PR #8 仍 OPEN，远端 HEAD 为 `25343902cd2618fff8fbea37e32b80d2ea3ef1f8`。固定 PMA 项目对话

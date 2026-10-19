@@ -2,9 +2,9 @@
 
 **Status.** The earlier benchmark design was approved by ChatGPT on 2026-10-17 with revisions.
 That approval does not cover the material Section 4 revisions. The fixed PMA project conversation
-returned `REQUEST_CHANGES` on the 2026-10-19 exact-head review; its remaining documentation findings
-are being addressed in the same PR. No caller is selected, and no C/C++ port is approved. Both
-decisions wait for a measured benchmark (§6).
+returned `REQUEST_CHANGES` on the 2026-10-19 exact-head review. Its documentation findings have been
+corrected in the same PR, with the newest audit-status sync being pushed for a fresh review. No caller
+is selected, and no C/C++ port is approved. Both decisions wait for a measured benchmark (§6).
 
 **PI direction.**
 - Read Hu et al. 2025 *Nature* ("Multiscale footprints reveal the organization of cis-regulatory

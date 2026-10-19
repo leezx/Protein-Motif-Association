@@ -1,5 +1,9 @@
 # PMA — handoff to Codex (2026-10-17, written by Claude Code)
 
+## Live status update — 2026-10-19 00:05 EDT — Argos BED6 build job 58 running
+
+PR #7 is OPEN at exact local/GitHub HEAD `15ed3d644283e56a2223e86a82623862181173f4`. The previously blocked memory path is resolved: Grid Engine one-slot `h_vmem=44G` was verified to enforce a finite process address-space limit below 50 GB. Submitted the full human hg38 ChIP-Atlas BED6 builder to `normal.q` as job `58`, with one slot, `h_vmem=44G`, `h_rt=48h`, no GPU. It is now running on `rcGPUs`; no output has been reported yet. Inputs are the already checksum-verified 21.4-GB human hg38 peak archive, experiment list and chromosome sizes. Output/work directories are external: `/home/zz950/DATA/2.PROJECTS/PMA/occupancy_chipatlas/processed/unique_bed6_v1{,_work}`; scheduler logs are under `processed/unique_bed6_v1_jobs/15ed3d6/`. Argos code checkout is exact and clean at the PR SHA. Next: monitor job/logs, capture `qacct`, then run the separate region-ID collision audit under the same 44-GiB cap. Footprint benchmark still has no results. PR remains unmerged.
+
 ## Live status update — 2026-10-18 23:45 EDT — inputs verified; Argos memory-control gate failed
 
 GPT approved PR #7 exact HEAD `04c43397fdcda8cf1bda19edc5ec2c936239e697` implementation/audit and one exact execution of the read-only Argos preflight. Rechecked HEAD/base/state immediately before running; extracted and executed the handoff command once (command SHA-256 `1c0b31af18741686a5d93feaefbced6e3287dd1e3b3193922eaf3ca022665d59`). Exit `1` at `systemd-run --user --scope`: `Failed to create bus connection: No such file or directory`. Its one-time approval is consumed.

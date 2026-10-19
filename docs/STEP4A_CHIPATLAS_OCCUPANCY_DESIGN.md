@@ -82,6 +82,32 @@ during the later, separately approved Argos run. The previously reported 1,843,5
 `out_of_scope_class` rows are **not** assumed to be all Histone; class-level counts remain
 unverified until that run.
 
+### Implementation-stage contract clarification (2026-10-19)
+
+- Mutually exclusive source-row `primary_status` precedence is: `MALFORMED_SOURCE_ROW`,
+  `INVALID_COORDINATE`, `UNSUPPORTED_CHROM`, `MISSING_METADATA`, `AMBIGUOUS_METADATA`,
+  `OUT_OF_SCOPE_GENOME`, `OUT_OF_SCOPE_CLASS`, then `INCLUDED_PAIR_FIRST` or
+  `INCLUDED_PAIR_ADDITIONAL`. The two included-pair states are assigned after coordinate/experiment
+  grouping; duplicate source rows remain in provenance.
+- A region's 3-bit membership mask records which of the three included experiment classes support
+  it. The seven possible nonzero masks are mutually exclusive; their counts must sum to the global
+  unique-region count. Also report overlapping class-specific unique-region counts.
+- Keep the approved two external sorts in the core build: coordinate/experiment/source-row grouping,
+  then source-row ordering for provenance. Add a separate release-level third sort over one compact
+  `(region_id, chrom, start, end)` record per unique region. Adjacent full-ID comparison must verify
+  zero duplicate IDs and zero different-coordinate SHA-256 collisions. This QC does not reread or
+  reorder the raw archive or provenance table.
+- The approved builder launcher must place Python and every child process in a cgroup with a hard
+  44 GiB memory cap and swap disabled; GNU sort starts at `-S 4G --parallel=2`. `sort -S` alone is
+  not a process-memory limit. If the cgroup cannot be created, fail closed. The actual disk peak is
+  unknown until a read-only Argos preflight estimates scratch/output needs from the pinned inputs;
+  do not infer disk feasibility from the memory cap or start the full build without adequate space.
+- The builder writes 48 deterministic random 1 kb BED0 windows and compares each indexed `tabix`
+  result byte-for-byte with the streaming unindexed BED6 rows captured during construction.
+
+These are implementation-stage proposals, not tested behavior or resource measurements. No Argos
+data or environment was accessed while adding them.
+
 Historical v1 status: **contract approved** (ChatGPT, 2026-10-17: APPROVE WITH REVISIONS; the revisions are
 already applied below). A small pilot must validate the implementation assumptions (§7) before the
 full archive is processed.

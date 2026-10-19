@@ -98,14 +98,17 @@ unverified until that run.
   `(region_id, chrom, start, end)` record per unique region once for the formal release. Adjacent
   full-ID comparison must verify zero duplicate IDs and zero different-coordinate SHA-256
   collisions. This QC does not reread or reorder the raw archive or provenance table.
-- The approved builder launcher must place Python and every child process in a cgroup with a hard
-  44 GiB memory cap and swap disabled; GNU sort starts at `-S 4G --parallel=2`. `sort -S` alone is
-  not a process-memory limit. If the cgroup cannot be created, fail closed. The actual disk peak is
+- Both Python entrypoints must independently fail closed unless their live cgroup-v2 controls report
+  a finite `memory.max` no greater than 44 GiB and `memory.swap.max=0`; the launchers place Python
+  and children in that cgroup. GNU sort starts at `-S 4G --parallel=2` under `LC_ALL=C`. `sort -S`
+  alone is not a process-memory limit. If the cgroup cannot be created or verified, fail closed. The actual disk peak is
   unknown until a read-only Argos preflight estimates scratch/output needs from the pinned inputs;
   do not infer disk feasibility from the memory cap or start the full build without adequate space.
-- The builder writes 48 deterministic random 1 kb BED0 windows and compares each indexed `tabix`
-  result byte-for-byte with the streaming unindexed BED6 rows captured during construction. The
-  separate release-ID QC also verifies BED6 sort order, coordinate validity, and stable-ID hashes.
+- The builder writes 48 deterministic random 1 kb BED0 windows plus one guaranteed positive-control
+  region query and compares each indexed `tabix` result byte-for-byte with unindexed BED6 rows.
+  Before `PASS`, it fully rereads and cross-reconciles BED6, region summary, region–experiment links,
+  and source-row provenance, including counts, ordering, hashes, coordinates, IDs, statuses and gzip
+  CRCs. The separate release-ID QC also verifies BED6 sort order, coordinate validity, and stable-ID hashes.
 
 These are implementation-stage proposals, not tested behavior or resource measurements. No Argos
 data or environment was accessed while adding them.

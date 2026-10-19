@@ -80,22 +80,33 @@ def write_json(path: Path, value: object) -> None:
     path.write_text(json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2) + "\n", encoding="utf-8")
 
 
-def cgroup_memory_peak_bytes() -> int | None:
-    """Read this process's cgroup-v2 high-water mark when the launcher exposes it."""
+def require_memory_cgroup() -> dict[str, int | str]:
+    """Fail closed unless this process is under the required cgroup-v2 limits."""
+    maximum = 44 * (1 << 30)
     try:
-        for line in Path("/proc/self/cgroup").read_text(encoding="ascii").splitlines():
-            if line.startswith("0::/"):
-                cgroup_path = Path("/sys/fs/cgroup") / line[4:].lstrip("/") / "memory.peak"
-                return int(cgroup_path.read_text(encoding="ascii").strip())
-    except (OSError, ValueError):
-        return None
-    return None
+        memberships = Path("/proc/self/cgroup").read_text(encoding="ascii").splitlines()
+        membership = next(line[3:] for line in memberships if line.startswith("0::/"))
+        relative = Path(membership.lstrip("/"))
+        if ".." in relative.parts:
+            raise ValueError("unsafe cgroup path")
+        cgroup = Path("/sys/fs/cgroup") / relative
+        memory_max = (cgroup / "memory.max").read_text(encoding="ascii").strip()
+        swap_max = (cgroup / "memory.swap.max").read_text(encoding="ascii").strip()
+        peak = int((cgroup / "memory.peak").read_text(encoding="ascii").strip())
+        if memory_max == "max" or int(memory_max) <= 0 or int(memory_max) > maximum:
+            raise ValueError(f"memory.max must be finite and <=44 GiB, got {memory_max!r}")
+        if swap_max != "0":
+            raise ValueError(f"memory.swap.max must be 0, got {swap_max!r}")
+    except (OSError, StopIteration, ValueError) as exc:
+        raise RuntimeError(f"required cgroup-v2 memory guard unavailable or invalid: {exc}") from exc
+    return {"path": membership, "memory_max_bytes": int(memory_max),
+            "memory_swap_max_bytes": int(swap_max), "memory_peak_bytes_at_start": peak}
 
 
 def load_metadata(path: Path) -> tuple[dict[str, list[list[str]]], str]:
     """Read the pinned, headerless experimentList.tab; retain every raw field."""
     records: dict[str, list[list[str]]] = collections.defaultdict(list)
-    with path.open("rt", encoding="utf-8", errors="replace", newline="") as src:
+    with path.open("rt", encoding="utf-8", errors="strict", newline="") as src:
         for line in src:
             fields = line.rstrip("\r\n").split("\t")
             if len(fields) >= 3 and fields[0]:
@@ -125,7 +136,99 @@ def reject_repo_output(path: Path) -> None:
 
 def run_sort(source: Path, target: Path, temp_dir: Path, buffer: str, workers: int, keys: list[str]) -> None:
     cmd = ["sort", "-t\t", "-S", buffer, "--parallel", str(workers), "-T", str(temp_dir), *keys, "-o", str(target), str(source)]
-    subprocess.run(cmd, check=True)
+    subprocess.run(cmd, check=True, env={**os.environ, "LC_ALL": "C"})
+
+
+def tool_version(command: list[str]) -> str:
+    result = subprocess.run(command, check=True, capture_output=True, text=True, encoding="utf-8")
+    return result.stdout.splitlines()[0] if result.stdout else result.stderr.splitlines()[0]
+
+
+def validate_emitted_sidecars(outdir: Path, archive_sha: str, regions: int, links_expected: int,
+                               included_rows: int, status_counts: collections.Counter[str],
+                               chromosome_order: dict[str, tuple[int, int]]) -> dict[str, object]:
+    """Sequentially reconcile complete emitted files; gzip reads also verify CRCs."""
+    bed_path = outdir / OUTPUTS[0]
+    summary_path = outdir / "region_summary.tsv.gz"
+    links_path = outdir / "region_experiment.tsv.gz"
+    provenance_path = outdir / "peak_provenance.tsv.gz"
+    summary_rows = link_rows = 0
+    summary_source_rows = 0
+    previous_coordinate: tuple[int, int, int] | None = None
+    with gzip.open(bed_path, "rt", encoding="utf-8", errors="strict", newline="") as bed, \
+         gzip.open(summary_path, "rt", encoding="utf-8", errors="strict", newline="") as summary, \
+         gzip.open(links_path, "rt", encoding="utf-8", errors="strict", newline="") as links:
+        if next(summary, None) != "region_id\tchrom\tstart\tend\tsupporting_experiments\tsource_peak_rows\tclass_mask\n":
+            raise RuntimeError("region summary header mismatch")
+        if next(links, None) != "region_id\texperiment_id\n":
+            raise RuntimeError("region-experiment header mismatch")
+        for row_number, (bed_line, summary_line) in enumerate(zip(bed, summary), start=1):
+            b = bed_line.rstrip("\r\n").split("\t")
+            s = summary_line.rstrip("\r\n").split("\t")
+            if len(b) != 6 or len(s) != 7:
+                raise RuntimeError(f"BED/summary field count mismatch at region {row_number}")
+            chrom, start, end, rid, score, strand = b
+            srid, schrom, sstart, send, support_s, source_s, mask_s = s
+            start_i, end_i, support, source_count, class_mask = map(int, (start, end, support_s, source_s, mask_s))
+            if (rid != srid or chrom != schrom or start_i != int(sstart) or end_i != int(send)
+                    or strand != "." or int(score) != min(1000, support) or support < 1
+                    or source_count < support or not 1 <= class_mask <= 7):
+                raise RuntimeError(f"BED6 and region summary disagree at row {row_number}")
+            coordinate = (chromosome_order[chrom][0], start_i, end_i)
+            if previous_coordinate is not None and coordinate <= previous_coordinate:
+                raise RuntimeError(f"region coordinates duplicate or out of order at row {row_number}")
+            previous_coordinate = coordinate
+            seen_experiments: set[str] = set()
+            prior_experiment = ""
+            for _ in range(support):
+                pair = next(links, None)
+                if pair is None:
+                    raise RuntimeError("region-experiment sidecar ended before declared support count")
+                pair_fields = pair.rstrip("\r\n").split("\t")
+                if len(pair_fields) != 2 or pair_fields[0] != rid:
+                    raise RuntimeError(f"region-experiment rows do not match region {rid}")
+                eid = pair_fields[1]
+                if eid in seen_experiments or (prior_experiment and eid <= prior_experiment):
+                    raise RuntimeError(f"duplicate or unordered experiment linkage for {rid}")
+                seen_experiments.add(eid)
+                prior_experiment = eid
+                link_rows += 1
+            summary_source_rows += source_count
+            summary_rows += 1
+        if next(bed, None) is not None or next(summary, None) is not None or next(links, None) is not None:
+            raise RuntimeError("BED, summary, or linkage sidecar has trailing/unmatched rows")
+
+    provenance_rows = 0
+    provenance_statuses: collections.Counter[str] = collections.Counter()
+    last_ordinal = 0
+    with gzip.open(provenance_path, "rt", encoding="utf-8", errors="strict", newline="") as src:
+        if next(src, None) != "source_archive_sha256\tsource_row_ordinal\tregion_id\texperiment_id\tprimary_status\tchrom\tstart\tend\tsource_qscore\n":
+            raise RuntimeError("peak provenance header mismatch")
+        for line in src:
+            fields = line.rstrip("\r\n").split("\t")
+            if len(fields) != 9:
+                raise RuntimeError(f"peak provenance field count mismatch at row {provenance_rows + 1}")
+            digest, ordinal_s, rid, eid, status, chrom, start_s, end_s, qscore_s = fields
+            ordinal, start, end = int(ordinal_s), int(start_s), int(end_s)
+            if (digest != archive_sha or ordinal <= last_ordinal or not eid
+                    or status not in {"INCLUDED_PAIR_FIRST", "INCLUDED_PAIR_ADDITIONAL"}
+                    or rid != region_id(chrom, start, end) or not math.isfinite(float(qscore_s))
+                    or not (0 <= start < end)):
+                raise RuntimeError(f"invalid peak provenance row {provenance_rows + 1}")
+            last_ordinal = ordinal
+            provenance_statuses[status] += 1
+            provenance_rows += 1
+    if (summary_rows != regions or link_rows != links_expected or provenance_rows != included_rows
+            or summary_source_rows != included_rows
+            or provenance_statuses["INCLUDED_PAIR_FIRST"] != links_expected
+            or sum(provenance_statuses.values()) != sum(status_counts[k] for k in provenance_statuses)):
+        raise RuntimeError("emitted sidecars fail row-count reconciliation")
+    return {"status": "PASS", "method": "full sequential read and cross-file reconciliation",
+            "regions_checked": summary_rows, "region_experiment_links_checked": link_rows,
+            "source_provenance_rows_checked": provenance_rows,
+            "summary_source_peak_rows_sum": summary_source_rows,
+            "provenance_status_counts": dict(sorted(provenance_statuses.items())),
+            "gzip_crc_checked": True}
 
 
 def metadata_status(fields: list[str] | None) -> str:
@@ -144,7 +247,7 @@ def metadata_status(fields: list[str] | None) -> str:
 
 
 def iter_gzip_text(path: Path) -> Iterable[str]:
-    with gzip.open(path, "rt", encoding="utf-8", errors="replace", newline="") as src:
+    with gzip.open(path, "rt", encoding="utf-8", errors="strict", newline="") as src:
         yield from src
 
 
@@ -196,6 +299,22 @@ def main() -> int:
     workdir.mkdir(parents=True, exist_ok=True)
     if shutil.which("sort") is None or shutil.which("bgzip") is None or shutil.which("tabix") is None:
         parser.error("GNU sort, bgzip, and tabix must be available in the approved external environment")
+
+    memory_guard = require_memory_cgroup()
+    repo_root = Path(__file__).resolve().parents[2]
+    builder_path = Path(__file__).resolve()
+    tracked = subprocess.run(["git", "-C", str(repo_root), "ls-files", "--error-unmatch",
+                              str(builder_path.relative_to(repo_root))],
+                             check=True, capture_output=True, text=True)
+    if not tracked.stdout.strip():
+        raise RuntimeError("builder source is not tracked in the resolved repository")
+    source_diff = subprocess.run(["git", "-C", str(repo_root), "diff", "--quiet", "HEAD", "--",
+                                  str(builder_path.relative_to(repo_root))])
+    if source_diff.returncode != 0:
+        raise RuntimeError("builder source is dirty relative to HEAD; commit it before building")
+    builder_commit = subprocess.run(["git", "-C", str(repo_root), "rev-parse", "HEAD"],
+                                    check=True, capture_output=True, text=True).stdout.strip()
+    builder_sha = sha256_file(builder_path)
 
     metadata_rows, metadata_sha = load_metadata(metadata)
     chroms, chrom_sha = load_chrom_sizes(chrom_sizes)
@@ -336,7 +455,7 @@ def main() -> int:
         provenance.write("source_archive_sha256\tsource_row_ordinal\tregion_id\texperiment_id\tprimary_status\tchrom\tstart\tend\tsource_qscore\n")
         matched = 0
         with sorted_map.open("rt", encoding="utf-8", newline="") as mapping, gzip.open(
-            peaks, "rt", encoding="utf-8", errors="replace", newline=""
+            peaks, "rt", encoding="utf-8", errors="strict", newline=""
         ) as source:
             pending = next(mapping, None)
             for ordinal, line in enumerate(source, start=1):
@@ -353,8 +472,12 @@ def main() -> int:
                     raise RuntimeError(f"source changed between passes at row {ordinal}")
                 chrom, start, end, eid, qscore = source_fields
                 _, rid, map_eid, status = map_fields
-                if eid != map_eid:
-                    raise RuntimeError(f"source/mapping experiment mismatch at row {ordinal}")
+                try:
+                    source_region_id = region_id(chrom, int(start), int(end))
+                except ValueError as exc:
+                    raise RuntimeError(f"source coordinate changed or became invalid at row {ordinal}") from exc
+                if eid != map_eid or source_region_id != rid:
+                    raise RuntimeError(f"source/mapping coordinate or experiment mismatch at row {ordinal}")
                 provenance.write(f"{archive_sha}\t{ordinal}\t{rid}\t{eid}\t{status}\t{chrom}\t{start}\t{end}\t{qscore}\n")
                 matched += 1
                 pending = next(mapping, None)
@@ -363,6 +486,10 @@ def main() -> int:
         provenance.close(); provenance_raw.close()
         if matched != n_included_rows or n_included_rows != counts["INCLUDED_CANDIDATE"]:
             raise RuntimeError("included-row accounting/provenance cardinality mismatch")
+        if sha256_file(peaks) != archive_sha:
+            raise RuntimeError("peak archive SHA-256 changed between builder passes")
+        if sha256_file(metadata) != metadata_sha:
+            raise RuntimeError("experiment metadata SHA-256 changed during builder run")
 
         # Exactly seven nonempty masks are possible for the three included classes; write zeros too.
         mask_report = {str(mask): mask_counts[mask] for mask in range(1, 1 << len(CLASSES))}
@@ -377,20 +504,40 @@ def main() -> int:
         subprocess.run(["tabix", "-f", "-p", "bed", str(bed_gz)], check=True)
 
         query_results = []
+        if n_regions:
+            with bed_plain.open("rt", encoding="utf-8", newline="") as first_region_file:
+                first_region = first_region_file.readline().rstrip("\n")
+            first_fields = first_region.split("\t")
+            control_chrom, control_start, control_end = first_fields[0], int(first_fields[1]), int(first_fields[2])
+            control_expected = []
+            with bed_plain.open("rt", encoding="utf-8", newline="") as bed_rows:
+                for candidate in bed_rows:
+                    fields = candidate.rstrip("\n").split("\t")
+                    if fields[0] == control_chrom and int(fields[1]) < control_end and int(fields[2]) > control_start:
+                        control_expected.append(candidate.rstrip("\n"))
+            queries.append({"id": len(queries) + 1, "chrom": control_chrom,
+                            "start": control_start, "end": control_end,
+                            "expected": control_expected, "positive_control": True})
         for query in queries:
             chrom = str(query["chrom"])
             start, end = int(query["start"]), int(query["end"])
             interval = f"{chrom}:{start + 1}-{end}"
             result = subprocess.run(["tabix", str(bed_gz), interval], check=True,
-                                    capture_output=True, text=True, encoding="utf-8")
-            observed = result.stdout.splitlines()
+                                    capture_output=True)
+            observed_bytes = result.stdout
             expected = query["expected"]
-            passed = observed == expected
+            expected_bytes = ("".join(row + "\n" for row in expected)).encode("utf-8")
+            passed = observed_bytes == expected_bytes
+            observed = observed_bytes.decode("utf-8", errors="strict").splitlines()
             query_results.append({"id": query["id"], "interval_bed0": [chrom, start, end],
                                   "expected_hits": len(expected), "observed_hits": len(observed),
-                                  "exact_match": passed})
+                                  "positive_control": bool(query.get("positive_control", False)),
+                                  "exact_byte_match": passed})
             if not passed:
                 raise RuntimeError(f"tabix query mismatch for {interval}")
+        if n_regions and not any(row["positive_control"] and row["observed_hits"] > 0
+                                 for row in query_results):
+            raise RuntimeError("tabix positive-control query returned no rows")
 
     # Emit deterministic, complete metadata for all in-scope experiments, including zero-peak experiments.
     exp_path, exp_raw = open_text_gz(outdir / "experiment_metadata.tsv.gz")
@@ -433,10 +580,12 @@ def main() -> int:
         raise RuntimeError("mutually exclusive primary-status counts do not close")
     write_json(outdir / "reconciliation.json", reconciliation)
     query_qc = {"seed": 20261019, "query_count": len(query_results),
-                "exact_matches": sum(bool(row["exact_match"]) for row in query_results),
+                "exact_matches": sum(bool(row["exact_byte_match"]) for row in query_results),
                 "queries": query_results}
     write_json(outdir / "tabix_query_qc.json", query_qc)
 
+    output_integrity = validate_emitted_sidecars(outdir, archive_sha, n_regions, n_links,
+                                                 n_included_rows, counts, chroms)
     outputs_hash = {name: sha256_file(outdir / name) for name in OUTPUTS if name != "MANIFEST.json"}
     manifest = {
         "schema_version": "pma.chipatlas.unique_bed6.v1",
@@ -453,8 +602,12 @@ def main() -> int:
             str(metadata): metadata_sha,
             str(chrom_sizes): chrom_sha,
         },
-        "builder_commit": subprocess.run(["git", "rev-parse", "HEAD"], check=True, capture_output=True, text=True).stdout.strip(),
+        "builder_commit": builder_commit,
+        "builder_source_sha256": builder_sha,
         "builder": "scripts/04a_chipatlas/build_unique_bed6.py",
+        "argv": sys.argv,
+        "metadata_release": metadata.parent.name,
+        "metadata_filename": metadata.name,
         "counts": {
             "source_rows": expected_source_rows,
             "included_source_rows": n_included_rows,
@@ -462,11 +615,19 @@ def main() -> int:
             "region_experiment_pairs": n_links,
         },
         "output_sha256": outputs_hash,
+        "output_integrity": output_integrity,
         "region_id_collision_qc": collision_qc,
         "external_data_only": True,
-        "resource_notes": {"sort_buffer": args.sort_buffer, "sort_workers": args.sort_workers},
-        "resource_measurement": {"memory_cap": "44 GiB via systemd cgroup",
-                                 "cgroup_memory_peak_bytes": cgroup_memory_peak_bytes(),
+        "resource_notes": {"sort_buffer": args.sort_buffer, "sort_workers": args.sort_workers,
+                            "sort_locale": "LC_ALL=C"},
+        "tool_versions": {"python": sys.version.split()[0], "gnu_sort": tool_version(["sort", "--version"]),
+                           "bgzip": tool_version(["bgzip", "--version"]),
+                           "tabix": tool_version(["tabix", "--version"])},
+        "resource_measurement": {"memory_cap_bytes": memory_guard["memory_max_bytes"],
+                                 "memory_swap_max_bytes": memory_guard["memory_swap_max_bytes"],
+                                 "cgroup_path": memory_guard["path"],
+                                 "cgroup_memory_peak_bytes": int((Path("/sys/fs/cgroup") /
+                                     str(memory_guard["path"]).lstrip("/") / "memory.peak").read_text().strip()),
                                  "peak_rss_bytes": None,
                                  "peak_rss_status": "NOT_MEASURED"},
     }

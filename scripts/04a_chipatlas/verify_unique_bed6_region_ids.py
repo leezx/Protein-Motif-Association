@@ -11,6 +11,7 @@ import argparse
 import gzip
 import hashlib
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -31,15 +32,26 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def cgroup_memory_peak_bytes() -> int | None:
+def require_memory_cgroup() -> dict[str, int | str]:
+    maximum = 44 * (1 << 30)
     try:
-        for line in Path("/proc/self/cgroup").read_text(encoding="ascii").splitlines():
-            if line.startswith("0::/"):
-                path = Path("/sys/fs/cgroup") / line[4:].lstrip("/") / "memory.peak"
-                return int(path.read_text(encoding="ascii").strip())
-    except (OSError, ValueError):
-        return None
-    return None
+        memberships = Path("/proc/self/cgroup").read_text(encoding="ascii").splitlines()
+        membership = next(line[3:] for line in memberships if line.startswith("0::/"))
+        relative = Path(membership.lstrip("/"))
+        if ".." in relative.parts:
+            raise ValueError("unsafe cgroup path")
+        cgroup = Path("/sys/fs/cgroup") / relative
+        memory_max = (cgroup / "memory.max").read_text(encoding="ascii").strip()
+        swap_max = (cgroup / "memory.swap.max").read_text(encoding="ascii").strip()
+        peak = int((cgroup / "memory.peak").read_text(encoding="ascii").strip())
+        if memory_max == "max" or int(memory_max) <= 0 or int(memory_max) > maximum:
+            raise ValueError(f"memory.max must be finite and <=44 GiB, got {memory_max!r}")
+        if swap_max != "0":
+            raise ValueError(f"memory.swap.max must be 0, got {swap_max!r}")
+    except (OSError, StopIteration, ValueError) as exc:
+        raise ValueError(f"required cgroup-v2 memory guard unavailable or invalid: {exc}") from exc
+    return {"path": membership, "memory_max_bytes": int(memory_max),
+            "memory_swap_max_bytes": int(swap_max), "memory_peak_bytes_at_start": peak}
 
 
 def reject_repo_path(path: Path) -> None:
@@ -68,6 +80,7 @@ def main() -> int:
         parser.error("--sort-workers must be positive")
     if shutil.which("sort") is None:
         parser.error("GNU sort is required")
+    memory_guard = require_memory_cgroup()
     work.mkdir(parents=True, exist_ok=True)
     release_dir = bed.parent
     qc_path = release_dir / "region_id_collision_qc.json"
@@ -131,7 +144,7 @@ def main() -> int:
         row_count_matches = sort_rows == expected_regions
         command = ["sort", "-t\t", "-S", args.sort_buffer, "--parallel", str(args.sort_workers),
                    "-T", str(tmpdir), "-k1,1", "-o", str(sorted_ids), str(unsorted)]
-        subprocess.run(command, check=True)
+        subprocess.run(command, check=True, env={**os.environ, "LC_ALL": "C"})
         duplicate_rows = different_coordinate_collisions = 0
         collision_examples = []
         last_id = None
@@ -168,8 +181,11 @@ def main() -> int:
         "sort_workers": args.sort_workers,
         "sort_version": subprocess.run(["sort", "--version"], check=True, capture_output=True,
                                         text=True).stdout.splitlines()[0],
-        "cgroup_memory_cap": "44 GiB via systemd cgroup",
-        "cgroup_memory_peak_bytes": cgroup_memory_peak_bytes(),
+        "cgroup_path": memory_guard["path"],
+        "cgroup_memory_cap_bytes": memory_guard["memory_max_bytes"],
+        "cgroup_memory_swap_max_bytes": memory_guard["memory_swap_max_bytes"],
+        "cgroup_memory_peak_bytes": int((Path("/sys/fs/cgroup") /
+            str(memory_guard["path"]).lstrip("/") / "memory.peak").read_text().strip()),
         "peak_rss_bytes": None,
         "peak_rss_status": "NOT_MEASURED",
     }

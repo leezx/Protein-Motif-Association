@@ -1,6 +1,6 @@
 # Step 4b footprint：十轮内形成可行工具选择
 
-更新时间：2026-10-19 16:41 EDT（UTC 20:41）
+更新时间：2026-10-19 16:44 EDT（UTC 20:44）
 范围：仅 footprint→de novo motif；ChIP BED6 / PR #7 由 Claude 负责，本交接不涉及。  
 PR #8：`task_20261019_hint_overlay_smoke`，OPEN、未合并。固定 PMA 对话 `PMA｜固定阶段审核` 对父 HEAD `03dbdd9a5bc8f54e1ef09056e3f4cc755e71ae2a` 批准第 3 轮公开研究元数据盘点；提交后的 HEAD `bfa06d4e86bbe77d4d4ebc84190f408fb6a216d9` 收到 `REQUEST_CHANGES`；三项 finding 已在同一 PR 修正并推送至内容提交 `6f9c04621dae462bb316366c0c0b41f79c4e12bd`；完整状态同步 HEAD `d15db7f4d292f6484f003c45035f7eb5449635e7` 获文档/方法和只读审计 `APPROVE`。之后按已批准的元数据范围核对 K562 候选，内容提交 `2eeb09deaf172885d31059124de03931415c5587` 已推送；状态同步 tip `08c334ddc3c436ea17ef7906ab277958dbcbeea0` 经复核，阶段关闭 HEAD `632eb4993f13d069e4d0bde4c984b747eab693e5` 获 round-3 文档/方法记录 `APPROVE`；随后按审核意见把两项非阻塞 attribution 修正同步到当前 tip `7746d8bf22324ed66426322f04efa1845cee154d`，无需另开复审。审查确认候选总结忠实，但提醒同一 biosample ID、旧平台或 audit 数量单独不能证明重复不独立或数据不可用。批准范围不包含实验数据文件、Argos、caller、分析、环境修改、ChIP 数据处理或合并。审核指出本手册上一时间行将 UTC/EDT 写反；此处已更正。未下载或读取 BAM、FASTQ、BED、BigWig、矩阵等实验数据文件。
 固定 PMA 对完整 HEAD `774a3498d7cc17904afe3dc4610711586fe56d82` 再次给出 `APPROVE`：四个 wrapper 的当前接口描述与 canonical §4 一致；缺失/不可评分/运行失败不能混为零；标签、共同分数和折外证据仍缺。无阻塞 finding。仅有一项非阻塞措辞修正：将“二值 BED”改为“阈值后事件 BED”；即使事件列保留 p/score，也不能恢复完整阈值前排序空间。该修正与本次审核记录一并纳入后续文档同步，无需另起重复审查轮次。
@@ -23,6 +23,8 @@ PR #8：`task_20261019_hint_overlay_smoke`，OPEN、未合并。固定 PMA 对�
 来源：ENCODE experiment records [`ENCSR059BCO`](https://www.encodeproject.org/experiments/ENCSR059BCO/?format=json)、[`ENCSR160GVO`](https://www.encodeproject.org/experiments/ENCSR160GVO/?format=json)、[`ENCSR229ZIR`](https://www.encodeproject.org/experiments/ENCSR229ZIR/?format=json)、[`ENCSR862XXV`](https://www.encodeproject.org/experiments/ENCSR862XXV/?format=json)、[`ENCSR328JGW`](https://www.encodeproject.org/experiments/ENCSR328JGW/?format=json)、[`ENCSR260SWI`](https://www.encodeproject.org/experiments/ENCSR260SWI/?format=json)、[`ENCSR000DMA`](https://www.encodeproject.org/experiments/ENCSR000DMA/)、[`ENCSR000DMB`](https://www.encodeproject.org/experiments/ENCSR000DMB/)；GEO series [`GSE179540`](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE179540) 和样本 `GSM5420199`–`GSM5420202`、`GSM5420215`–`GSM5420218`；4DN experiment `4DNEXFB8OQ21` / replicate set [`4DNES5X392R6`](https://data.4dnucleome.org/experiment-set-replicates/4DNES5X392R6/)。上述仅为公开页面/API 中的元数据和所示 QC 摘要；没有下载任何关联 data file。
 
 **阶段关闭决定**：round 3 公开元数据盘点到此结束。结论仅针对本次已列候选和 HCT116 canonical §4，不声称不存在其他公开 occupancy benchmark。下一阶段需要先决定是否冻结一个不同的静态 occupancy 设计并取得新的阶段授权；当前不运行 Argos、不下载/读取实验数据、不生成标签或 caller 输出。
+
+2026-10-19 16:44 EDT 只读 Argos 监控：固定 PMA 审核对话澄清，用户最新 heartbeat 单独授权本次查看 `qstat` 和既有运行状态日志；仍不授权启动/停止/修改任务、读取生物数据或运行 caller/analysis。`qstat -u zz950` 无排队作业；按 footprint caller/gate 名称筛选的进程查询未找到活跃 footprint 进程。状态文件显示 K562 TOBIAS 速度任务 EXIT=0、PRINT 速度任务 EXIT=1，HINT K562 速度和 HCT116 ctrl/aux HINT motif 探索 EXIT=0，ctrl PRINT/TOBIAS/TraceBIND motif 探索 EXIT=0。任务状态不等同于可比速度或准确度；没有 eligible 独立标签或统一有效四工具分数，准确度仍不能排名。未读取生物数据，也未启动、停止或修改任务。PR #8 HEAD `168e011b8e9cad2d76fa549123190ef21c59e452`，OPEN、未合并。
 
 2026-10-19 15:41 EDT Argos 只读核查：按当时用户的 15 分钟监控指示运行 `qstat -u zz950`，未列出该账户的调度作业。没有检查 detached/background processes，因此不能据此声称 Argos 上“没有任务”。只读取已有任务状态文件，未读取实验数据。状态文件在 `/home/zz950/PMA_fetch/pma_bg_pr8_20261019/`。
 

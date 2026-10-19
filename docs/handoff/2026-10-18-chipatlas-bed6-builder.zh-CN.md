@@ -535,3 +535,5 @@ Next gate: commit/push this proposed diagnostic and its audit trail, synchronize
 ### GPT exact-head review findings and repair
 
 GPT reviewed HEAD `67a79a6f2de7bc4c24bd6c2a84a7e08c74341817`: implementation/audit `APPROVE` (0 blockers), diagnostic `REQUEST_CHANGES` (3 blockers), no remote execution authorized. Findings: F1 Python imports could write bytecode caches; F2 a single unbuffered `/proc` read may short-read and silently omit mount metadata; F3 shell `printf` strings had doubled backslashes and would print literal `\n`. Minimal repairs in this proposal: run Python with `-B`; read bounded `/proc` files in chunks until EOF or limit+1 and reject overflow; use single-backslash newline escapes in every `printf`. The command remains unrun and needs fresh exact-head approval.
+
+The three finding repairs were committed/pushed in `1a196640b9628d8615940cf267690830c557a446`. The extracted command passes local `bash -n`; its SHA-256 is `856479e2f9081ccf134c8da59bf1a4e4643424a52b09bea6c93774a0af50cea8`. No Argos contact occurred. The exact command is awaiting fresh review at the final PR HEAD recorded in the latest Worklog/PR body.

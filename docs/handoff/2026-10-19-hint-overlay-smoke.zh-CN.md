@@ -45,3 +45,11 @@ PRINT 86/87/88 再次使用节点 `/tmp`，并行解压使其 54-GB 根盘耗尽
 Argos ctrl/aux 的完整 2,000 区域调用已有真实文件：HINT 20,233/20,531 行（SHA-256 `277e5826e788255e7a88db9283efb45cbc3b6a9af18f2ffb941b725ebf536864` / `413917a3267f3e0f702626186cb516991a9d13bb4359e09330b468d9dde1a803`）；TOBIAS v2 84,513/83,344 行（`85171edd15057b1c40b1186ebcacb8d9aa4e4a3a46a866bf389363445c4b94ae` / `33ec6be16b92ce813e7170548240c827e80cc49cdea74868f44d3bf122d49af2`）；PRINT r10 4,455/4,564 行、r20 2,756/2,711 行。PRINT 的任务退出码均 0，约 17 分钟、最大 RSS 37.1–37.5 GB；TOBIAS 约 15 分钟，子日志 exit 0 且文件非空。TOBIAS 的旧 launcher 状态文件缺失，因为早期运行时覆盖了 launcher；已改用不可变的 `/home/zz950/PMA_fetch/pma_bg_gate_v2.sh`。结果都在外部 `runs_full_pr8_22667dc/`，不据事件数选工具。
 
 裸 gDNA 的 PRINT 20 区域 `BG_PRINT_SMOKE_gdna_V5` 退出 0，r10/r20 37/23 行。其索引切片 `gdna_smoke.frags.tsv.gz` 有 217,961 行；全量 2,000 区域切片 `gdna_full.frags.tsv.gz` 有 17,544,605 行，SHA-256 `151951282b92775428ed9ff8fa6f3cbd95cd8a5e96bd97afaeb5fca4fa8833fb`。全量 gDNA HINT、TOBIAS、PRINT 分别为 `BG_FULL_GDNA_HINT_V1`、`BG_FULL_GDNA_TOBIAS_V1`、`BG_PRINT_FULL_gdna_V2`，运行中。TraceBIND ctrl v7 到达偏好模型与 count 阶段后，因缺少 `foreach` 导致 `%dopar%` 不可用而退出 1；保留失败日志。在 R runner 补 `library(foreach)` 后，ctrl/aux/gdna v8 smoke 已启动，结果待核对。`eval_round1.py` 仅为尚未运行的描述性密度汇总；B1 匹配灵敏度、B2–B4 和速度门槛都未完成。
+
+## 05:42 EDT 更新：TraceBIND ctrl smoke 与 gDNA HINT 完成
+
+`BG_TRACE_CTRL_V8` 在修复 `foreach` 导入后退出 0，20 区域原生事件 31 行。aux 与 gDNA v8 smoke 仍在运行；gDNA 使用相同 20 区域的索引片段切片。ctrl/aux 2,000 区域 TraceBIND PRINT-bias 模式已以 4 CPU worker、44 GiB 软硬地址空间上限启动为 `BG_TRACE_FULL_{ctrl,aux}_V10`。此前 V9 因外部传输脚本无执行权限退出 126，未进入分析且无结果；修复权限后重启，失败日志保留。gDNA 2,000 区域 HINT 已退出 0，7,810 事件，SHA-256 `64c6b6c42c8b3eca2391990b9c0288a37f103bbe6d0d4cc784fa7965fddc7862`，wall 12:35.33。此事件数不代表工具优劣。
+
+## 05:47 EDT 更新：四工具三组 smoke 全通过
+
+TraceBIND v8 的 gDNA/ctrl/aux 20 区域任务均退出 0，事件 363/31/29 行；SHA-256 分别为 `e301eb2dbab9deb5012aa7894a81a773304fb92a6303db73523c8de7453eb3d5`、`de627ade7c4e05af906104287b69315633e024f7a39cd86aa22e9c5f8ab49360`、`5a273533d40c2dd57ab9e66ea1793a9edcbe8b6a40687e688381bd07643f19cb`；wall 9:08.76/8:56.61/8:26.31，最大 RSS 1,469,368/8,091,172/7,907,668 KB。加上已有 HINT、TOBIAS、PRINT，四工具三组 smoke 均已跑通。Quick 阶段核查：L1 对执行和文件 PASS；L2 对准确度与全基因组速度 BLOCKED；方向 ON TRACK、真实进展 REAL；L3 human acceptance 待定，尚不选工具。gDNA 2,000 区域 TraceBIND PRINT-bias 已启动为 `BG_TRACE_FULL_gdna_V10`，ctrl/aux 同规模任务仍在运行；均为 Argos 受限 CPU 任务。

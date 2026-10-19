@@ -100,8 +100,9 @@ def main() -> None:
         if n_regions != 2000:
             raise ValueError(f"{group}: expected 2000 frozen regions, got {n_regions}")
         callers = entry["callers"]
-        if not isinstance(callers, dict) or not callers:
-            raise ValueError(f"{group}: missing callers")
+        required = {"hint", "tobias", "print_r10", "print_r20", "tracebind"}
+        if not isinstance(callers, dict) or set(callers) != required:
+            raise ValueError(f"{group}: expected exactly {sorted(required)} callers")
         results = {}
         for caller, file_name in callers.items():
             event_path = Path(file_name)

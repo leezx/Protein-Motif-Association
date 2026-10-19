@@ -298,3 +298,11 @@ benchmark. See `docs/STEP1_*`, `docs/STEP2_*`.
 - Merge `step3b-v03-integration` (with `step2c-denovo-sources`): needs explicit confirmation.
 - Merge `step4a-chipatlas-occupancy`: after the closure check.
 - When to copy the Argos raw data back to local DATA.
+
+### 2026-10-19 05:42 EDT — TraceBIND resumed
+
+`BG_TRACE_CTRL_V8` exited 0 with 31 native events on the 20-region control smoke after attaching `foreach`; aux and sliced-gDNA smoke continue. Four-worker 2,000-region ctrl/aux TraceBIND PRINT-bias tasks are active as `BG_TRACE_FULL_{ctrl,aux}_V10` under the 44-GiB soft/hard cap. V9 failed before analysis solely from external shell execute permissions; logs retained. gDNA 2,000-region HINT exited 0 with 7,810 events and SHA-256 `64c6b6c42c8b3eca2391990b9c0288a37f103bbe6d0d4cc784fa7965fddc7862`. Full gDNA TOBIAS/PRINT remain active. No accuracy winner or genome-wide speed conclusion.
+
+### 2026-10-19 05:47 EDT — four-tool smoke gate complete
+
+All four callers now passed the same frozen 20-region smoke inputs for gdna/ctrl/aux. TraceBIND v8 native events: 363/31/29, all exit 0; exact hashes and resource metrics in `docs/handoff/2026-10-19-hint-overlay-smoke.zh-CN.md`. This confirms execution only: no sensitivity matching, B2–B4 truth, accuracy ranking or speed-gate pass. Full 2,000-region TraceBIND ctrl/aux/gdna tasks are running under 44-GiB RLIMIT_AS with four CPU workers. Continue monitoring full calls and evaluating B1 descriptively; do not select a caller yet.

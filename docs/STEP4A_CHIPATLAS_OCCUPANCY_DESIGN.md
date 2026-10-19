@@ -82,6 +82,40 @@ during the later, separately approved Argos run. The previously reported 1,843,5
 `out_of_scope_class` rows are **not** assumed to be all Histone; class-level counts remain
 unverified until that run.
 
+### Implementation-stage contract clarification (2026-10-19)
+
+- Mutually exclusive source-row `primary_status` precedence is: `MALFORMED_SOURCE_ROW`,
+  `INVALID_COORDINATE`, `UNSUPPORTED_CHROM`, `MISSING_METADATA`, `AMBIGUOUS_METADATA`,
+  `OUT_OF_SCOPE_GENOME`, `OUT_OF_SCOPE_CLASS`, then `INCLUDED_PAIR_FIRST` or
+  `INCLUDED_PAIR_ADDITIONAL`. The two included-pair states are assigned after coordinate/experiment
+  grouping; duplicate source rows remain in provenance.
+- A region's 3-bit membership mask records which of the three included experiment classes support
+  it. The seven possible nonzero masks are mutually exclusive; their counts must sum to the global
+  unique-region count. Also report overlapping class-specific unique-region counts.
+- Keep the approved two external sorts in the core build: coordinate/experiment/source-row grouping,
+  then source-row ordering for provenance. The builder records collision QC as `NOT_RUN` and the
+  negligible-assumed SHA-256 risk honestly. Run a separate release-level third sort over one compact
+  `(region_id, chrom, start, end)` record per unique region once for the formal release. Adjacent
+  full-ID comparison must verify zero duplicate IDs and zero different-coordinate SHA-256
+  collisions. This QC does not reread or reorder the raw archive or provenance table.
+- Both Python entrypoints must independently fail closed unless their live cgroup-v2 controls report
+  a finite `memory.max` no greater than 44 GiB and `memory.swap.max=0`; the launchers place Python
+  and children in that cgroup. GNU sort starts at `-S 4G --parallel=2` under `LC_ALL=C`. `sort -S`
+  alone is not a process-memory limit. If the cgroup cannot be created or verified, fail closed. The actual disk peak is
+  unknown until a read-only Argos preflight estimates scratch/output needs from the pinned inputs;
+  do not infer disk feasibility from the memory cap or start the full build without adequate space.
+- The manifest's ChIP-Atlas metadata release must be passed explicitly as `--metadata-release`
+  (the pinned `experimentList.tab` release is 2026-10-14); never infer source release from a local
+  staging-directory name.
+- The builder writes 48 deterministic random 1 kb BED0 windows plus one guaranteed positive-control
+  region query and compares each indexed `tabix` result byte-for-byte with unindexed BED6 rows.
+  Before `PASS`, it fully rereads and cross-reconciles BED6, region summary, region–experiment links,
+  and source-row provenance, including counts, ordering, hashes, coordinates, IDs, statuses and gzip
+  CRCs. The separate release-ID QC also verifies BED6 sort order, coordinate validity, and stable-ID hashes.
+
+These are implementation-stage proposals, not tested behavior or resource measurements. No Argos
+data or environment was accessed while adding them.
+
 Historical v1 status: **contract approved** (ChatGPT, 2026-10-17: APPROVE WITH REVISIONS; the revisions are
 already applied below). A small pilot must validate the implementation assumptions (§7) before the
 full archive is processed.

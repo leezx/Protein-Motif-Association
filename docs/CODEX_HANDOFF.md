@@ -6,9 +6,10 @@ Footprint-only. PR #8 is OPEN, unmerged, on `task_20261019_hint_overlay_smoke`. 
 `PMA｜固定阶段审核` reviewed exact HEAD `0829b0886777637a88fb3925ce9d1f511b1a00dd` and returned
 `APPROVE` for the ten-round method document plus repository-only read audit. It explicitly did not
 authorize Argos, experimental data, analysis, environment changes, caller execution, or merge. The
-current local change adds the approved data-admission/adapter/fold-exclusion evidence checklist;
-after it is pushed, resolve the live PR head from GitHub for exact-head review. The PR description
-matches the bounded plan and states that no accuracy winner is established.
+the approved data-admission/adapter/fold-exclusion evidence checklist is now pushed on the same PR.
+Resolve the live PR head from GitHub for exact-head review; the handoff avoids self-referencing its
+own audit commit. The PR description matches the bounded plan and states that no accuracy winner is
+established.
 
 The user-requested 15-minute monitoring instruction authorized the 15:41 EDT read-only queue check;
 `qstat -u zz950` listed no scheduler jobs for that account. Detached/background processes were not

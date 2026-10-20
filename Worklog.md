@@ -901,3 +901,9 @@ The fixed PMA project conversation approved exact HEAD `e44334e3b13e00ea53a67871
 2026-10-19 22:12 EDT — fixed-PMA exact-head review approved timing evidence record
 
 The fixed PMA conversation approved exact evidence-record HEAD `ee64e13f060b6fe25c81f6c1c1012689864307b5` with no blocking findings. It verified the table values, successful completion evidence and interpretation; it did not independently read raw Argos logs and did not authorize any new computation. One nonblocking PR-body wording correction was requested: HINT/PRINT/TraceBIND have task status EXIT=0; TOBIAS has GNU-time exit 0 plus completion marker, not a separate task status file. Corrected only that PR-body wording; no further review loop was requested. No caller/timing task, Cancer ATAC run, install, optimization, environment/data change, ChIP/PR #7 work or merge.
+
+## 2026-10-19 22:22 EDT — 用户要求：一次全局可及窗口footprint运行时间测量
+
+用户明确要求先不评准确度，在Argos上用同一ATAC BAM全局调用无motif footprint，10–20核并行并报告计算时间/资源。将本轮收敛为K562 `ENCSR868FGK` / `ENCFF534DCE.bam` 与冻结 `k562_speed_1kb.bed` 的77,668个1-kb可及/阴性窗口（77.668 Mb；不声称逐碱基扫描全hg38）。HINT 16 chunks、PRINT 16 R workers、TOBIAS 16 cores、TraceBIND PRINT-bias reduced mode（无mtDNA微调/mito-FDR）16 R workers；每工具一次、顺序执行以限制总活动CPU为16并避免高内存任务争抢。每任务24 h、不可变Argos gate 44-GiB RLIMIT_AS、CPU-only/no-GPU；无安装、调参、重试或算法修改。PRINT/TraceBIND用同一BAM导出的既有片段文件，28:18.88准备时间单列并计入from-BAM总时间；110,891,807行与110,891,952独立过滤计数差异不用于吞吐归一化。记录wall、user/sys CPU、GNU-time max RSS范围、输出行数/hash、准确模式和失败阶段；本轮不评准确度、不选赢家。
+
+已更新当前benchmark设计、`docs/CODEX_HANDOFF.md`、十轮交接文件和PR #8 body，加入四个实际wrapper参数与门禁/停止规则。PR #8现HEAD `ca0fc15912c06f4aadf4494e7b51a2e984489c00`；`git diff --check`待运行，随后在固定PMA对话请求exact-head审核。尚未访问Argos/启动任何任务；GPT exact-head APPROVE前不发Argos命令。该单轮推进面向用户目标：将产生可复核的同样本、同窗口、16核下工具时间/资源记录；准确度结论保持未评估。

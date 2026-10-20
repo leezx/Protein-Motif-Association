@@ -1,3 +1,17 @@
+# CURRENT OPERATIVE FOOTPRINT TASK — 2026-10-19 22:22 EDT
+
+The user narrowed the immediate deliverable to a single runtime-only, genome-wide accessible-window footprint run on Argos. Accuracy scoring, tool accuracy selection, motif discovery, optimization, ChIP BED6/PR #7, and PR merge are out of scope. PR #8 remains OPEN; exact-head review for this updated 16-core plan is pending in the fixed `PMA｜固定阶段审核` conversation. The user has released this runtime-only stage subject to the exact-head review gate. Do not start an Argos task before explicit APPROVE of the exact PR HEAD.
+
+**Fixed design:** reuse verified K562 ATAC `ENCSR868FGK` / `ENCFF534DCE.bam` and frozen same-sample `k562_speed_1kb.bed` (77,668 nonoverlap 1-kb windows = 77.668 Mb; genome-wide accessible windows, not every hg38 base). K562 is speed-only because of the ENCODE nucleosome-free-fraction warning. Run HINT (16 chunks), PRINT (16 R workers), TOBIAS (16 cores), and TraceBIND PRINT-bias reduced mode (16 R workers; no mtDNA fine-tuning/mito-FDR) exactly once each, sequentially. Each uses internal 16-way parallelism where supported; total active CPU is 16 and memory-heavy callers do not compete. Each task is capped at 24 h and the immutable `pma_bg_gate_v2.sh` 44-GiB `RLIMIT_AS`, CPU-only/no GPU. Existing dependency/input preflight is fail-closed; missing dependencies are logged as blocked without installing or substituting.
+
+HINT/TOBIAS consume the verified BAM and common BED. PRINT/TraceBIND consume the existing fragment table derived from that BAM; its 28:18.88 process wall is separate and added to their from-BAM elapsed time. Keep the known counts separate: 110,891,807 prepared rows versus 110,891,952 from an independent filter. Do not use that discrepancy for throughput normalization. Record each caller's wall, GNU-time user/system CPU, max RSS with scope qualified, exact mode/version/core count, gate limit, output counts/hashes, and exit/failure stage. Only call it a four-tool time comparison if all four complete. The output is the tools' native full-window footprint track/event BED; event counts are not accuracy.
+
+Caller invocations to review: `run_hint.sh <hint-bin> <bam> <bed> <outdir> 16`; `Rscript run_print.R <print-repo> <print-shared> <bed> <fragments> <out-prefix> 16 10,20`; `run_tobias.sh <pmafp-bin> <bam> <bed> <hg38.fa> <blacklist> <outdir> 16`; and `Rscript run_tracebind.R <pmafp-python> <model-dir> <bed> <fragments> <out-prefix> 16 0.05`. Each caller must be run through immutable `pma_bg_gate_v2.sh` with separate task/log/result paths. Exact gate invocation and runtime-path/dependency preflight are explicitly included in the exact-head review request.
+
+No accuracy scoring, motif discovery, additional sample, install, tuning, retry, C/C++ work or PR merge is authorized by this scope.
+
+---
+
 # PMA — handoff to Codex (2026-10-17, written by Claude Code)
 
 ## Current live status — 2026-10-19 22:10 EDT — existing HCT116 pilot timing summarized

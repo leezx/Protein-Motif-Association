@@ -1,70 +1,50 @@
 # Step 4b — Genome-wide, motif-free ATAC-seq footprinting: benchmark design
 
-## Current operative plan — one bounded four-tool assessment (2026-10-19)
+## Current operative plan — one bounded runtime-only global-window assessment (2026-10-20)
 
-This short plan is the only proposed execution path for the user's current request. It supersedes
-the longer multi-round protocol below for this assessment; the older sections are background, not
-instructions to add folds, extra datasets, optimization, or more rounds. This edit requests review
-only and does not authorize Argos access or execution.
+This short plan is the sole execution path for the user's current request. It supersedes the older
+accuracy-first and multi-round run plans for this assessment. Do not add accuracy scoring, datasets,
+optimization, or more rounds. Exact-head review in the fixed PMA conversation is required before
+Argos execution. The user's current request is the human stage release for this narrowly scoped
+runtime-only assessment; it does not waive the exact-head GPT review gate.
 
-1. **One input and one label gate.** Use only the already selected untreated HCT116 CTCF-degron
-   ATAC sample and its same-clone, same-condition CTCF ChIP plus matched input. First verify the
-   exact accessions, genome, replicate mapping, input, peak/signal provenance, assay QC, and whether
-   the ChIP labels were independent of tool development/selection. Positive sites require support in
-   both independent ChIP biological replicates. A negative requires no ChIP peak within ±250 bp and
-   input-adjusted signal no higher than the callable-candidate background median in both replicates;
-   all other sites are ambiguous and excluded. If provenance, biological replication, matched input,
-   or independence fails, stop accuracy scoring as **cannot rank**; do not substitute another cell
-   line or dataset.
+1. **One sample and one fixed search space.** Reuse the already integrity-checked K562 ATAC
+   `ENCSR868FGK` / `ENCFF534DCE.bam` and same-sample frozen `k562_speed_1kb.bed`: 77,668 nonoverlap
+   1-kb windows (75,668 peak-centered accessible windows plus 2,000 seeded off-peak controls),
+   totaling 77.668 Mb. “Genome-wide” here means all frozen accessible windows, not every hg38 base.
+   K562 is a runtime input only; ENCODE's nucleosome-free-fraction warning bars biological accuracy
+   claims. ChIP BED6/PR #7 remains out of scope.
 
-2. **One common score space and one accuracy metric.** Freeze accessible CTCF PWM sites from the
-   reference sequence and the ATAC callable mask before joining ChIP labels; use a fixed 20-bp window
-   around each motif center, with ChIP used only to label. This is a local CTCF-occupancy concordance
-   benchmark, not general motif-free footprint truth. For each tool, use its documented, direction-
-   corrected continuous score averaged over that same window. Compute average precision (AP) only if
-   all four tools provide complete threshold-free scores for all eligible sites. An absent event,
-   unavailable score, or failed run is never zero. If HINT or TraceBIND remains threshold-truncated,
-   stop four-way accuracy ranking as **cannot rank**; do not replace scores with binary calls.
-   A unique local leader requires AP at least 0.02 above each of the other three and a positive
-   paired 1-Mb-block bootstrap interval for all three differences, with Holm correction over six
-   pairwise comparisons (2,000 paired resamples). Otherwise report APs and **no unique winner**.
+2. **Four single runs, 16 cores each, internal parallelism.** Run current wrappers once each on the
+   same sample and BED: HINT with 16 independent chunks; PRINT with 16 R workers; TOBIAS with 16
+   cores; and **TraceBIND PRINT-bias reduced mode** with 16 R workers (no mtDNA fine-tuning or
+   mito-FDR). Run callers sequentially: each tool may use 16-way internal parallelism, total active
+   CPU stays at 16, and high-memory callers do not compete. Each task has 24 hours and the immutable
+   `pma_bg_gate_v2.sh` 44-GiB `RLIMIT_AS`; never exceed the user's ≤50-GB Argos limit. CPU only, no
+   GPU. Before each run, fail closed if an exact input, existing runtime, or required installed
+   dependency is missing. Do not install, tune, retry, optimize, or change algorithms. A missing or
+   failed tool is reported with its status/time; no substitution. A complete four-tool runtime
+   comparison is claimed only if all four finish.
 
-3. **One timing/resource matrix.** If the common HCT116 input and fixed region list are present, run
-   the current repository wrappers for PRINT, TraceBIND, HINT, and TOBIAS once each, sequentially,
-   on that identical input/region list. The TraceBIND row is specifically the current
-   **PRINT-bias reduced mode**; it is not full mtDNA-fine-tuned / mito-FDR TraceBIND and must be
-   reported under that exact name. Do not call any observed time “full TraceBIND” runtime. No
-   parameter search, installation, retry,
-   C/C++ work, or genome-wide cancer run is part of this assessment. Cap each job at 8 CPU, 24 h,
-   and the existing immutable `pma_bg_gate_v2.sh` 44-GiB `RLIMIT_AS`; never raise the Argos ≤50-GB
-   per-task limit. Report end-to-end wall time, user/system CPU, process-tree peak RSS, gate limit,
-   shared preprocessing separately, tool-specific preparation, accepted/retained fragments,
-   regions/sites scored, software/parameters, exit status, and failure stage. A completed runtime
-   comparison requires four successful jobs; otherwise report only each observed time/status, with
-   no speed rank. Any winner applies only to these exact wrapper/mode combinations. Historical
-   HINT/TOBIAS/PRINT/TraceBIND timings remain descriptive because their
-   inputs, filtering, thread counts, or completion status differed.
+3. **Timing and output.** For each task record wall time, GNU `time -v` user/system CPU and max RSS
+   (label its scope exactly), gate limit, 16-core setting, versions/mode, output counts and hashes,
+   exit/failure stage, and effective fragment denominator. HINT and TOBIAS consume the verified BAM.
+   PRINT and TraceBIND consume the existing K562 fragment table derived from that BAM; report its
+   BAM-to-fragment preparation time separately and include it in their from-BAM totals. The table
+   has 110,891,807 rows versus 110,891,952 under an independent filter count: retain both definitions
+   and do not use the mismatch for throughput normalization. Report caller-only and from-BAM wall
+   separately. Primary outputs are each caller's native footprint track/event BED across all frozen
+   windows; count and hash them, but do not infer accuracy from event totals.
 
-4. **Stop rule.** The fixed-PMA reviewer approved timing-only in principle even if accuracy fails,
-   but only after exact commands/gate wrappers are reviewed and all required dependencies are
-   already present; a human stage release is still required. This approved read-only qualification
-   found the selected ChIP label fails its replicate gate, HINT/TraceBIND lack full continuous
-   scores, and the checked R library lacks `tracebind`. Therefore accuracy is **cannot rank**, and
-   a new four-way timing matrix is not currently launch-ready. Existing timing reports may be
-   summarized descriptively; do not combine incompatible runs into a speed rank. No job is
-   authorized by this status paragraph and no PR merge is authorized.
+4. **Stop rule.** This is runtime/resource measurement only. Do not score accuracy, select an
+   accuracy winner, discover motifs, start another sample, or optimize/port code. After exact-head
+   review, run only the reviewed existing wrappers once under these limits. No merge is authorized.
 
-**Current qualification result (2026-10-19).** The fixed PMA conversation approved exact PR #8 HEAD
-`324d4e04a6652ff4f77a894b61fd7fcb52bd16cd` for the bounded read-only qualification. The four HCT116
-ATAC inputs pass their existing checksum/quickcheck certificate, but the selected HCT116 CTCF ChIP
-candidate has only one biological replicate per condition, and the current HINT/TraceBIND wrappers
-do not emit a complete threshold-free score track. Therefore the selected independent occupancy
-AP endpoint is **not computable; accuracy cannot be ranked**. Existing timing records are
-descriptive and non-comparable (different cell lines, regions and core counts; one PRINT failure;
-no complete TraceBIND timing). A four-job timing-only matrix was approved only in principle; exact
-commands/gate wrappers still require review, and the checked R library lacks `tracebind`. No timing
-job is released or running. Do not select a caller or begin a C/C++ port from these data; no
-accuracy winner is established.
+**Current status (2026-10-20).** Existing exact-sample observations are not a matched runtime
+comparison: HINT used 32 chunks, TOBIAS used 16 cores, and PRINT failed after 36:19.75 due to a
+worker package error; the available TraceBIND record is reduced PRINT-bias mode. This proposal
+repeats one run per caller at 16 cores over the identical K562 sample and frozen windows. Exact-head
+review and a fail-closed check of existing dependencies precede execution. No new run has started.
 
 **Status.** The earlier benchmark design was approved by ChatGPT on 2026-10-17 with revisions.
 That approval does not cover material Section 4 revisions. The current read-only qualification is

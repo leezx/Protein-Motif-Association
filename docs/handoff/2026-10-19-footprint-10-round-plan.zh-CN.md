@@ -1,3 +1,20 @@
+# 最新阶段：单样本全局可及窗口运行时间（2026-10-19 22:22 EDT）
+
+用户已把 ChIP BED6 交给 Claude；本轮只做 footprint 计算时间/资源测量，不评准确度，不做 motif，不涉及 ChIP/PR #7 或合并。用户明确放行此 runtime-only 阶段，PR #8 exact-head GPT 审核仍是 Argos 运行前门禁。
+
+## 固定执行方案
+- 输入：已校验 K562 ENCODE `ENCSR868FGK` / `ENCFF534DCE.bam`，同样本冻结 `k562_speed_1kb.bed`，77,668 个非重叠 1-kb 窗口，合计 77.668 Mb。这里的“全局”指全部冻结ATAC可及窗口，不是逐碱基扫描hg38。K562仅用于时间测量，ENCODE NFR QC警告排除其作为准确度真值。
+- 工具：HINT 16 chunks；PRINT 16 R workers；TOBIAS 16 cores；TraceBIND **PRINT-bias reduced mode** 16 R workers（无mtDNA fine-tuning/mito-FDR）。每工具一次、顺序执行，每个工具内部并行，总活动CPU上限16，避免同时运行高内存caller。
+- 限制：每任务最多24 h、不可变 `pma_bg_gate_v2.sh` 44-GiB `RLIMIT_AS`，CPU-only/no-GPU；不安装、不调参、不重试、不改算法。既有依赖缺失则记录为blocked，不补装。
+- 计时：wall、GNU-time user/system CPU、max RSS（注明统计范围）、工具版本/准确模式/核数、门禁、输出事件/track计数和SHA-256、退出/失败阶段。PRINT/TraceBIND使用同一BAM导出的既有片段表，转换wall 28:18.88单列并计入这两者from-BAM总耗时。片段表110,891,807行与独立过滤计数110,891,952不一致，保留两个口径，不用该差值归一化吞吐。
+- 命令形态：HINT `run_hint.sh <hint-bin> <bam> <bed> <outdir> 16`；PRINT `Rscript run_print.R <print-repo> <print-shared> <bed> <fragments> <out-prefix> 16 10,20`；TOBIAS `run_tobias.sh <pmafp-bin> <bam> <bed> <hg38.fa> <blacklist> <outdir> 16`；TraceBIND `Rscript run_tracebind.R <pmafp-python> <model-dir> <bed> <fragments> <out-prefix> 16 0.05`。每条都经不可变Argos gate，使用独立任务、日志、结果目录；精确gate入口和依赖预检随当前PR exact-head 请求审核。
+- 结论：只报时间/资源和原生输出数量，不由事件总数推准确度。四个工具全成功才称完整四工具时间比较，否则逐项报告耗时/失败原因，不替换、不重跑。
+
+## 当前状态
+本轮未启动Argos任务。PR #8 HEAD `ca0fc15912c06f4aadf4494e7b51a2e984489c00` 的运行方案和准确命令审核待固定PMA对话明确APPROVE；此前不同核数的HINT/TOBIAS及失败PRINT不纳入本轮16核对比。
+
+---
+
 # Step 4b footprint：十轮内形成可行工具选择
 
 > **当前操作方案（2026-10-19 22:05 EDT）**：用户要求停止扩展方案，只做一次可信、有限资源的

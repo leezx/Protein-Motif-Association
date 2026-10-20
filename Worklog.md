@@ -1525,6 +1525,12 @@ Pushed the required audit update as `a36a2d82bffd928ea9f8498ecaf75503c5534f32`; 
 
 - Publication record: committed the four-file repair to PR #8 as `84c9de62a4288d75922c9340107b994aa08638ea` and synchronized the PR body. Review is pending in the same fixed PMA conversation. No test or remote run was started.
 
+### 2026-10-20 15:12 EDT — corrected synthetic PRINT predictor fixture after exact-head review
+
+- Fixed PMA reviewed exact HEAD `0a91d615aa250f53c9ffeb72ec7b64cd513fd76e` and returned `REQUEST_CHANGES`. It found that the synthetic bias branch was not triggered, matrix bias addition used R's column-major vector recycling, and unit/symmetric scaling failed to expose left/right output-column swaps.
+- Corrected the built-in fixture to pass the branch-triggering bias vector, use explicit column-wise bias addition, use non-unit feature/target scales, asymmetric left/right model outputs, and distinct expected right-side pnorm values. Added a synthetic serialization-error assertion that checks error propagation and temporary-file cleanup through injected internal dependencies.
+- New script SHA-256: `1449fcb9df64ed2fd771e9bad6ba4e12ecdbd56a6e7fe646fcea5a9ac7e4f10e`. `git diff --check` passed. R parser/tests not run; no Argos access, stage, cache read, preflight, or execution. No scoring change. This is the second repair cycle for the same synthetic fixture issue; if exact review still finds a blocker, stop and ask the user before further iteration.
+
 ### 2026-10-20 15:04 EDT — fixed-PMA rejected forward-audit candidate; repaired locally
 
 - Fixed `PMA｜固定阶段审核` reviewed exact PR #8 HEAD `f5b1b64100340fce84b37e7d1f9fe976c63778d2`: `REQUEST_CHANGES`. Reviewer confirmed the wrapped native predictor capture and affine/ReLU/de-standardization order, then identified three blockers: closed-connection cleanup in `sha256_object()`, incomplete fail-closed coverage for anomaly/comparator pairs, and inverse-scaled rather than independently derived raw features.

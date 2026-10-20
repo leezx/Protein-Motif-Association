@@ -11,15 +11,15 @@ sha256_file <- function(path) {
   strsplit(result[[1L]], "[[:space:]]+")[[1L]][[1L]]
 }
 
-sha256_object <- function(object) {
-  path <- tempfile("print-model-weights-")
+sha256_object <- function(object, serializer = serialize, tempfile_fn = tempfile) {
+  path <- tempfile_fn("print-model-weights-")
   connection <- file(path, open = "wb")
   connection_open <- TRUE
   on.exit({
     if (connection_open) try(close(connection), silent = TRUE)
     unlink(path)
   }, add = TRUE)
-  writeBin(serialize(object, NULL, version = 3L), connection)
+  writeBin(serializer(object, NULL, version = 3L), connection)
   close(connection)
   connection_open <- FALSE
   sha256_file(path)
@@ -392,22 +392,34 @@ run_self_test <- function() {
   state$completed_calls <- list()
   model <- list(
     featureMean = c(2, 2, 2, log10(3), log10(3)),
-    featureSD = rep(1, 5),
-    targetMean = c(0.2, 0, 0.2, 0),
-    targetSD = rep(1, 4),
+    featureSD = c(2, 1.5, 0.5, 0.7, 1.3),
+    targetMean = c(0.2, 0, 0.6, 0.1),
+    targetSD = c(0.8, 1.2, 1.4, 0.7),
     weights = list(
       matrix(c(1, 0, 0, 0, 0), nrow = 5L, ncol = 1L),
       0,
-      matrix(c(0, -1, 0, -1), nrow = 1L, ncol = 4L),
-      c(0, 0.5, 0, 0.5)
+      matrix(c(0.1, -0.5, -0.3, -0.25), nrow = 1L, ncol = 4L),
+      c(0.2, 0.1, -0.1, 0.2)
     )
   )
   model_hash <- sha256_object(model)
   assert_that(grepl("^[[:xdigit:]]{64}$", model_hash),
               "model-object hashing did not return a SHA-256 digest")
+  failed_hash_path <- tempfile("print-model-hash-error-selftest-")
+  hash_error <- tryCatch({
+    sha256_object(model,
+                  serializer = function(...) stop("synthetic serialization failure"),
+                  tempfile_fn = function(prefix) failed_hash_path)
+    NULL
+  }, error = identity)
+  assert_that(inherits(hash_error, "error") &&
+                identical(conditionMessage(hash_error), "synthetic serialization failure") &&
+                !file.exists(failed_hash_path),
+              "model hash failure did not preserve the error and remove its temporary file")
   predictDispersion <- function(x, modelWeights) {
-    hidden <- pmax(x %*% modelWeights[[1L]] + modelWeights[[2L]], 0)
-    hidden %*% modelWeights[[3L]] + modelWeights[[4L]]
+    hidden_linear <- sweep(x %*% modelWeights[[1L]], 2L, modelWeights[[2L]], "+")
+    hidden <- pmax(hidden_linear, 0)
+    sweep(hidden %*% modelWeights[[3L]], 2L, modelWeights[[4L]], "+")
   }
   native_fp <- function(Tn5Insertion, Tn5Bias, dispersionModel,
                         footprintRadius = 1, flankRadius = 1, ...) {
@@ -439,7 +451,7 @@ run_self_test <- function() {
   }
   wrapped <- make_diagnostic_scorers(native_region, native_fp, window_sum, state,
                                      capture_forward = TRUE)
-  value <- wrapped$region(matrix(1:3, ncol = 1), 11:13, model)
+  value <- wrapped$region(matrix(1:3, ncol = 1), 21:23, model)
   assert_that(identical(value, "unchanged-result"), "diagnostic changed scorer return value")
   assert_that(state$path_index == 2L, "expected both native scorer paths")
   assert_that(length(state$completed_calls) == 2L, "expected both captured native scorer paths")
@@ -447,10 +459,15 @@ run_self_test <- function() {
   first <- state$completed_calls[[1L]]
   assert_that(any(vapply(first$warnings, length, integer(1)) > 0L),
               "diagnostic failed to record native pnorm warnings")
-  expected <- c(stats::pnorm(0.2, mean = 0.2, sd = 0.5),
-                stats::pnorm(0.3, mean = 0.2, sd = 0.5), NaN)
+  expected <- c(stats::pnorm(0.2, mean = 0.36, sd = 0.12),
+                stats::pnorm(0.3, mean = 0.36, sd = 0.12), NaN)
   assert_that(identical(first$inputs$left$p, expected),
               "diagnostic wrapper changed native pnorm return values")
+  expected_right <- stats::pnorm(c(0.2, 0.3, 0.4),
+                                 mean = c(0.46, 0.46, 0.25),
+                                 sd = c(0.24, 0.24, 0.1525))
+  assert_that(isTRUE(all.equal(first$inputs$right$p, expected_right, tolerance = 1e-14)),
+              "synthetic right-output columns were swapped or de-standardized incorrectly")
   rows <- collect_call_rows(first, list(peak_row = 1L, chromosome = "chr1",
                                          start0 = 100L, end0 = 103L, radius = 1L))
   positions <- data.table::rbindlist(rows$positions)
@@ -458,12 +475,12 @@ run_self_test <- function() {
                     positions$native_zero_coverage_mask == FALSE),
               "diagnostic did not preserve the unmasked anomalous-position classification")
   audit <- data.table::rbindlist(rows$forward_audit)
-  assert_that(nrow(audit) == 4L &&
+  assert_that(nrow(audit) == 2L &&
                 all(audit$max_feature_reconstruction_abs_error < 1e-12) &&
                 all(audit$max_forward_reconstruction_abs_error < 1e-12) &&
                 all(audit$max_scorer_output_abs_error < 1e-12) &&
-                sum(audit$role == "negative_sd") == 2L &&
-                sum(audit$role == "nearest_valid_sd") == 2L &&
+                sum(audit$role == "negative_sd") == 1L &&
+                sum(audit$role == "nearest_valid_sd") == 1L &&
                 all(audit$local_position_1based[audit$role == "negative_sd"] == 3L) &&
                 all(audit$local_position_1based[audit$role == "nearest_valid_sd"] == 2L),
               "synthetic forward audit failed feature, affine, output-order, or nearest-comparator checks")
@@ -475,7 +492,7 @@ run_self_test <- function() {
   no_capture_state$completed_calls <- list()
   no_capture <- make_diagnostic_scorers(native_region, native_fp, window_sum,
                                         no_capture_state)
-  no_capture$region(matrix(1:3, ncol = 1), 11:13, model)
+  no_capture$region(matrix(1:3, ncol = 1), 21:23, model)
   missing_capture_error <- tryCatch({
     collect_call_rows(no_capture_state$completed_calls[[1L]],
                       list(peak_row = 1L, chromosome = "chr1", start0 = 100L,

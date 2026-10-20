@@ -76,3 +76,18 @@ PR 更新后请求固定 PMA 对话精确 HEAD 审查；若通过，也仍需独
 该四文件修订已推送到 PR #8，exact HEAD 为
 `84c9de62a4288d75922c9340107b994aa08638ea`，PR body 已同步。固定 PMA 对话复审待答；不因此
 启动测试、远端访问或分析。
+
+## 合成 predictor fixture 二次修订（2026-10-20 15:12 EDT）
+
+固定 PMA 对 exact HEAD `0a91d615aa250f53c9ffeb72ec7b64cd513fd76e` 返回 `REQUEST_CHANGES`：
+原夹具传入的 bias 向量没有触发变化分支；标准 R 矩阵加向量按列优先回收而非逐输出列加偏置；
+单位/对称缩放使左右输出交换可能漏检。
+
+当前本地脚本 SHA-256：`1449fcb9df64ed2fd771e9bad6ba4e12ecdbd56a6e7fe646fcea5a9ac7e4f10e`。改动让夹具
+命中预期 bias 数据，bias 使用逐列 `sweep()`，特征/目标缩放非单位，左右目标权重和偏置不同，
+并单独计算右侧 pnorm 预期值。还加入序列化失败时传播错误并清理临时文件的 synthetic 断言。
+
+`git diff --check` 通过；R parser 与定向回归仍未运行，故不能声称 fixture 正确执行。此轮是同一
+夹具问题第二轮修复；若固定 PMA 再给 blocker，应先暂停并向用户汇报，不继续无边界迭代。没有
+Argos 访问、stage、缓存读取、预检、计算或评分变化。此次仅修复 self-test 合成夹具，未解决
+负 SD 的数据根因或科学门禁。

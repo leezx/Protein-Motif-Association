@@ -1,4 +1,4 @@
-# CURRENT OPERATIVE FOOTPRINT TASK — 2026-10-20 15:09 EDT
+# CURRENT OPERATIVE FOOTPRINT TASK — 2026-10-20 15:12 EDT
 
 ## PRINT forward-pass audit candidate — fixed-PMA REQUEST_CHANGES; synthetic self-test repaired locally
 
@@ -32,9 +32,18 @@ has not explicitly asked to run local tests. No Argos access/staging/cache read/
 occurred, and no scoring output changed. This candidate requires exact-head fixed-PMA review; no
 remote operation is authorized by this implementation change.
 
-The candidate was pushed to PR #8 as exact HEAD
-`84c9de62a4288d75922c9340107b994aa08638ea` and the PR body was updated to identify this version.
-Review is pending in the same fixed PMA conversation. No test or remote run was started.
+Fixed-PMA re-review of exact HEAD `0a91d615aa250f53c9ffeb72ec7b64cd513fd76e` returned
+`REQUEST_CHANGES`. The reviewer found the synthetic feature branch was not triggered (the fixture
+passed `11:13` while the branch recognizes `21:23`), matrix bias vectors recycled by column-major
+order rather than being added per output column, and symmetric/unit scaling hid output-order errors.
+The source now passes the intended bias vector, uses column-wise `sweep()` for each bias addition,
+and gives every feature/target a non-unit scale plus distinct left/right weights and expected
+pnorm results. The synthetic hash helper now accepts injected serializer/tempfile functions solely
+to assert that a serialization error is rethrown and its temporary file is removed. Candidate
+script SHA-256: `1449fcb9df64ed2fd771e9bad6ba4e12ecdbd56a6e7fe646fcea5a9ac7e4f10e`.
+`git diff --check` passes. R parse/tests remain unrun under the current instruction not to run tests
+without user request. No Argos access/stage/cache read/preflight/run occurred. This exact candidate
+must be reviewed again before any dependent step.
 
 ## PRINT pnorm diagnostic — completed; scientific gate BLOCKED
 

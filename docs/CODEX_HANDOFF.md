@@ -1,4 +1,65 @@
-# CURRENT OPERATIVE FOOTPRINT TASK — 2026-10-20 14:39 EDT
+# CURRENT OPERATIVE FOOTPRINT TASK — 2026-10-20 14:47 EDT
+
+## PRINT pnorm diagnostic — completed; scientific gate BLOCKED
+
+The approved one-time diagnostic ran on Argos under gate ID
+`BG_K562_PRINT_PNORM_DIAG_20261020_V1`; gate status is `EXIT=0`, started at
+`2026-10-20T14:43:26-04:00`, ended at `2026-10-20T14:43:58-04:00` (32 seconds). No matching
+diagnostic process remains. The wrapper bound R to one already-allowed CPU, set known
+BLAS/OpenMP thread variables to one, and the immutable gate applied 44-GiB per-process
+`RLIMIT_AS`. Peak RSS was not sampled; do not report a measured memory peak.
+
+The replay used only the existing V5 eight-peak counts, bias groups, dispersion models, and
+validated score/event outputs. It did not rebuild counts or rewrite inputs/outputs. The manifest
+confirms before/after input hashes identical. The script's assertions passed for all 16 baseline
+peak-radius comparisons (including 16 exact bias matches) and native-event counts 14 at r10 and
+17 at r20. The diagnostic files are under
+`/data/sysdir/home/zz950/PMA_fetch/pma_print_pnorm_diagnostic_rcapps3_20261020_v1/` (the same
+remote home-backed filesystem; the manifest and TSVs are retained there).
+
+Results: 128 pnorm contexts were observed (8 peaks × 2 radii × 2 scorer paths × 2 replay passes
+× 2 flanks). Twenty-eight context calls emitted warnings, containing 292 logged anomalous
+position records. In every record, predicted SD was negative, `pnorm` returned `NA`, and the
+native zero-coverage mask was FALSE; no mask or warning was unknown. Thus the *current replay*
+is `BLOCKED_UNMASKED_ANOMALY`. The historical V5 warning set is still not reproduced in the same
+contexts (`BLOCKED_HISTORICAL_CONTEXT_NOT_REPRODUCED`); the equal count of 28 is not proof of
+identity. Original score/event outputs and all tracked input bytes remained unchanged.
+
+This diagnostic is a genuine engineering/data-flow result, but it does not establish that PRINT's
+footprints are accurate or explain whether V5's published scores used these anomalous values.
+Keep L2 blocked and do not scale up or rank accuracy. The immediate technical question for the
+fixed PMA review is how the negative predictive SD arises in PRINT's pinned dispersion/scoring
+calculation and the smallest scientifically defensible next check. Any source correction or new
+run requires review of the exact proposed change/run at a scientific milestone; do not clamp SD,
+hide warnings, alter prior scores, or repeat this consumed diagnostic attempt.
+
+External artifact SHA-256: manifest
+`57d682f4de5509c0565295e8480a6317c6d137c386bfff57c6754bd5e3b9573b`; calls TSV
+`3e9927019696584d8de748ccb7c6d779cafd67b17e80405636b8bd927d06d37c`; positions TSV
+`da87a0cc19026b55f28ae78a4b895ca267c4d0d789da643eef0f606e978b4dfc`. Gate status/meta are
+in `/home/zz950/PMA_fetch/pma_bg_pr8_20261019/BG_K562_PRINT_PNORM_DIAG_20261020_V1.{status,meta}`;
+stdout/stderr are retained beside them. No biological data or result files are in this repository.
+
+### Current evidence checkpoint
+
+- L1: PASS for completion and integrity of the bounded diagnostic; gate exit 0, source assertions
+  and hashes pass, artifacts retained, no process remains.
+- L2: BLOCKED. 292 pnorm anomaly records have negative predicted SD and are not native-masked;
+  historical V5 warning-context correspondence is not established.
+- L3: user acceptance pending. No caller accuracy winner or full-peak feasibility claim.
+- Direction: ON TRACK for diagnosing why the 8-peak PRINT validation produced warnings; blocked
+  before any scale-up.
+- Trust: high for the recorded diagnostic observations and unchanged inputs; insufficient for
+  biological interpretation or accuracy ranking.
+- Next: record/review this exact result in the fixed PMA project conversation and obtain a
+  methodologically sound next step before modifying PRINT scoring or running more data.
+
+The earlier “implementation approved; execution packet under review” text immediately below is
+historical and superseded by this completed one-shot result.
+
+---
+
+# Historical operative snapshot — 2026-10-20 14:39 EDT
 
 ## PRINT pnorm diagnostic — implementation approved; execution packet under review
 

@@ -1,11 +1,11 @@
 # PRINT 8 峰 smoke：登记竞态与预检退出码修复
 
-时间：2026-10-20 10:26 EDT
+时间：2026-10-20 10:37 EDT
 范围：PMA footprint PR #8；ChIP BED6/PR #7 由 Claude 负责，不在本次范围。
 
-## 审核结果
+## 审核结果与范围放行
 
-固定 PMA 对话对 PR #8 精确 HEAD `782a875900401fc201d29313643f4ee4b7203c4f` 复审为 `REQUEST_CHANGES`。它复现了两项 L1 缺陷：独立 session 子进程在登记 PGID 之前已经开始运行，登记文件写失败时会泄漏；`bounded_check_output()` 忽略子进程非零退出码，可能把失败预检当成成功。审核还指出其环境中的 deadline suite 在 `/proc` 清理断言处失败。真实 HDF5、PRINT S4、Argos Linux `/proc` 和并行端到端仍为 `BLOCKED / UNVERIFIED-critical`。该审核没有放行 smoke。
+固定 PMA 对话先对 PR #8 精确 HEAD `782a875900401fc201d29313643f4ee4b7203c4f` 复审为 `REQUEST_CHANGES`，复现两项 L1 缺陷：独立 session 子进程在登记 PGID 之前已启动，登记文件写失败时会泄漏；`bounded_check_output()` 忽略非零退出码。其 sandbox 中 deadline suite 的 `/proc` 清理断言失败。修复提交 `7133b1cc7d34c57da5f12f07542ab01319a04328` 再次经固定 PMA 对话 exact-head 审核，结果为 `APPROVE`；两个 finding 均关闭，无新增 L1 blocker，并明确放行一次限定 smoke。L2 继续 `BLOCKED / UNVERIFIED-critical`，真实 HDF5、PRINT S4、Argos `/proc`、并行 caller 和结果维度尚无运行证据。
 
 ## 最小修复
 
@@ -26,8 +26,23 @@
 - `bash tests/test_step4b_runner_contract.sh`
 - `git diff --check`
 
-本机复跑 deadline suite 通过；测试按监督器合同检查进程组终止，不把 Linux zombie-only PID 误认作仍运行的任务。上述检查只证明本地合成流程与代码契约。它们不验证 Argos Linux `/proc`、真实 HDF5、PRINT S4、平行调用或生物学输出；没有执行 Argos 预检或计算，也没有产生 footprint track/event。
+本机复跑 deadline suite 通过；测试按监督器合同检查进程组终止，不把 Linux zombie-only PID 误认作仍运行的任务。reviewer sandbox 的失败与本机结果区分记录；本地合成测试不能验证 Argos Linux `/proc`。另在 rcapps3 做只读预检：x86_64、72 CPUs、约 920 GiB MemAvailable、无 `zz950` 队列作业、smoke 输出路径不存在。所有 staged scripts、冻结 BED/fragments/HDF5/models、PRINT modules 与 immutable gate 的 SHA-256 均匹配，R 依赖 `cladoRcpp`、`GenomicRanges`、`data.table`、`rhdf5` 可加载。该预检未调用 PRINT runner。
 
 ## 当前边界与下一步
 
-候选 supervisor SHA-256：base `7d594c58de85c012cc3ff08d93c8c67252be65f9cd860497243bc9295ef0a234`；outer smoke supervisor `336c79277c1506447888dc6333db906b68d37cb5c893dbb1a559edb3fb785acc`。仍需更新 PR #8 同一 PR、推送后向固定 PMA 项目对话提交 exact-head 复审。未获明确 APPROVE 前不访问 Argos。通过后也仅可执行用户此前授权的单次 8 峰 smoke；失败即停止，不重试、不运行全峰 V7、不合并。
+候选 supervisor SHA-256：base `7d594c58de85c012cc3ff08d93c8c67252be65f9cd860497243bc9295ef0a234`；outer smoke supervisor `336c79277c1506447888dc6333db906b68d37cb5c893dbb1a559edb3fb785acc`。下一步仅通过不可变 `pma_bg_gate_v2.sh` 启动一次 8 峰 smoke。40-GiB VmRSS 是采样软停止，44-GiB RLIMIT_AS 是每进程限额而非任务硬上限。预检或 caller 任何失败都保留证据后停止，不重试、不运行全峰 V7、不改环境、不合并。
+
+
+## 10:38 EDT — 唯一获批 smoke 在 caller 启动前失败
+
+- 按固定 PMA 对话对 PR #8 精确 HEAD `7133b1cc7d34c57da5f12f07542ab01319a04328` 的 APPROVE，尝试通过不可变 gate 启动唯一一次 8 峰 PRINT smoke。远端状态文件记录 `BG_K562_PRINT_INTEGRATION_SMOKE_20261020_V1 EXIT=126 END=2026-10-20T10:38:51-04:00`。gate stderr 明确为 staged worker `run_print_integration_smoke_supervised.py: Permission denied`。
+- 核验 gate 本身 mode 为 700、SHA-256 仍为 `3776778b950be90cad124c04937eee422c81466154eccdadfe9e57d58224253c`；worker ROOT、科学输出目录均不存在，且无匹配 caller 进程。由此可确认 caller/PRINT 计算没有启动。
+- 因 caller 未启动，没有可报告的分析耗时、CPU、RSS、track/event 文件或 footprint 统计量。EXIT 126 是启动权限失败，不能当作算法运行时间。
+- 本次是审核放行的唯一尝试，授权已消耗。停止后续运行；任何后续尝试需在固定 PMA 对话中对修正后的当前 PR HEAD 重新审核并明确放行。未做权限改动、重跑、全峰 V7、环境更新或合并。
+
+
+## 10:43 EDT — 同 PR 修复 worker 可执行模式（待 exact-head 复审）
+
+- 根因由本地 Git index 确认：gate 直接执行 staged worker 路径，而该 worker 在仓库中 tracked 为 `100644`；远端启动 stderr 与此一致。不可变 gate 的本身权限和 hash 正常。
+- 最小修复：将 `scripts/04b_footprint/run_print_integration_smoke_supervised.py` 的 Git mode 改为 `100755`，使受控 staging 保留可执行意图。未来 staging 完成后、调用 gate 之前必须只读验证目标文件可读/可执行、各父目录可穿越、shebang 指向可执行的 Python 解释器，并核验文件 hash。当前没有改远端权限，也没有再次调用 gate。
+- 失败记录已保留：唯一获批 smoke 的 gate 状态为 `EXIT=126`，caller 未启动、无科学输出。根据固定 PMA 审核，本次单次授权已消耗；任何后续运行必须先提交同一 PR、对修正后 exact HEAD 获取新 `APPROVE` 和新的单次运行放行。

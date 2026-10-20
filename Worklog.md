@@ -1207,3 +1207,23 @@ The fixed `PMA｜固定阶段审核` conversation reviewed exact PR #8 HEAD `3fa
 - Updated staged base-supervisor pin. Local checks passed: `python3 tests/test_print_smoke_deadline.py` (registration-write failure does not execute target; exit 7 preserves stdout/stderr; normal completion and TERM-resistant child cleanup), selector test, R variable-width test, R parse, Python `py_compile`, runner-contract fixtures, and `git diff --check`.
 - Candidate hashes: base supervisor `7d594c58de85c012cc3ff08d93c8c67252be65f9cd860497243bc9295ef0a234`; smoke supervisor `336c79277c1506447888dc6333db906b68d37cb5c893dbb1a559edb3fb785acc`.
 - No Argos/HDF5 access, remote preflight, caller, analysis, or biological output occurred. The one-shot 8-peak smoke remains blocked; next update audit/PR text, commit and push to same PR #8, then request exact-head review in the fixed PMA conversation. No retry, full-scale V7, environment change, or merge is authorized.
+
+### 2026-10-20 10:37 EDT — exact-head approval and one-shot PRINT smoke preflight
+
+- Fixed PMA project conversation reviewed exact PR #8 HEAD `7133b1cc7d34c57da5f12f07542ab01319a04328`: `APPROVE`, both L1 findings closed, no new blocker. L2 remains `BLOCKED / UNVERIFIED-critical`; reviewer explicitly authorizes exactly one 8-peak smoke on rcapps3/rcGPUs, two workers, radii 10/20, CPU-only. No full-peak V7, retry, environment change or merge authorized.
+- Staged the five exact review-pinned scripts under the previously absent dedicated Argos code path. Fresh read-only preflight: host rcGPUs, x86_64, 72 CPUs, ~920 GiB MemAvailable, load ~2.9, no `zz950` queued SGE jobs; the unique smoke ROOT and output paths are absent. Frozen BED/fragments, HDF5 bias, both dispersion models, PRINT source commit/modules, staged scripts and immutable gate SHA-256 all match candidate pins. R dependency probe passed for cladoRcpp, GenomicRanges, data.table and rhdf5. Full HDF5 SHA-256 took about two minutes and matched exactly. PRINT caller has not been invoked.
+- Next action: one immutable-gate launch with `pma_bg_gate_v2.sh`, run ID `BG_K562_PRINT_INTEGRATION_SMOKE_20261020_V1`, 8 unchanged frozen BED rows, 2 workers, radii 10/20, 30-minute end-to-end cap, 44-GiB per-process RLIMIT_AS, and sampled 40-GiB process-group VmRSS soft-stop. These are not a hard aggregate memory cap. Any failure consumes the sole attempt; retain logs and do not retry.
+
+
+### 2026-10-20 10:39 EDT — one-shot PRINT integration smoke failed at worker launch
+
+- Executed the single fixed-PMA-approved gate invocation for run `BG_K562_PRINT_INTEGRATION_SMOKE_20261020_V1` on rcapps3, using the reviewed HEAD `7133b1cc7d34c57da5f12f07542ab01319a04328`, 8 frozen peaks, 2 workers, radii 10/20, CPU-only. Gate recorded `EXIT=126` at 10:38:51 EDT. Its stderr identifies `Permission denied` for staged `run_print_integration_smoke_supervised.py`; the gate is mode 700 and its pinned SHA-256 matches.
+- Read-only post-check found no smoke ROOT/output directory and no matching caller process. PRINT never started; no analysis elapsed time, CPU, RSS, track/event, or footprint count was produced. This is a launch-permission failure, not an algorithm benchmark.
+- The exact-head approval covered one attempt, now consumed. No retry, chmod, full-peak run, environment update, or merge was performed. Next: preserve evidence and request fixed-PMA review of the operational failure; any further run requires fresh exact-head approval and explicit authorization.
+
+
+### 2026-10-20 10:43 EDT — repair tracked executable mode after failed launch
+
+- Fixed-PMA technical review confirmed the 10:38:51 `EXIT=126` occurred before supervisor/worker execution, most consistent with staged script launch permissions; reviewer notes parent traversal/ACL/mount may also matter absent full checks. The one approved attempt is consumed; no automatic retry.
+- Confirmed local Git tracks `scripts/04b_footprint/run_print_integration_smoke_supervised.py` as `100644` even though the immutable gate executes its pathname directly. Minimal same-PR change: set the tracked file mode to executable (`100755`). Updated handoff with required pre-gate checks: remote target readable/executable, parent directories traversable, valid executable Python shebang, and pinned hashes.
+- No remote chmod, staging, or new gate invocation. Next: commit/push this same-PR repair and failure record, request fixed-PMA exact-head review; a further attempt requires a new APPROVE plus explicit one-run release.

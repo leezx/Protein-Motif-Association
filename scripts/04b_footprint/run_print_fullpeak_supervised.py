@@ -77,7 +77,12 @@ def bounded_check_output(command, **kwargs):
     else:
         kwargs.setdefault("stderr", subprocess.PIPE)
     kwargs.pop("timeout", None)
-    return run_registered_process(command, "preflight", timeout, **kwargs)[1]
+    returncode, stdout, stderr = run_registered_process(command, "preflight", timeout,
+                                                        **kwargs)
+    if returncode:
+        raise subprocess.CalledProcessError(returncode, command, output=stdout,
+                                            stderr=stderr)
+    return stdout
 
 
 def bounded_check_call(command, **kwargs):
@@ -100,6 +105,55 @@ def registry_event(action, pgid, role):
         os.fsync(handle.fileno())
 
 
+_GATED_EXEC_CODE = (
+    "import os,sys; fd=int(sys.argv[1]); token=os.read(fd,1); os.close(fd); "
+    "os._exit(125) if token != b'1' else None; "
+    "os.execvp(sys.argv[2], sys.argv[2:])"
+)
+
+
+def start_registered_process(command, role, **kwargs):
+    """Start an exec-gated session so it cannot run before the outer registry pins its PGID."""
+    inherited_fds = tuple(kwargs.pop("pass_fds", ()))
+    read_fd, write_fd = os.pipe()
+    process = None
+    try:
+        launcher = [sys.executable, "-c", _GATED_EXEC_CODE, str(read_fd)] + list(command)
+        process = subprocess.Popen(launcher, start_new_session=True,
+                                   pass_fds=tuple(sorted(set(inherited_fds + (read_fd,)))),
+                                   **kwargs)
+    finally:
+        os.close(read_fd)
+
+    pgid = process.pid
+    try:
+        # The child is blocked in the launcher until this durable registration succeeds.
+        registry_event("register", pgid, role)
+        if os.write(write_fd, b"1") != 1:
+            raise OSError("failed to release registered child process")
+    except BaseException as error:
+        # EOF prevents exec; kill/reap anyway so a registry failure cannot leak a session.
+        os.close(write_fd)
+        write_fd = None
+        cleaned = terminate_group(pgid, None, "%s_registration_failure" % role)
+        try:
+            process.communicate(timeout=5)
+        except subprocess.TimeoutExpired:
+            cleaned = False
+        if cleaned:
+            try:
+                registry_event("unregister", pgid, role)
+            except OSError:
+                pass
+        if not cleaned:
+            raise RuntimeError("%s registration failed and child cleanup was incomplete" % role) from error
+        raise
+    finally:
+        if write_fd is not None:
+            os.close(write_fd)
+    return process
+
+
 def process_group_has_live_members(pgid):
     members, failures = group_members(pgid)
     live = [member for member in members if member[1] != "Z"]
@@ -107,9 +161,8 @@ def process_group_has_live_members(pgid):
 
 
 def run_registered_process(command, role, timeout=None, **kwargs):
-    process = subprocess.Popen(command, start_new_session=True, **kwargs)
+    process = start_registered_process(command, role, **kwargs)
     pgid = process.pid
-    registry_event("register", pgid, role)
     try:
         stdout, stderr = process.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
@@ -325,9 +378,9 @@ def timed_group_vmrss(pgid, timeout_seconds):
     communicate_completed = False
     result = ([], None, [-3], 0.0)
     try:
-        sampler = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                   universal_newlines=True, start_new_session=True)
-        registry_event("register", sampler.pid, "rss_sampler")
+        sampler = start_registered_process(command, "rss_sampler",
+                                           stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                           universal_newlines=True)
         try:
             stdout, stderr = sampler.communicate(timeout=timeout_seconds)
             communicate_completed = True
@@ -581,11 +634,11 @@ def main():
                 if STOP_REQUESTED:
                     raise RuntimeError("stop requested before caller launch")
                 check_wall_deadline()
-                process = subprocess.Popen(command, stdout=stdout, stderr=stderr,
-                                           env=environment, start_new_session=True)
+                process = start_registered_process(command, "print_caller",
+                                                    stdout=stdout, stderr=stderr,
+                                                    env=environment)
                 caller_started_monotonic = time.monotonic()
                 pgid = process.pid
-                registry_event("register", pgid, "print_caller")
                 cleanup_needed = True
                 peak_rss = 0
                 failures_in_row = 0

@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import textwrap
 
 
 def load(name, path):
@@ -39,6 +40,7 @@ def main():
         raise AssertionError("smoke accepted an expired end-to-end deadline")
 
     previous = BASE.RUN_DEADLINE_MONOTONIC
+    previous_registry = BASE.PROCESS_GROUP_REGISTRY
     try:
         BASE.RUN_DEADLINE_MONOTONIC = time.monotonic() - 1
         try:
@@ -56,8 +58,40 @@ def main():
             pass
         else:
             raise AssertionError("preflight subprocess exceeded the shared deadline")
+
+        BASE.RUN_DEADLINE_MONOTONIC = time.monotonic() + 5
+        try:
+            BASE.bounded_check_output(
+                [sys.executable, "-c",
+                 "import sys; sys.stdout.write('out'); sys.stderr.write('err'); sys.exit(7)"],
+                universal_newlines=True)
+        except subprocess.CalledProcessError as error:
+            assert error.returncode == 7
+            assert error.output == "out" and error.stderr == "err"
+        else:
+            raise AssertionError("preflight exit 7 was accepted as successful output")
     finally:
         BASE.RUN_DEADLINE_MONOTONIC = previous
+        BASE.PROCESS_GROUP_REGISTRY = previous_registry
+
+    with tempfile.TemporaryDirectory(prefix="print-smoke-registry-failure-") as tmp:
+        registry_directory = os.path.join(tmp, "not_a_file")
+        os.mkdir(registry_directory)
+        marker = os.path.join(tmp, "command_executed")
+        BASE.PROCESS_GROUP_REGISTRY = registry_directory
+        try:
+            BASE.start_registered_process(
+                [sys.executable, "-c",
+                 "open(%r, 'w').write('ran')" % marker],
+                "registry_failure_test", stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                universal_newlines=True)
+        except IsADirectoryError:
+            pass
+        else:
+            raise AssertionError("registry failure did not stop gated child launch")
+        finally:
+            BASE.PROCESS_GROUP_REGISTRY = previous_registry
+        assert not os.path.exists(marker), "child executed before durable registration"
 
     with tempfile.TemporaryDirectory(prefix="print-smoke-watchdog-normal-") as tmp:
         registry = os.path.join(tmp, "groups.jsonl")
@@ -98,14 +132,56 @@ time.sleep(30)
         assert not survivors, "registered child process group survived bounded KILL"
         with open(pid_path) as handle:
             child_pid = int(handle.read())
-        for _ in range(20):
-            try:
-                os.kill(child_pid, 0)
-            except ProcessLookupError:
+        for _ in range(40):
+            if not SMOKE.group_exists(child_pid):
                 break
             time.sleep(0.05)
         else:
             raise AssertionError("timeout cleanup left the detached child process alive")
+
+    with tempfile.TemporaryDirectory(prefix="print-smoke-registration-window-") as tmp:
+        registry = os.path.join(tmp, "groups.jsonl")
+        pid_path = os.path.join(tmp, "gated-child.pid")
+        marker = os.path.join(tmp, "target_executed")
+        with open(registry, "w"):
+            pass
+        worker_code = textwrap.dedent(r'''
+            import importlib.util, os, subprocess, sys, time
+            module_path, registry, pid_path, marker = sys.argv[1:]
+            spec = importlib.util.spec_from_file_location("base", module_path)
+            base = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(base)
+            base.PROCESS_GROUP_REGISTRY = registry
+            original_registry = base.registry_event
+            original_popen = subprocess.Popen
+            def capture_popen(*args, **kwargs):
+                child = original_popen(*args, **kwargs)
+                with open(pid_path, "w") as handle:
+                    handle.write(str(child.pid))
+                return child
+            subprocess.Popen = capture_popen
+            def delayed_registry(*args, **kwargs):
+                time.sleep(30)
+                return original_registry(*args, **kwargs)
+            base.registry_event = delayed_registry
+            base.start_registered_process(
+                [sys.executable, "-c", "open(%r, 'w').write('ran')" % marker],
+                "registration_window_test", stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        ''')
+        result = SMOKE.run_outer_worker(
+            [sys.executable, "-c", worker_code, BASE.__file__, registry, pid_path, marker],
+            time.monotonic() + 0.5, registry, cleanup_grace_seconds=0.5)
+        return_code, _, _, timed_out, survivors, _, _ = result
+        assert timed_out and return_code != 0 and not survivors
+        with open(pid_path) as handle:
+            gated_pid = int(handle.read())
+        for _ in range(40):
+            if not SMOKE.group_exists(gated_pid):
+                break
+            time.sleep(0.05)
+        else:
+            raise AssertionError("gated child survived its worker during registration window")
+        assert not os.path.exists(marker), "target executed before its registry entry"
     print("PRINT smoke end-to-end deadline checks passed")
 
 

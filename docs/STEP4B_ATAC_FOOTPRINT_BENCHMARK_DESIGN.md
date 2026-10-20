@@ -38,9 +38,10 @@ Do not score accuracy, discover motifs, optimize/port code, change samples, or w
    launch candidate without unapproved environment work. `rcapps3` is x86_64-compatible and had
    917 GiB available, 72 CPUs, and load average 51.7; choose it only after a fresh preflight confirms
    sufficient available CPU/memory. Its cgroup/job-wide memory enforcement has not been established.
-   Run PRINT at 16 workers, CPU-only, with a fail-closed 100-GiB aggregate-PSS process-tree watchdog;
-   keep GNU-time and watchdog samples separate, and stop if the watchdog cannot measure/attach to the
-   whole process tree. Preserve the existing per-process 44-GiB `RLIMIT_AS` gate without describing
+   Run PRINT at 16 workers, CPU-only, with a fail-closed 100-GiB aggregate-PSS watchdog over the
+   dedicated process group; stop if group enumeration or PSS sampling fails. Do not claim it covers
+   descendants that detach from that group. Keep GNU-time and watchdog samples separate. Preserve
+   the existing per-process 44-GiB `RLIMIT_AS` gate without describing
    it as a task-wide cap. Maximum wall time is 24 h. No administrator contact, package install,
    environment change, optimization, accuracy scoring, motif discovery, or other caller is in scope.
    Exact sync path, output directory, command, and fail-closed preflight are in the dated handoff;
@@ -50,14 +51,15 @@ Do not score accuracy, discover motifs, optimize/port code, change samples, or w
    directly logged-in standalone path. Record gate task ID/exit state; caller wall, user/system CPU,
    `/usr/bin/time -v` maximum RSS (label its process scope), watchdog aggregate process-group PSS
    samples/peak/stop reason; worker count; input/runner/model hashes; peak count and covered bases;
-   per-scale track/event row counts and hashes; and caller-only/from-BAM preparation times separately.
+   per-scale track/event row counts and hashes; and caller wall time separately. The fragment file
+   is precomputed, so BAM-to-fragment preparation is outside this caller timing.
    Existing BAM-to-fragment conversion time may be reported only with exact input/output hashes
    verified. The 100-GiB PSS watchdog threshold is sampled and may be exceeded between samples or
    during TERM grace; it is not a hard memory cap. No QSUB job ID or scheduler memory value applies.
    This run reports computation time/resources and native output statistics only. No accuracy claim,
    cross-tool rank, motif finding, retry, algorithm change, C/C++ optimization, or merge.
 
-**Current status (2026-10-19 23:05 EDT; PR #8 HEAD to refresh after this update).** The fixed PMA conversation approved the PRINT-on-all-original-peaks task definition and the read-only input aggregates. The user selected direct-login standalone compute if SGE is unavailable. `rcapps8` is unsuitable due to its aarch64/x86 R mismatch. `rcapps3` had 917 GiB available, R 4.2.2 and required packages present; PRINT repo commit and sourced module hashes are pinned. A supervised launcher now implements independent process-group monitoring, a sampled 100-GiB PSS termination threshold, 60-s TERM/KILL cleanup and 24-h timeout; this is not a hard memory limit. Exact-head execution review is pending. No PRINT caller has run; the prior 77,668-window proposal remains superseded.
+**Current status (2026-10-19 23:19 EDT; PR #8 HEAD to refresh after this update).** The fixed PMA conversation approved the PRINT-on-all-original-peaks task definition and the read-only input aggregates. The user selected direct-login standalone compute if SGE is unavailable. `rcapps8` is unsuitable due to its aarch64/x86 R mismatch. `rcapps3` had 917 GiB available, R 4.2.2 and required packages present; PRINT repo commit and sourced module hashes are pinned. After one exact-head review returned three concrete supervisor findings, the launcher was repaired: it records `/proc` sampling errors, checks `smaps_rollup` before launch, cleans the monitored group on signal/timeout/exception and waits for the main child, and requires non-header score rows plus all timing stages. The sampled 100-GiB PSS threshold is not a hard memory limit; monitoring covers only the dedicated process group. Exact-head execution review is pending. No PRINT caller has run; the prior 77,668-window proposal remains superseded.
 
 **Status.** The earlier benchmark design was approved by ChatGPT on 2026-10-17 with revisions.
 That approval does not cover material Section 4 revisions. The current read-only qualification is

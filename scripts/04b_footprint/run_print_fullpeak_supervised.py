@@ -6,6 +6,7 @@ import glob
 import gzip
 import hashlib
 import json
+import math
 import os
 import signal
 import socket
@@ -15,7 +16,7 @@ import time
 
 
 RUN_ID = "BG_K562_PRINT_FULLPEAK_20261020_V1"
-RUNNER_SHA256 = "cae788b22dfb8ffc6006bae168b356909b3082036faa4a73e853c496ce717abf"
+RUNNER_SHA256 = "3b658a2021d13278f9b5e46e7aba2426613a1a53d71d52bd7fd6ee617489a966"
 BED_SHA256 = "c0c1d0b5350a962b9d7a7f1d2edef1ca98005029c79f07979533f3a14cb40945"
 FRAGS_SHA256 = "238367780a1b7a2a24595a4259bdbe91cb8be439c2e5fda210831ad60d77544f"
 BIAS_H5_SHA256 = "574140487a0a829c7a59735e0e7a64a3f3a227a7e5ceb8ea5f355f7cc3289402"
@@ -45,12 +46,16 @@ CPUS = list(range(16))
 PSS_LIMIT_KB = 100 * 1024 * 1024
 MAX_WALL_SECONDS = 24 * 60 * 60
 SAMPLE_SECONDS = 2
+STOP_REQUESTED = []
+REQUIRED_TIMING_STAGES = {"bias", "counts", "footprint_r10", "footprint_r20"}
 
 
 def sha256(path):
     digest = hashlib.sha256()
     with open(path, "rb") as handle:
         while True:
+            if STOP_REQUESTED:
+                raise RuntimeError("stop requested during input hashing")
             block = handle.read(8 * 1024 * 1024)
             if not block:
                 break
@@ -72,26 +77,74 @@ def line_count(path):
     return count
 
 
+def validate_track(path):
+    data_rows = 0
+    with gzip.open(path, "rt") as handle:
+        header = handle.readline().rstrip("\r\n").split("\t")
+        if header != ["chrom", "pos", "score"]:
+            raise RuntimeError("invalid PRINT score-track header: " + path)
+        for line in handle:
+            if not line.strip():
+                continue
+            fields = line.rstrip("\r\n").split("\t")
+            if len(fields) != 3:
+                raise RuntimeError("malformed PRINT score-track row: " + path)
+            int(fields[1])
+            score = float(fields[2])
+            if not math.isfinite(score):
+                raise RuntimeError("non-finite PRINT score: " + path)
+            data_rows += 1
+    return data_rows
+
+
+def validate_event_bed(path):
+    rows = 0
+    with open(path, "r") as handle:
+        for line_number, line in enumerate(handle, 1):
+            fields = line.rstrip("\r\n").split("\t")
+            if len(fields) != 4:
+                raise RuntimeError("malformed native-event BED row %d: %s" % (line_number, path))
+            start, end = int(fields[1]), int(fields[2])
+            score = float(fields[3])
+            if not fields[0] or not math.isfinite(score) or start < 0 or end <= start:
+                raise RuntimeError("invalid native-event interval row %d: %s" % (line_number, path))
+            rows += 1
+    return rows
+
+
 def group_members(pgid):
     result = []
+    failures = []
     for stat_path in glob.glob("/proc/[0-9]*/stat"):
+        pid = int(stat_path.split("/")[2])
         try:
             with open(stat_path, "r") as handle:
                 raw = handle.read()
             close = raw.rfind(")")
+            if close < 0:
+                failures.append(pid)
+                continue
             fields = raw[close + 2:].split()
+            if len(fields) < 3:
+                failures.append(pid)
+                continue
             # fields begin with state (proc stat field 3); pgrp is field 5.
             if int(fields[2]) == pgid:
-                result.append((int(stat_path.split("/")[2]), fields[0]))
-        except (IOError, OSError, ValueError, IndexError):
-            continue
-    return result
+                result.append((pid, fields[0]))
+        except (IOError, OSError):
+            # /proc/<pid> disappearing during enumeration is an expected race.
+            if os.path.exists("/proc/%d" % pid):
+                failures.append(pid)
+        except (ValueError, IndexError):
+            if os.path.exists("/proc/%d" % pid):
+                failures.append(pid)
+    return result, failures
 
 
 def group_pss(pgid):
-    members = group_members(pgid)
+    members, scan_failures = group_members(pgid)
     total = 0
-    failures = []
+    failures = list(scan_failures)
     for pid, state in members:
         if state == "Z":
             continue
@@ -123,8 +176,8 @@ def terminate_group(pgid, log, reason):
         return
     deadline = time.time() + 60
     while time.time() < deadline:
-        members = group_members(pgid)
-        if not members or all(state == "Z" for _, state in members):
+        members, scan_failures = group_members(pgid)
+        if not scan_failures and (not members or all(state == "Z" for _, state in members)):
             return
         time.sleep(1)
     try:
@@ -133,11 +186,43 @@ def terminate_group(pgid, log, reason):
         pass
 
 
+def request_stop(signum, frame):
+    STOP_REQUESTED.append(signum)
+
+
+def read_timing_stages(path):
+    opener = gzip.open if path.endswith(".gz") else open
+    with opener(path, "rt") as handle:
+        header = handle.readline().rstrip("\r\n").split("\t")
+        if header != ["stage", "seconds"]:
+            raise RuntimeError("timing TSV header is invalid")
+        stages = []
+        for line in handle:
+            if not line.strip():
+                continue
+            fields = line.rstrip("\r\n").split("\t")
+            if len(fields) != 2:
+                raise RuntimeError("malformed timing TSV row")
+            seconds = float(fields[1])
+            if not math.isfinite(seconds) or seconds < 0:
+                raise RuntimeError("negative timing duration")
+            stages.append(fields[0])
+    return stages
+
+
 def preflight():
+    if STOP_REQUESTED:
+        raise RuntimeError("stop requested before preflight")
     if socket.gethostname().split(".")[0] not in ("rcGPUs", "rcapps3"):
         raise RuntimeError("must run only on the rcapps3/rcGPUs x86_64 host")
     if os.uname()[4] != "x86_64":
         raise RuntimeError("the prepared R runtime requires x86_64")
+    try:
+        with open("/proc/self/smaps_rollup", "r") as handle:
+            if not any(line.startswith("Pss:") for line in handle):
+                raise RuntimeError("/proc/self/smaps_rollup has no Pss field")
+    except (IOError, OSError) as error:
+        raise RuntimeError("aggregate-PSS watchdog unavailable: " + str(error))
     allowed = sorted(os.sched_getaffinity(0))
     if len(allowed) < len(CPUS):
         raise RuntimeError("fewer than 16 CPUs are available to this process")
@@ -202,11 +287,20 @@ def preflight():
 
 
 def main():
+    signal.signal(signal.SIGTERM, request_stop)
+    signal.signal(signal.SIGINT, request_stop)
     os.makedirs(ROOT, mode=0o700, exist_ok=True)
     log_path = os.path.join(ROOT, "watchdog.jsonl")
     with open(log_path, "a") as log:
         started = time.time()
+        process = None
+        pgid = None
+        cleanup_needed = False
+        reason = "normal_exit"
+        peak_pss = 0
         try:
+            if STOP_REQUESTED:
+                raise RuntimeError("stop requested before preflight")
             cpus, frozen_hashes, preflight_facts = preflight()
             preflight_seconds = time.time() - started
             os.makedirs(OUTPUT_DIR, mode=0o700, exist_ok=False)
@@ -222,15 +316,27 @@ def main():
             stdout_path = os.path.join(ROOT, "runlogs", "caller.stdout")
             time_path = os.path.join(ROOT, "runlogs", "gnu_time.stderr")
             with open(stdout_path, "wb") as stdout, open(time_path, "wb") as stderr:
+                if STOP_REQUESTED:
+                    raise RuntimeError("stop requested before caller launch")
                 process = subprocess.Popen(command, stdout=stdout, stderr=stderr,
                                            env=environment, start_new_session=True)
                 caller_started = time.time()
                 pgid = process.pid
+                cleanup_needed = True
                 peak_pss = 0
                 failures_in_row = 0
                 reason = "normal_exit"
                 while True:
+                    if STOP_REQUESTED:
+                        reason = "signal_%d" % STOP_REQUESTED[-1]
+                        terminate_group(pgid, log, reason)
+                        cleanup_needed = False
+                        break
                     members, pss_kb, failures = group_pss(pgid)
+                    if process.poll() is None and not members:
+                        failures.append(-1)  # process group vanished while caller is alive
+                    elif process.poll() is None and process.pid not in {pid for pid, _ in members}:
+                        failures.append(process.pid)  # cannot account for the group leader
                     if failures:
                         failures_in_row += 1
                     else:
@@ -254,14 +360,22 @@ def main():
                         terminate_group(pgid, log, reason)
                         break
                     if process.poll() is not None:
-                        members = group_members(pgid)
+                        members, scan_failures = group_members(pgid)
+                        if scan_failures:
+                            reason = "process_group_enumeration_failed_after_main_exit"
+                            terminate_group(pgid, log, reason)
+                            cleanup_needed = False
+                            break
                         if not members or all(state == "Z" for _, state in members):
+                            cleanup_needed = False
                             break
                         reason = "orphaned_process_group_after_main_exit"
                         terminate_group(pgid, log, reason)
+                        cleanup_needed = False
                         break
                     time.sleep(SAMPLE_SECONDS)
                 return_code = process.wait()
+                cleanup_needed = False
                 caller_elapsed = time.time() - caller_started
             summary = {"run_id": RUN_ID, "host": socket.gethostname(),
                        "architecture": os.uname()[4], "cpus": cpus, "workers": 16,
@@ -290,25 +404,63 @@ def main():
             required_outputs.extend([prefix + ".r%d.native_events.bed" % radius for radius in (10, 20)])
             required_outputs.append(timing_path)
             missing_outputs = [path for path in required_outputs if not os.path.isfile(path)]
+            track_validation = {}
+            track_errors = []
+            event_validation = {}
+            for radius in (10, 20):
+                path = prefix + ".r%d.track.tsv.gz" % radius
+                if os.path.isfile(path):
+                    try:
+                        track_validation[path] = {"data_rows": validate_track(path)}
+                    except Exception as validation_error:
+                        track_errors.append({"path": path, "error": str(validation_error)})
+                event_path = prefix + ".r%d.native_events.bed" % radius
+                if os.path.isfile(event_path):
+                    try:
+                        event_validation[event_path] = {"rows_validated": validate_event_bed(event_path)}
+                    except Exception as validation_error:
+                        track_errors.append({"path": event_path, "error": str(validation_error)})
             empty_tracks = [prefix + ".r%d.track.tsv.gz" % radius for radius in (10, 20)
                             if os.path.isfile(prefix + ".r%d.track.tsv.gz" % radius)
-                            and summary.get(prefix + ".r%d.track.tsv.gz" % radius, {}).get("rows", 0) == 0]
+                            and track_validation.get(prefix + ".r%d.track.tsv.gz" % radius, {}).get("data_rows", 0) < 1]
             timing_rows = summary.get(timing_path, {}).get("rows", 0)
-            summary["output_complete"] = not missing_outputs and not empty_tracks and timing_rows >= 2
+            timing_stages = read_timing_stages(timing_path) if os.path.isfile(timing_path) else []
+            missing_timing_stages = sorted(REQUIRED_TIMING_STAGES.difference(timing_stages))
+            summary["required_output_files_valid"] = (not missing_outputs and not empty_tracks
+                                                       and timing_rows >= 2
+                                                       and not missing_timing_stages
+                                                       and not track_errors)
             summary["missing_outputs"] = missing_outputs
             summary["empty_score_tracks"] = empty_tracks
+            summary["missing_timing_stages"] = missing_timing_stages
+            summary["score_track_validation"] = track_validation
+            summary["native_event_validation"] = event_validation
+            summary["score_track_errors"] = track_errors
             with open(os.path.join(ROOT, "summary.json"), "w") as handle:
                 json.dump(summary, handle, indent=2, sort_keys=True)
                 handle.write("\n")
             print(json.dumps(summary, sort_keys=True))
             if reason != "normal_exit":
                 return 124
-            if return_code == 0 and not summary["output_complete"]:
+            if return_code == 0 and not summary["required_output_files_valid"]:
                 return 3
             return return_code
         except Exception as error:
+            if cleanup_needed and pgid is not None:
+                terminate_group(pgid, log, "supervisor_exception")
+                cleanup_needed = False
+            if process is not None:
+                try:
+                    process.wait(timeout=65)
+                except subprocess.TimeoutExpired:
+                    terminate_group(pgid, log, "child_reap_timeout")
+                    try:
+                        process.wait(timeout=5)
+                    except Exception:
+                        pass
             log.write(json.dumps({"event": "preflight_or_supervisor_error",
-                                  "error": str(error), "time_epoch": time.time()}) + "\n")
+                                  "error": str(error), "time_epoch": time.time(),
+                                  "signal_requested": STOP_REQUESTED}) + "\n")
             log.flush()
             print("FAIL_CLOSED: " + str(error), file=sys.stderr)
             return 2

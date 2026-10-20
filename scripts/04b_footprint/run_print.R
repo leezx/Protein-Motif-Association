@@ -43,7 +43,9 @@ for (rad in radii) {
     data.table(chrom = as.character(seqnames(rg)), pos = start(rg) - 1 + seq_along(x$aggregateScores) - 1,
                score = x$aggregateScores)
   }))
-  fwrite(tr, sprintf("%s.r%d.track.tsv.gz", out, rad), sep = "\t")
+  track_path <- sprintf("%s.r%d.track.tsv.gz", out, rad)
+  if (is.null(tr)) tr <- data.table(chrom = character(), pos = integer(), score = numeric())
+  fwrite(tr, track_path, sep = "\t")
   ev <- rbindlist(lapply(seq_along(fp), function(i) {  # PRINT's own footprint calls (findSummits on the track)
     x <- fp[[i]]
     if (is.null(x$footprintRanges) || length(x$footprintRanges) == 0) return(NULL)
@@ -51,7 +53,12 @@ for (rad in radii) {
     data.table(chrom = as.character(seqnames(rg)), start = start(rg) - 1 + start(x$footprintRanges) - 1,
                end = start(rg) - 1 + end(x$footprintRanges), score = x$aggregateScores[x$summits])
   }))
-  fwrite(ev, sprintf("%s.r%d.native_events.bed", out, rad), sep = "\t", col.names = FALSE)
+  event_path <- sprintf("%s.r%d.native_events.bed", out, rad)
+  if (is.null(ev)) {
+    if (!file.create(event_path)) stop("could not create empty native event file")
+  } else {
+    fwrite(ev, event_path, sep = "\t", col.names = FALSE)
+  }
   timing[[paste0("footprint_r", rad)]] <- tic() - t0
 }
 fwrite(data.table(stage = names(timing), seconds = unlist(timing)), paste0(out, ".timing.tsv"), sep = "\t")

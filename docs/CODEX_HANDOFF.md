@@ -3,7 +3,7 @@
 ## 64-peak PRINT speed candidate — review required, not authorized to run
 
 Footprinting only; Claude owns ChIP BED6/PR #7. PR #8 is OPEN and unmerged at live HEAD
-`d2474134f31bf6c288922964dbaed4b5fbdfee59`. The fixed `PMA｜固定阶段审核` conversation confirmed
+`d2474134f31bf6c288922964dbaed4b5fbdfee59` before the current same-PR watchdog fix. The fixed `PMA｜固定阶段审核` conversation confirmed
 that the active V3 record and code both use a sampled process-group `VmRSS` sum; the PSS wording
 appears only in a historical full-peak V2 snapshot. No monitor rewrite is needed for the V3-based
 candidate. `VmRSS` sampling can double-count shared pages and can miss short-lived or escaped
@@ -15,8 +15,13 @@ frozen K562 peak BED row order. The selector verifies source SHA-256
 rows; it copies 64 original BED rows without filtering or coordinate edits, writes a row map and
 hash summary, and requires at least two chromosomes. PRINT uses the production chromosome-wise
 bias path (`PRINT_DIRECT_COMPARE=0`), two workers, radii 10/20, CPU-only, a 30-minute end-to-end
-budget, per-process 44-GiB `RLIMIT_AS`, and 40-GiB sampled process-group `VmRSS` soft stop. R
-warnings are emitted as they occur (`options(warn=1)`). The runner reports selection time,
+budget, per-process 44-GiB `RLIMIT_AS`, and 40-GiB sampled process-group `VmRSS` soft stop. An
+independent outer parent launches the worker; selection, full-file hashing, preflight, caller, and
+output validation run inside that worker under one monotonic 30-minute execution deadline. On
+timeout or interruption, the parent terminates the worker session and registered process groups
+with TERM, then allows a bounded 60-second cleanup grace before KILL. Kernel tasks in uninterruptible
+D state may outlive SIGKILL. Cleanup grace is outside the 30-minute execution budget. R warnings are
+emitted as they occur (`options(warn=1)`). The runner reports selection time,
 supervisor preflight time, caller wall/CPU time, stage timings, GNU-time max RSS and sampled-group
 RSS separately. Gate metadata labels must be explicit (`ctrl print`).
 
@@ -25,8 +30,9 @@ The same BAM's already completed fragment preparation is `BG_K562_FRAG_PREP_V1` 
 output fragment SHA-256 `238367780a1b7a2a24595a4259bdbe91cb8be439c2e5fda210831ad60d77544f`. GNU time:
 28:18.88 wall, 1,701.40 user + 26.29 system seconds, 101% CPU (~1.01 average core), maximum RSS
 4,196,976 KiB (~4.00 GiB); gate `RLIMIT_KB=46137344` (44 GiB). The separate 64-peak run reuses
-these fragments, so its 30-minute cap is caller-stage budget; report the BAM-to-track elapsed as
-28:18.88 plus its separately measured selection/preflight/caller timeline. Preparation is a
+these fragments, so its 30-minute execution budget covers selection/preflight/caller/output validation,
+not the previously completed BAM conversion; report the BAM-to-track elapsed as 28:18.88 plus its
+separately measured new timeline. Preparation is a
 one-time shared input cost and should not be counted again when reusing the frozen fragment file.
 
 Pinned candidate artifacts:
@@ -34,11 +40,13 @@ Pinned candidate artifacts:
 - selector `scripts/04b_footprint/select_print_speed64.py`, SHA-256
   `105be1be89c94d466e46dccdee98402d74ec7dfba1781f1c7a91740342932b46`
 - one-shot supervisor `scripts/04b_footprint/run_print_speed64_supervised.py`, SHA-256
-  `8b0579e9bcde9d8b72c3cd57f901c7da91cfce3f2ca5a898ca09e078d39bda70`
+  `d741ba0234741de452f5d10682e76b5585d54b51b4496c3fb6653c013099ac6a`
 - PRINT wrapper `scripts/04b_footprint/run_print.R`, SHA-256
   `0c7c26f303f079a18d5f1f110faa2e516d631c8826dbd5e5517fc26d4aff22bb`
 - variable-width helper `5f5da1b9cf3179f40850792d26ecce6862ed8c3a5dfd82ad39fa8ab07d51d4ca`
 - base supervisor `7d594c58de85c012cc3ff08d93c8c67252be65f9cd860497243bc9295ef0a234`
+- pinned outer watchdog `scripts/04b_footprint/run_print_integration_smoke_supervised.py`, SHA-256
+  `1b4c574e71a8d63c34c92c26810c822e627c4cd25cd78eb7cbc85e8996ca68ad`
 - immutable gate `3776778b950be90cad124c04937eee422c81466154eccdadfe9e57d58224253c`
 
 Candidate run ID `BG_K562_PRINT_PEAK_SPEED64_20261020_V1`; staged code directory
@@ -48,7 +56,7 @@ Candidate run ID `BG_K562_PRINT_PEAK_SPEED64_20261020_V1`; staged code directory
 Proposed immutable-gate command:
 
 ```sh
-PMA_PRINT_SPEED64_EXPECTED_SHA256=8b0579e9bcde9d8b72c3cd57f901c7da91cfce3f2ca5a898ca09e078d39bda70 \
+PMA_PRINT_SPEED64_EXPECTED_SHA256=d741ba0234741de452f5d10682e76b5585d54b51b4496c3fb6653c013099ac6a \
   bash /home/zz950/PMA_fetch/pma_bg_gate_v2.sh \
   BG_K562_PRINT_PEAK_SPEED64_20261020_V1 \
   /home/zz950/PMA_fetch/pma_print_peak_speed_code_20261020_v1/run_print_speed64_supervised.py \

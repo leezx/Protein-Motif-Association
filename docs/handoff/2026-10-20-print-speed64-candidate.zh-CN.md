@@ -27,13 +27,16 @@
 ## 拟议资源与记录
 
 - Argos `rcapps3/rcGPUs`，CPU-only，2 workers。
-- 30 分钟总预算；每进程 `RLIMIT_AS` 44 GiB；采样进程组 `VmRSS` 达 40 GiB 时软停止。
+- 从独立 outer parent 启动 worker；30 分钟总执行预算覆盖选择、哈希/preflight、caller 和
+  输出校验。超时后 TERM/KILL 清理宽限期最多另计 60 秒；内核不可中断 D 状态可能无法即时清除。
+  每进程 `RLIMIT_AS` 44 GiB；采样进程组 `VmRSS` 达 40 GiB 时软停止。
 - `VmRSS` 求和可能重复计共享页，也可能漏掉短命或脱离进程组的成员；仅近似软停止信号，不是
   真实峰值、保守上界或硬内存限额。
 - 分开记录 BED selection、监督器 preflight、caller wall/CPU、PRINT bias/count/r10/r20 阶段；
   保留 GNU time 和每条 R warning。
-- 64 峰任务复用既有片段文件，30 分钟预算不含已经发生的 BAM→fragments 转换；若报告从
-  BAM 起算的总时间，须另列并相加这次 28:18.88 预处理 wall。转换是一次共享成本，复用文件时不重复计费。
+- 64 峰任务复用既有片段文件；30 分钟执行预算不含已经发生的 BAM→fragments 转换，也不含
+  超时后的最多 60 秒有界清理宽限期。若报告从 BAM 起算的总时间，须另列并相加这次
+  28:18.88 预处理 wall。转换是一次共享成本，复用文件时不重复计费。
 - immutable gate 元数据显式提供 `ctrl print`。
 
 ## 精确候选身份
@@ -44,7 +47,9 @@
 - Evidence root：`/home/zz950/PMA_fetch/pma_print_peak_speed_rcapps3_20261020_v1`。
 - Scientific output：
   `/home/zz950/DATA/2.PROJECTS/PMA/atac_footprint/processed/round1/runs_print_peak_speed_rcapps3_20261020_v1`。
-- Wrapper SHA-256：`8b0579e9bcde9d8b72c3cd57f901c7da91cfce3f2ca5a898ca09e078d39bda70`。
+- Wrapper SHA-256：`d741ba0234741de452f5d10682e76b5585d54b51b4496c3fb6653c013099ac6a`。
+- 外层监督器 `run_print_integration_smoke_supervised.py` SHA-256：
+  `1b4c574e71a8d63c34c92c26810c822e627c4cd25cd78eb7cbc85e8996ca68ad`。
 - Selector SHA-256：`105be1be89c94d466e46dccdee98402d74ec7dfba1781f1c7a91740342932b46`。
 - PRINT runner SHA-256：`0c7c26f303f079a18d5f1f110faa2e516d631c8826dbd5e5517fc26d4aff22bb`。
 - Helper SHA-256：`5f5da1b9cf3179f40850792d26ecce6862ed8c3a5dfd82ad39fa8ab07d51d4ca`。
@@ -54,7 +59,7 @@
 建议 gate command：
 
 ```sh
-PMA_PRINT_SPEED64_EXPECTED_SHA256=8b0579e9bcde9d8b72c3cd57f901c7da91cfce3f2ca5a898ca09e078d39bda70 \
+PMA_PRINT_SPEED64_EXPECTED_SHA256=d741ba0234741de452f5d10682e76b5585d54b51b4496c3fb6653c013099ac6a \
   bash /home/zz950/PMA_fetch/pma_bg_gate_v2.sh \
   BG_K562_PRINT_PEAK_SPEED64_20261020_V1 \
   /home/zz950/PMA_fetch/pma_print_peak_speed_code_20261020_v1/run_print_speed64_supervised.py \
@@ -63,8 +68,15 @@ PMA_PRINT_SPEED64_EXPECTED_SHA256=8b0579e9bcde9d8b72c3cd57f901c7da91cfce3f2ca5a8
 
 ## 验证与门禁
 
-本地已完成 Python 编译检查、R 语法 parse、`git diff --check`。Argos 上未读取数据、未上传脚本、
-未修改环境、未运行调用。候选必须先提交到同一 PR #8，在固定 PMA 对话审查推送后的 exact HEAD，
+固定 PMA 审核在 HEAD `6c500bf9afeff5e44eba153ddd2d91d2952f5c69` 指出：原 64 峰入口缺少独立 outer
+parent，无法在阻塞 worker 时保证 30 分钟停止和进程组清理，且 handoff 错把总预算描述为 caller-stage。
+在同一 PR 的修订中，64 峰脚本现在加载并校验已审核的 outer watchdog，由独立父进程启动隔离 worker；
+选择、哈希、preflight、caller 和输出校验均在 worker 内，共享同一个单调时钟 deadline。父进程
+跟踪进程组注册表，超时时向 worker 与已登记的独立组发送 TERM，最多等待 60 秒后 KILL，并写
+`outer_supervisor_summary.json`。新增回归验证父子委派和阻塞 worker 下独立进程组清理。
+
+修订 wrapper SHA-256 为 `d741ba0234741de452f5d10682e76b5585d54b51b4496c3fb6653c013099ac6a`。本地已完成 Python 编译检查、R 语法 parse、候选父子监督回归、现有 smoke watchdog 回归和 `git diff --check`。Argos 上未读取数据、
+未上传脚本、未修改环境、未运行调用。修订必须先提交到同一 PR #8，在固定 PMA 对话审查推送后的 exact HEAD，
 并获得本命令范围的一次性明确 APPROVE。任何失败保留日志并停止，不自动重试；未授权 merge。
 
 此候选只会给出 64 peak runtime/resource 观测；其数据不能替代全量 caller，也不能用线性外推

@@ -369,6 +369,23 @@ Further rules:
 - Transcription machinery and Other/ambiguous count in E and P only.
 - CTCF has primary class Architectural/cohesin, so it counts in CAP, not TF.
 
+**Histone tracks** (`PMA_TRACK_MODE=histone`, from the histone BED6+18 of §10; m = ChIP-Atlas mark name):
+
+| Track | Definition |
+|---|---|
+| `histone_experiments.bw` | H(x) = \|{e : x ∈ peaks(e)}\| over histone experiments |
+| `histone_marks.bw` | M(x) = \|{m : x ∈ peaks(m)}\| |
+| `histone_<m>.bw` | H_m(x) = \|{e : mark(e) = m, x ∈ peaks(e)}\| for the core marks H3K27ac, H3K4me3, H3K4me1, H3K27me3, H3K9me3, H3K36me3 |
+
+M mixes active and repressive marks, so it is an evidence-diversity count only. The core-mark tracks carry the
+biology.
+
+Histone QC:
+- M ≤ H;
+- M > 0 ⇔ H > 0;
+- H_m ≤ H and Σ_core H_m ≤ H;
+- the same 300-position recount.
+
 **Class annotation v1.1.** The user's file is kept unchanged; v1.1 is a separate file.
 - 168 genes were `Other/ambiguous` with basis `conservative_unresolved` and are in the Lambert 2018 human TF list.
   v1.1 sets them to Sequence-specific TF (basis `lambert2018_TF_list`).

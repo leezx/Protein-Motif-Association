@@ -1,6 +1,10 @@
 """Step 4a §11: ChIP-Atlas Protein Occupancy Evidence Tracks (peak-derived; not read coverage).
 
-usage: 05_occupancy_tracks.py <occupancy.bed.gz> <class_annotation.csv> <chrom.sizes> <out_dir> [workers] [region]
+usage: 05_occupancy_tracks.py <occupancy.bed.gz> <class_annotation.csv|-> <chrom.sizes> <out_dir> [workers] [region]
+PMA_TRACK_MODE=protein (default) or histone. Histone mode (input = histone BED6+18, annotation '-'), m = ChIP-Atlas
+antigen (mark):  H(x) = |{e : x in peaks(e)}| -> histone_experiments.bw;  M(x) = |{m : x in peaks(m)}| ->
+histone_marks.bw;  H_m(x) = |{e : mark(e) = m, x in peaks(e)}| for the core marks H3K27ac, H3K4me3, H3K4me1,
+H3K27me3, H3K9me3, H3K36me3 -> histone_<m>.bw.  Histone QC: M <= H; M > 0 <=> H > 0; H_m <= H; sum of core H_m <= H.
 Definitions, per base x, from experiment-level peaks of Output A (v1); p = target label (HGNC symbol, else the
 ChIP-Atlas antigen), class(p) from the annotation (labels without HGNC symbol: 'Non-gene label'):
   E(x)   = |{e : x in peaks(e)}|                          experiments.bw
@@ -19,13 +23,48 @@ import gzip
 import heapq
 import json
 import multiprocessing as mp
+import os
 import re
 import subprocess
 import sys
 from pathlib import Path
 
 CAP = {"Histone writer/eraser", "Histone reader", "Chromatin remodeler", "Architectural/cohesin"}
-MAIN = ("experiments", "proteins", "tf", "cap")
+MODE = os.environ.get("PMA_TRACK_MODE", "protein")
+CORE_MARKS = ("H3K27ac", "H3K4me3", "H3K4me1", "H3K27me3", "H3K9me3", "H3K36me3")
+if MODE == "histone":
+    MAIN = ("histone_experiments", "histone_marks") + tuple(f"histone_{m}" for m in CORE_MARKS)
+else:
+    MAIN = ("experiments", "proteins", "tf", "cap")
+
+
+def row_items(f, cls):
+    """(track, item) pairs a peak row contributes to, including QC-only class tracks in protein mode."""
+    if MODE == "histone":
+        m = "_".join(f[7].split())
+        out = [("histone_experiments", f[3]), ("histone_marks", m)]
+        if m in CORE_MARKS:
+            out.append((f"histone_{m}", f[3]))
+        return out
+    t = "_".join((f[8] if f[8] != "." else f[7]).split())
+    c = cls.get(f[8], "Non-gene label") if f[8] != "." else "Non-gene label"
+    out = [("experiments", f[3]), ("proteins", t), (f"class_{slug(c)}", t)]
+    if c == "Sequence-specific TF":
+        out.append(("tf", t))
+    elif c in CAP:
+        out.append(("cap", t))
+    return out
+
+
+def identities(val):
+    if MODE == "histone":
+        h = val["histone_experiments"]; core = [val[f"histone_{m}"] for m in CORE_MARKS]
+        return (("M_gt_H", val["histone_marks"] <= h), ("M_zero_H_pos", (val["histone_marks"] > 0) == (h > 0)),
+                ("core_gt_H", all(c <= h for c in core)), ("sum_core_gt_H", sum(core) <= h))
+    ksum = sum(v for t, v in val.items() if t.startswith("class_"))
+    return (("P_ne_sum_classes", val["proteins"] == ksum), ("TF_gt_P", val["tf"] <= val["proteins"]),
+            ("CAP_gt_P", val["cap"] <= val["proteins"]), ("P_gt_E", val["proteins"] <= val["experiments"]),
+            ("P_zero_E_pos", (val["proteins"] > 0) == (val["experiments"] > 0)))
 
 
 def slug(c):
@@ -78,7 +117,7 @@ class Track:
 
 def run_chrom(args):
     bed, cls, classes, chrom, lo, hi, wdir = args
-    names = list(MAIN) + [f"class_{slug(k)}" for k in classes]
+    names = list(MAIN) + ([f"class_{slug(k)}" for k in classes] if MODE == "protein" else [])
     fh = {t: open(f"{wdir}/{t}.{chrom}.bedGraph", "w") for t in names}
     tr = {t: Track(chrom, fh[t], lo, hi) for t in names}
     q = chrom if lo == 0 and hi >= 1 << 40 else f"{chrom}:{lo + 1}-{hi}"
@@ -90,15 +129,8 @@ def run_chrom(args):
         if s < prev:
             raise RuntimeError(f"{chrom}: input not start-sorted")
         prev = s; rows += 1
-        t = "_".join((f[8] if f[8] != "." else f[7]).split())
-        c = cls.get(f[8], "Non-gene label") if f[8] != "." else "Non-gene label"
-        tr["experiments"].add(s, e, f[3])
-        tr["proteins"].add(s, e, t)
-        if c == "Sequence-specific TF":
-            tr["tf"].add(s, e, t)
-        elif c in CAP:
-            tr["cap"].add(s, e, t)
-        tr[f"class_{slug(c)}"].add(s, e, t)
+        for track, item in row_items(f, cls):
+            tr[track].add(s, e, item)
     if p.wait() != 0:
         raise RuntimeError(f"tabix failed on {chrom}")
     for t in names:
@@ -138,13 +170,10 @@ def qc_chrom(wdir, chrom, names):
         if not nxt:
             break
         end = min(nxt)
-        ksum = sum(v for t, v in val.items() if t.startswith("class_"))
-        for name, ok in (("P_ne_sum_classes", val["proteins"] == ksum), ("TF_gt_P", val["tf"] <= val["proteins"]),
-                         ("CAP_gt_P", val["cap"] <= val["proteins"]), ("P_gt_E", val["proteins"] <= val["experiments"]),
-                         ("P_zero_E_pos", (val["proteins"] > 0) == (val["experiments"] > 0))):
+        for name, ok in identities(val):
             if not ok:
                 bad[name] += 1; ex.setdefault(name, f"{chrom}:{pos}-{end} {val}")
-        if val["experiments"] > 0:
+        if val[MAIN[0]] > 0:
             bp_checked += end - pos
         for t in MAIN:
             maxv[t] = max(maxv[t], val[t])
@@ -157,7 +186,7 @@ def spot_check(bed, cls, out_dir, n=300, seed=20261020):
     import random
     rnd = random.Random(seed)
     lines = []
-    with gzip.open(out_dir / "experiments.bedGraph.gz", "rt") as f:
+    with gzip.open(out_dir / f"{MAIN[0]}.bedGraph.gz", "rt") as f:
         for i, line in enumerate(f):  # reservoir sample of segments
             if len(lines) < n:
                 lines.append(line)
@@ -173,15 +202,11 @@ def spot_check(bed, cls, out_dir, n=300, seed=20261020):
         c, a, b, _ = line.split("\t"); x = rnd.randint(int(a), int(b) - 1)
         rows = subprocess.run(["tabix", str(bed), f"{c}:{x + 1}-{x + 1}"], capture_output=True, text=True,
                               check=True).stdout.splitlines()
-        exps, prots, tf, cap = set(), set(), set(), set()
+        sets = collections.defaultdict(set)
         for r in rows:
-            f = r.split("\t")
-            t = "_".join((f[8] if f[8] != "." else f[7]).split())
-            k = cls.get(f[8], "Non-gene label") if f[8] != "." else "Non-gene label"
-            exps.add(f[3]); prots.add(t)
-            if k == "Sequence-specific TF": tf.add(t)
-            elif k in CAP: cap.add(t)
-        want = dict(experiments=len(exps), proteins=len(prots), tf=len(tf), cap=len(cap))
+            for track, item in row_items(r.split("\t"), cls):
+                sets[track].add(item)
+        want = {t: len(sets[t]) for t in MAIN}
         got = {}
         for t in MAIN:
             q = subprocess.run(["tabix", str(tracks[t]), f"{c}:{x + 1}-{x + 1}"], capture_output=True, text=True,
@@ -194,7 +219,7 @@ def spot_check(bed, cls, out_dir, n=300, seed=20261020):
 
 def main(bed, ann, sizes_path, out, workers=6, region=None):
     sizes = {l.split("\t")[0]: int(l.split("\t")[1]) for l in Path(sizes_path).read_text().splitlines() if l}
-    cls = {r["gene"]: r["Class"] for r in csv.DictReader(open(ann, encoding="utf-8-sig"))}
+    cls = {} if ann == "-" else {r["gene"]: r["Class"] for r in csv.DictReader(open(ann, encoding="utf-8-sig"))}
     classes = sorted(set(cls.values()) | {"Non-gene label"})
     out = Path(out); wdir = out / "work"; wdir.mkdir(parents=True, exist_ok=True)
     if region:

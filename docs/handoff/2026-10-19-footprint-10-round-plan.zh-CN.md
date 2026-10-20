@@ -1,5 +1,20 @@
 # Step 4b footprint：十轮内形成可行工具选择
 
+> **当前操作方案（2026-10-19 21:55 EDT）**：用户要求停止扩展方案，只做一次可信、有限资源的
+> 准确度与耗时评估。下方“十轮封顶计划”和更早的多方案文字均为历史记录，已由
+> `docs/STEP4B_ATAC_FOOTPRINT_BENCHMARK_DESIGN.md` 开头的“Current operative plan”取代；不要按历史表格
+> 继续增加数据集、折叠方案、事件级替代、优化或额外轮次。
+>
+> 唯一候选为 HCT116 CTCF-degron 未处理 ATAC 与同克隆/同条件 CTCF ChIP+input。先只读核实 provenance、
+> 独立生物重复、匹配对照、QC 及与工具开发数据的独立性；任一不合格，准确度结论为“不能排名”，不换
+> 数据集。共同单位为预先冻结 CTCF motif 中心 20 bp；唯一主指标为四工具共同完整阈值前分数的 AP。
+> 不调用缺失分数填零，不用阈值事件替代。HINT/TraceBIND 若仍无完整连续分数，则四工具准确度比较
+> 即停止。若评估获准，四工具在同一 input/region list 各顺序运行一次，默认参数、最多 8 CPU、24 h、
+> 不可变 44-GiB `RLIMIT_AS`；记录墙钟、user/system CPU、进程树峰值 RSS、共享/专属预处理、片段量、
+> 评分位点数和退出状态。仅四项成功才作速度排名，否则只报观察值。是否允许在准确度资格失败后
+> 仍做 speed-only 运行，正在提交固定 PMA 对话审核。本段和设计文档当前版本尚未获 exact-head review；
+> 不据此启动 Argos。
+
 更新时间：2026-10-19 16:46 EDT（UTC 20:46）
 范围：仅 footprint→de novo motif；ChIP BED6 / PR #7 由 Claude 负责，本交接不涉及。  
 PR #8：`task_20261019_hint_overlay_smoke`，OPEN、未合并。固定 PMA 对话 `PMA｜固定阶段审核` 对父 HEAD `03dbdd9a5bc8f54e1ef09056e3f4cc755e71ae2a` 批准第 3 轮公开研究元数据盘点；提交后的 HEAD `bfa06d4e86bbe77d4d4ebc84190f408fb6a216d9` 收到 `REQUEST_CHANGES`；三项 finding 已在同一 PR 修正并推送至内容提交 `6f9c04621dae462bb316366c0c0b41f79c4e12bd`；完整状态同步 HEAD `d15db7f4d292f6484f003c45035f7eb5449635e7` 获文档/方法和只读审计 `APPROVE`。之后按已批准的元数据范围核对 K562 候选，内容提交 `2eeb09deaf172885d31059124de03931415c5587` 已推送；状态同步 tip `08c334ddc3c436ea17ef7906ab277958dbcbeea0` 经复核，阶段关闭 HEAD `632eb4993f13d069e4d0bde4c984b747eab693e5` 获 round-3 文档/方法记录 `APPROVE`；随后按审核意见把两项非阻塞 attribution 修正同步到当前 tip `7746d8bf22324ed66426322f04efa1845cee154d`，无需另开复审。审查确认候选总结忠实，但提醒同一 biosample ID、旧平台或 audit 数量单独不能证明重复不独立或数据不可用。批准范围不包含实验数据文件、Argos、caller、分析、环境修改、ChIP 数据处理或合并。审核指出本手册上一时间行将 UTC/EDT 写反；此处已更正。未下载或读取 BAM、FASTQ、BED、BigWig、矩阵等实验数据文件。

@@ -1,5 +1,31 @@
 # PMA — handoff to Codex (2026-10-17, written by Claude Code)
 
+## Current live status — 2026-10-19 21:55 EDT — one-shot assessment plan submitted for review
+
+Footprinting only; Claude owns ChIP BED6/PR #7. PR #8 is OPEN, unmerged, on
+`task_20261019_hint_overlay_smoke`; parent HEAD before this documentation update was
+`50e21550031834cec94ae94d5d6d9d476afef9bb`. The user asked for one practical accuracy-and-time
+assessment and authorized submitting it in the existing fixed PMA Chrome conversation
+`PMA｜固定阶段审核`. The reviewer proposed a bounded HCT116 CTCF occupancy-concordance protocol;
+the method response is not an exact-head PR review and did not authorize compute. The plan is being
+recorded on the same PR for exact-head review.
+
+The proposed protocol has one HCT116 untreated ATAC / same-clone CTCF ChIP+input candidate; provenance,
+independent biological replicate, and tool-development-independence gates; one frozen CTCF-motif-site
+20-bp score window; and AP only if all four tools provide complete threshold-free scores. No-call is
+not zero. Existing HINT and TraceBIND wrappers are threshold-truncated, so the known interface audit
+predicts **accuracy cannot be ranked** unless exact score outputs pass review. The proposed time matrix
+is one sequential run per tool on the same input/regions, at most 8 CPU, 24 h, and immutable 44-GiB
+`RLIMIT_AS`; report wall/CPU/process-tree peak RSS, preprocessing, fragments and scored sites. Historical
+times remain descriptive and are not directly comparable. The review request will explicitly ask
+whether speed-only jobs are allowed if accuracy qualification fails. No Argos, data read/download,
+caller, analysis, environment change, ChIP work, or merge has occurred in this update.
+
+The operative short protocol is at the start of `docs/STEP4B_ATAC_FOOTPRINT_BENCHMARK_DESIGN.md` and
+in `docs/handoff/2026-10-19-footprint-10-round-plan.zh-CN.md`; it supersedes older multi-round
+execution details for this one assessment. Current status is documentation-only and exact-head
+review pending; do not start a dependent job before that review and the applicable human stage gate.
+
 ## Current PR #8 state — 2026-10-19 16:44 EDT (20:44 UTC) — round 3 closed: cannot rank
 
 Footprint-only; ChIP BED6 / PR #7 remains with Claude and out of scope. PR #8 is OPEN on `task_20261019_hint_overlay_smoke`; the three metadata-review corrections are in ancestor `6f9c04621dae462bb316366c0c0b41f79c4e12bd`, and the K562 candidate metadata qualification is in commit `2eeb09deaf172885d31059124de03931415c5587`; K562 content commit `2eeb09deaf172885d31059124de03931415c5587` was followed by status-sync tip `08c334ddc3c436ea17ef7906ab277958dbcbeea0`; stage-closure tip `632eb4993f13d069e4d0bde4c984b747eab693e5` was reviewed and approved for round-3 docs/method recording only; its two nonblocking attribution corrections were then synced at current tip `7746d8bf22324ed66426322f04efa1845cee154d` without another review, as the reviewer explicitly allowed. They correct the 4DN accession and qualify its visible metadata, distinguish GEO treatment metadata from the ENCODE reagent/concentration, and narrow candidate eligibility claims and current-status wording. `git diff --check` passed before commit. The fixed PMA project conversation `PMA｜固定阶段审核` approved exact parent HEAD `d15db7f4d292f6484f003c45035f7eb5449635e7` for documentation/method and read-only audit only; it identified the timestamp conversion error as nonblocking. The fixed PMA reviewer confirmed the K562 metadata summary is faithful with the caveat that same biosample ID, old platform, or audit counts alone do not prove replicate non-independence or data unusability. It approved closing this metadata-only stage and identified two nonblocking record corrections: attribute the earlier approval to exact HEAD `d15db7f` rather than content commit `6f9c046`, and distinguish content commit `2eeb09d` from reviewed status-sync tip `08c334d`. Those corrections are now in the current handoff. Under the approved public-metadata scope, the listed K562 candidate was checked more closely: ENCODE `ENCSR000DMA` lists three isogenic ChIP replicates (one technical replicate each, same biosample accession `ENCBS775AAA`), while linked input `ENCSR000DMB` is explicitly unreplicated; both older ENCODE2 records show non-compliant audit flags. This does not prove three independent ChIP/input pairs. It remains an unqualified separate static-occupancy candidate; see official source links in the dated round plan. Current conclusion: among the listed candidates, no eligible label set has been established for canonical HCT116 §4; accuracy cannot be ranked and no winner is supported. This does not claim no other public benchmark exists. Round-3 metadata/docs work used no experiment files, Argos, caller/analysis, environment change, ChIP processing or merge. After round 3 closed, the user separately authorized a 16:44 EDT read-only Argos monitor; it queried queue state, footprint caller/gate process names and existing task status files only. It did not read biological data, or start, stop or modify tasks, or run callers/analysis. Read-only monitoring authorization is distinct from benchmark data/compute authorization. No new benchmark compute is authorized; any new benchmark design or data/compute work requires a fresh human scope decision and fixed-PMA stage review.

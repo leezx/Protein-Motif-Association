@@ -1,5 +1,53 @@
 # Step 4b — Genome-wide, motif-free ATAC-seq footprinting: benchmark design
 
+## Current operative plan — one bounded four-tool assessment (2026-10-19)
+
+This short plan is the only proposed execution path for the user's current request. It supersedes
+the longer multi-round protocol below for this assessment; the older sections are background, not
+instructions to add folds, extra datasets, optimization, or more rounds. This edit requests review
+only and does not authorize Argos access or execution.
+
+1. **One input and one label gate.** Use only the already selected untreated HCT116 CTCF-degron
+   ATAC sample and its same-clone, same-condition CTCF ChIP plus matched input. First verify the
+   exact accessions, genome, replicate mapping, input, peak/signal provenance, assay QC, and whether
+   the ChIP labels were independent of tool development/selection. Positive sites require support in
+   both independent ChIP biological replicates. A negative requires no ChIP peak within ±250 bp and
+   input-adjusted signal no higher than the callable-candidate background median in both replicates;
+   all other sites are ambiguous and excluded. If provenance, biological replication, matched input,
+   or independence fails, stop accuracy scoring as **cannot rank**; do not substitute another cell
+   line or dataset.
+
+2. **One common score space and one accuracy metric.** Freeze accessible CTCF PWM sites from the
+   reference sequence and the ATAC callable mask before joining ChIP labels; use a fixed 20-bp window
+   around each motif center, with ChIP used only to label. This is a local CTCF-occupancy concordance
+   benchmark, not general motif-free footprint truth. For each tool, use its documented, direction-
+   corrected continuous score averaged over that same window. Compute average precision (AP) only if
+   all four tools provide complete threshold-free scores for all eligible sites. An absent event,
+   unavailable score, or failed run is never zero. If HINT or TraceBIND remains threshold-truncated,
+   stop four-way accuracy ranking as **cannot rank**; do not replace scores with binary calls.
+   A unique local leader requires AP at least 0.02 above each of the other three and a positive
+   paired 1-Mb-block bootstrap interval for all three differences, with Holm correction over six
+   pairwise comparisons (2,000 paired resamples). Otherwise report APs and **no unique winner**.
+
+3. **One timing/resource matrix.** If the common HCT116 input and fixed region list are present, run
+   PRINT, TraceBIND, HINT, and TOBIAS once each, sequentially, on that identical input/region list,
+   using their documented default scientific settings. No parameter search, installation, retry,
+   C/C++ work, or genome-wide cancer run is part of this assessment. Cap each job at 8 CPU, 24 h,
+   and the existing immutable `pma_bg_gate_v2.sh` 44-GiB `RLIMIT_AS`; never raise the Argos ≤50-GB
+   per-task limit. Report end-to-end wall time, user/system CPU, process-tree peak RSS, gate limit,
+   shared preprocessing separately, tool-specific preparation, accepted/retained fragments,
+   regions/sites scored, software/parameters, exit status, and failure stage. A completed runtime
+   comparison requires four successful jobs; otherwise report only each observed time/status, with
+   no speed rank. Historical HINT/TOBIAS/PRINT/TraceBIND timings remain descriptive because their
+   inputs, filtering, thread counts, or completion status differed.
+
+4. **Stop rule.** First perform only the reviewed, read-only input/label/score-interface
+   qualification. If the label or common-score gate fails, report **accuracy cannot be ranked**.
+   Whether a timing-only four-job matrix may still run despite that failure is explicitly submitted
+   for fixed-PMA review; do not infer its authorization from this document. Only an exact-head
+   `APPROVE` and the user's existing task-specific execution direction can release any dependent
+   Argos job. This plan does not authorize a PR merge.
+
 **Status.** The earlier benchmark design was approved by ChatGPT on 2026-10-17 with revisions.
 That approval does not cover the material Section 4 revisions. The fixed PMA project conversation
 returned `REQUEST_CHANGES` on the 2026-10-19 exact-head review. Its documentation findings have been
@@ -269,7 +317,7 @@ motif-free event precision.
 | Limit | Value |
 |---|---|
 | CPU threads | 32 |
-| RAM | ≤ 40 GiB (Argos cap is about 50 GB) |
+| Resource gate for the current one-shot assessment | 44-GiB `RLIMIT_AS`; never exceed the PMA per-task ≤50-GB hard cap. Record peak RSS separately because it is not the same quantity. |
 | Wall time | ≤ 4 h |
 
 - The clock starts from aligned, indexed BAM or fragment files. It includes:

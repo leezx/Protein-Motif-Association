@@ -13,7 +13,7 @@
 - Gate ID：`BG_K562_PRINT_INTEGRATION_SMOKE_20261020_V3`
 - Gate 状态：`EXIT=0`，11:01:31 至 11:08:36 EDT。
 - 端到端 wall：424.117 秒（7:04.1），包含 selection、预检和 setup。
-- GNU time 的 PRINT caller wall：5:37.52；user CPU 166.10 s，system CPU 21.84 s，CPU 55%；最大 RSS 17,920,756 KiB（约 17.09 GiB）。
+- GNU time 的 PRINT caller wall：5:37.52；user CPU 166.10 s，system CPU 21.84 s，CPU 55%（平均约 0.56 核，即双核配额的约 28%）；最大 RSS 17,920,756 KiB（约 17.09 GiB）。
 - watchdog 采样 170 次，process-group 观测峰值 17.091 GiB；40-GiB软停止未触发。不要把单进程 `RLIMIT_AS` 解释为总任务硬内存上限。
 - Inputs/regions：selector 扫描 159,628 个 eligible rows 后选出 8 个，位于 chr9/chr22，group sizes `[3,2,2,1]`，宽度 1042、1234、1777、1977 bp。冻结 peak BED SHA-256：`c0c1d0b5350a962b9d7a7f1d2edef1ca98005029c79f07979533f3a14cb40945`。K562 fragment SHA-256：`238367780a1b7a2a24595a4259bdbe91cb8be439c2e5fda210831ad60d77544f`。
 - PRINT output：r10/r20 各 12,795 track rows；16 条直接比较全部 `bias_exact_match=TRUE`；native events 分别 14 和 17，共 31。Timing TSV：count construction 202.696 s；footprint group work 114.317 s，其中 r10 53.975 s、r20 59.972 s；直接比较 4.261 s；track write 0.676/0.634 s。
@@ -45,6 +45,6 @@ Scientific output：`/home/zz950/DATA/2.PROJECTS/PMA/atac_footprint/processed/ro
 
 ## 阶段审核与下一步
 
-初步 Quick 复核：L1 对 gate/产物完成状态为 PASS，但 14 条 R warning 的具体内容和 gate 默认 TOOL 标签尚待复核；若 reviewer 认为 warning 可能改变输出，应把 L1 保持 BLOCKED。L2 为 BLOCKED / UNVERIFIED-critical：没有独立 ChIP/CUT&RUN 标签、matched-sensitivity、扰动/正交证据，不能排名准确度。方向 ON TRACK，实质进展是第一次成功得到 PRINT 双半径 track、直接比较结果和实际 wall/RSS。请固定 PMA 项目对话审阅这一里程碑并确认适合的下一项速度实验设计。V3 one-shot 已消耗；在新的 exact-head 审核和明确新放行前，不启动更大规模或全 peak 任务，不改环境、不合并 PR。
+固定 PMA 项目对话 Quick 复核：L1 执行/产物合同 PASS，附 warning 限制；14 条 warning 未逐条保留，因此只能说未归因，不能说无 warning。Gate 默认 `TOOL=hint` 是标签问题，实际 PRINT argv/output 已核实。GNU time 的 55% 是约 0.56 个平均核、双核配额约 28%，不是 1.1 核。L2 为 BLOCKED / UNVERIFIED-critical：无独立 ChIP/CUT&RUN 标签和 matched sensitivity，不能排序准确度。L3 ON TRACK，真实进展是首个真实输入 PRINT 双半径轨迹及时间/RSS点。审查建议下一次速度样本可选 64 个确定性 peak，保持 2 workers/r10/r20/当前内存与时限、使用生产 chromosome-wise bias path；该建议不构成授权，必须先对后续 exact HEAD 审核并另取单次放行。不可由 8 峰线性外推到 159,628 峰。V3 one-shot 已消耗；不启动更大规模或全 peak 任务、不改环境、不合并 PR，等待人类/阶段审核决策。
 
 HUMAN DECISION: PENDING

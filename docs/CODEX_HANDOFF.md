@@ -1159,3 +1159,9 @@ Fresh read-only check: PR #8 remains OPEN at HEAD `b2ea5c760d12d56e54fa01fa398b5
 The four unfiltered HCT116 BAM downloads remain `.partial` and uncertified. Latest partial sizes at 13:14 EDT: 6,887,047,168 (`ENCFF077TQF`), 6,550,555,568 (`ENCFF534JUB`), 6,850,347,008 (`ENCFF882WHI`), 6,251,610,112 (`ENCFF979SQQ`) bytes; total 26,539,559,856 bytes (verify from authoritative transfer status before reporting completion). No partial input was analyzed. HCT116 HINT-derived STREME ctrl/aux searches remain CPU-active, latest candidates `CAND-4-25` / `CAND-3-29`; final motif files and exit codes are pending. These jobs seek de novo motifs from HINT calls, not tool accuracy.
 
 Measured progress toward the user's deliverable: cancer ATAC footprint calls already cover 91,210 fixed HCT116 accessible 1-kb windows with HINT; current same-input K562 runs are measuring TOBIAS and PRINT speed on 77,668 fixed 1-kb windows. Remaining blockers are matched-sensitivity B1/B2–B4 accuracy evidence and certified unfiltered HCT116 BAMs for full TraceBIND mtDNA calibration. No accuracy winner or multi-cancer/global-base footprint atlas is established. Next: monitor the two active K562 callers and transfer; once TraceBIND inputs are fully verified, run the pre-defined full calibration and comparable caller tests. Do not promote exploratory STREME output to a motif reference before validation.
+
+Audit synchronization: code repair `ae0445632b253b33fd2339dfe2ba8abc8fb5a1c8` and its follow-on audit record
+`a36a2d82bffd928ea9f8498ecaf75503c5534f32` were pushed to the existing PR #8 branch. GitHub API,
+origin and local HEAD agreed at the audit record when checked. This Worklog/handoff synchronization
+will produce the final review tip; request review only after reading that resulting exact SHA. No
+remote Argos access/staging/gate has occurred.

@@ -1390,3 +1390,7 @@ During the fix, the first run of the new timing-contract test failed because its
 ### 2026-10-20 13:23 EDT — same-PR code repair pushed
 
 Committed the review fixes as `ae0445632b253b33fd2339dfe2ba8abc8fb5a1c8` and pushed to the existing PR #8 branch. `git ls-remote` and GitHub API both show this code commit as the live PR head; PR remains OPEN/unmerged. The prior V4 request was at parent HEAD `8b60f31c...` and its old approval request is superseded by the review's REQUEST_CHANGES. The final exact-head packet and synchronized PR body/handoffs must be refreshed after the audit record is pushed. No remote code stage or Argos read/gate was performed.
+
+### 2026-10-20 13:24 EDT — audit record pushed; exact-head review packet next
+
+Pushed the required audit update as `a36a2d82bffd928ea9f8498ecaf75503c5534f32`; local HEAD, origin branch and GitHub PR API now agree at this OPEN/unmerged PR #8 tip. The fixed-PMA review that must follow is for the next final audit tip after this Worklog/handoff update; its exact SHA will be read from local, origin and GitHub immediately before the request. Candidate content remains the same. No remote Argos access, staging, or gate execution.

@@ -47,7 +47,7 @@ contract test 中的 `BAM_CONVERSION_FAIL` / `BAM_PREP_FAIL` 是预期失败分�
 
 ## 唯一下一步与边界
 
-将代码和本 handoff 留在同一个 PR #8，提交、推送并确认 GitHub 当前 exact HEAD，再在唯一固定 PMA 项目对话请求 Quick L1/L2 review，要求对当前 HEAD 的明确审核，并只请求对一次 V4 8-peak Argos gate 调用的明确放行。不得在审核前建远程 code-stage、发 gate、安装/更新依赖或运行分析。批准后仍必须 fresh-check 主机、CPU/RAM、输入/模型/immutable gate 哈希、依赖、路径权限、无残留；复制五个精确审查文件并核验 SHA。任何一项不符即停止。调用 V4 后无论成功/失败都不重试。
+代码和 handoff 已在现有分支提交为 `d60ca250d53318c2b2232ddeb01b330687d6499d` 并推送；PR #8 OPEN。加入本次提交/验证记录后，先推送最后的审计增量、核验 GitHub live exact HEAD，再在唯一固定 PMA 项目对话请求 Quick L1/L2 review，要求明确审查该最终 HEAD，并只请求一次 V4 8-peak Argos gate 调用放行。不得在审核前建远程 code-stage、发 gate、安装/更新依赖或运行分析。批准后仍必须 fresh-check 主机、CPU/RAM、输入/模型/immutable gate 哈希、依赖、路径权限、无残留；复制五个精确审查文件并核验 SHA。任何一项不符即停止。调用 V4 后无论成功/失败都不重试。
 
 V4 固定：16 workers；r10/r20；30 分钟端到端执行预算；每进程 44 GiB `RLIMIT_AS`；采样进程组 40 GiB RSS soft-stop（不是硬 aggregate cap）；CPU-only；复用既有 fragment file。运行只提供实现/计时/资源证据，不测准确度，不授权全峰、不改环境、不合并。
 

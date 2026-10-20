@@ -42,10 +42,12 @@ Current candidate hashes (recompute after any source edit):
 - base supervisor: `f5fcee3a1d768758042b5edae0e1265fb5be4a518cf622cf5b297415819ac710`
 - one-shot outer validation wrapper: `5982c5a30c27ba7f22a30cbf1f63661b1018505d9d9656b0c570ba70d8d5dffb`
 
-The pending V4 proposal uses the same frozen 8 original K562 peak rows; 16 workers; radii 10/20;
+The V4 candidate is committed and pushed on the existing branch as
+`d60ca250d53318c2b2232ddeb01b330687d6499d`; GitHub PR #8 is OPEN at that code HEAD. The pending V4
+proposal uses the same frozen 8 original K562 peak rows; 16 workers; radii 10/20;
 30-minute end-to-end budget; existing 44-GiB per-process `RLIMIT_AS` and 40-GiB sampled
 process-group `VmRSS` soft stop (not a hard aggregate cap); CPU-only execution; and a fresh unique
-code-stage, root, and result path. Only if fixed-PMA review explicitly approves the exact pushed
+code-stage, root, and result path. Only if fixed-PMA review explicitly approves the final pushed
 HEAD and this one gate call, fresh Argos preflight succeeds, and all five staged script hashes
 match, may the V4 one-shot run. It produces no accuracy ranking and does not authorize a full-peak
 run. If the 8-row equivalence fails, retain evidence and stop; do not relabel it as a PRINT result.

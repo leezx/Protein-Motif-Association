@@ -53,3 +53,9 @@
 - 固定 PMA 对话核验 live HEAD `8ee1ae28cfe8539434a848eb1044f517daab43ab`，确认 Git mode `100644 → 100755` 且 blob 不变；但发现 supervisor 内部仍硬编码 V1 run ID/root/output，与新的 attempt 不隔离，故不放行。
 - 同 PR 最小修正：候选 run ID 改为 `BG_K562_PRINT_INTEGRATION_SMOKE_20261020_V2`；staged code directory、ROOT 和科学输出目录均改用独立 `_v2` 路径；新 worker SHA-256 为 `afffcdf49d74b85e21fd47913276e109b3cae34d383c15c51073251926b70a78`。V1 的 EXIT=126 记录和空目录证据保留原样。
 - 按 reviewer 要求把“根因已确认”降为“失败与缺少执行权限一致”；本地 Git mode 不证明当时远端 ACL/mount。当前无远程访问、无新运行授权。
+
+
+## 10:46 EDT — V2 路径修正已提交，等待 exact-head 复审
+
+- V2 代码及审计更新提交为 `4c9774a62dd382e2a9ce66b4a47393f3c3f0e415`，已推送到原 PR #8 分支；本地 HEAD、origin 和 GitHub API 核对一致，PR 仍 OPEN、未合并。
+- PR 描述与 `docs/CODEX_HANDOFF.md` 同步到该 SHA。尚未在固定 PMA 对话发起此 SHA 的新审核；未执行 Argos staging、权限更改或 V2 gate。

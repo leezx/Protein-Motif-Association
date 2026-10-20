@@ -1234,3 +1234,9 @@ The fixed `PMA｜固定阶段审核` conversation reviewed exact PR #8 HEAD `3fa
 - Fixed-PMA exact-head review confirmed the `100644 → 100755` mode-only repair, but returned `REQUEST_CHANGES`: the supervisor still hard-coded V1 run ID/root/output path. It also required downgrading “root cause confirmed” because local Git mode alone cannot prove remote permissions/ACL/mount state. No Argos access occurred in that review.
 - Same-PR minimal repair: internal run ID now `BG_K562_PRINT_INTEGRATION_SMOKE_20261020_V2`; staged code directory, ROOT, and scientific output directory all use distinct `_v2` paths. V1 failure evidence remains immutable in the record. Wording now says the failure is consistent with missing execute permission, not definitively proven.
 - No remote chmod/staging or gate launch. Next: commit/push and request another exact-head review; only an explicit new release can authorize a new run.
+
+
+### 2026-10-20 10:46 EDT — synchronize V2 candidate identity
+
+- Corrected the candidate SHA in the prepared PR description and handoff to the actual GitHub API/origin/local value `4c9774a62dd382e2a9ce66b4a47393f3c3f0e415` (an earlier draft string was caught before review submission).
+- PR body and CODEX_HANDOFF now distinguish parent V1 code approval from the unreviewed V2 candidate. No Argos action or V2 launch occurred.

@@ -175,3 +175,15 @@ V4 固定：16 workers；r10/r20；30 分钟端到端执行预算；每进程 44
 检查联合评分派发字段及两个尺度的输出物化/发布字段；对应单元测试验证两种合法形式和缺失评分字段。
 
 2026-10-20 13:23 EDT：同 PR 代码修复提交 `ae0445632b253b33fd2339dfe2ba8abc8fb5a1c8` 已推送；`git ls-remote` 与 GitHub API 均确认它是 PR #8 当时 live head，PR OPEN、未合并。旧 V4 审核请求对应父提交 `8b60f31c...`，收到 REQUEST_CHANGES 后已失效。下一步同步最终 Worklog/handoff/PR body 后，必须在固定 PMA 对话请求新 exact-head 审查。无 Argos staging、访问或运行。
+
+## 2026-10-20 14:25 EDT — 固定 PMA 对诊断实现的 REQUEST_CHANGES 与同 PR 修订
+
+固定 `PMA｜固定阶段审核` 对 PR #8 exact HEAD `a6803335ca297cfc499bc168938a40d901395477` 做代码/测试审核，结论 `REQUEST_CHANGES`，L1 有三项：
+
+1. 无法定位的 warning 会形成 NA 占位，而旧汇总只数 mask 为 FALSE 的记录，可能把未知位置误报为全部已 mask。现改为未知 mask、无元素定位的 warning、未知 warning 类别均保持 blocked；只有当前回放每条异常均能定位且明确落在 native zero-coverage mask 时，当前回放异常门才可通过。
+2. 两轮串行 native replay 的总数不能证明与 V5 中 legacy/direct/streamed 多上下文执行产生的历史 28 条 warning 一一对应。现按 pass、path、peak、radius、flank逐行报告；历史 28 仅作为参考值，不作相等通过条件。即使当前回放异常全被 mask，scale-up gate 仍为 `BLOCKED_HISTORICAL_CONTEXT_NOT_REPRODUCED`。
+3. 旧版在读完部分缓存后才计算基线，且异常退出不做后置校验。现将 count/bias/model/evidence/output、辅助文件和 pinned PRINT source 的哈希基线前移到 `source/readRDS/fread` 之前。summary/completion、track、event 保留已有可信历史 SHA；未有历史 pin 的 count/bias/model 缓存仅记录为“诊断开始时冻结”，不宣称是原 V5 字节。外层 guard 在成功或错误退出后都复核哈希；若主任务和完整性核验同时失败，错误消息保留两者。
+
+新增回归覆盖 unknown/false mask、unlocated/unclassified warning、历史 28 总数不能解锁 gate、已有输出目录拒绝、主错误及输入变化同时发生时保留双错误。`Rscript tests/test_print_pnorm_diagnostic.R` 通过；测试中四条 `NaNs produced` warning 照原样显示。R parse 和 `git diff --check` 通过。候选哈希：诊断脚本 `3d883552675d765010fb08663d011ef0ee285c13c106fdc5ab4617488055aca0`；回归 `98c3139f3ec6c24d70987a25788383d66cd220c9f1eb023b95cc266e537814b6`。
+
+本机没有 V5 的 Argos cache，因此未做真实数据诊断。此修订尚待提交并在同一 PR 发布后，于固定 PMA 对话做新 exact-head 实现审核。此前批准只针对诊断提案，不是执行许可；仍需另行审核精确命令/资源并另获一次性运行授权。当前没有 Argos 访问、staging、读取、运行、扩峰、准确度结论、环境更改或合并。

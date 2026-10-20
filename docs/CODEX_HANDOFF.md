@@ -1234,3 +1234,11 @@ Audit synchronization: code repair `ae0445632b253b33fd2339dfe2ba8abc8fb5a1c8` an
 origin and local HEAD agreed at the audit record when checked. This Worklog/handoff synchronization
 will produce the final review tip; request review only after reading that resulting exact SHA. No
 remote Argos access/staging/gate has occurred.
+
+## 2026-10-20 14:25 EDT — PRINT pnorm diagnostic review repair
+
+Fixed-PMA exact-head review of PR #8 at `a6803335ca297cfc499bc168938a40d901395477` returned `REQUEST_CHANGES` for three audit/guard gaps. The current local candidate repairs them: unknown/unmapped warnings and NA/false mask cases remain blocked; warning counts are retained separately by replay context and the historical V5 total 28 is reference-only, not a pass criterion; scale-up remains blocked until the old execution contexts are reproduced. Input hashes are now established before loading caches, evidence, helper or pinned PRINT modules. Existing SHA pins validate the published V5 evidence/tracks/events; count/bias/model caches have no trusted historical pin and are explicitly labeled as frozen at diagnostic start. A wrapper verifies all inputs after normal or exceptional exit and reports both the original and integrity errors when both occur.
+
+Regression coverage now includes unlocated/unclassified warning gates, unknown and unmasked coordinates, non-equivalence of an equal historical total, existing output-path refusal, and exceptional post-read integrity checks. At the pre-commit checkpoint, `Rscript tests/test_print_pnorm_diagnostic.R`, R parse and `git diff --check` pass. Updated hashes: diagnostic `3d883552675d765010fb08663d011ef0ee285c13c106fdc5ab4617488055aca0`; test `98c3139f3ec6c24d70987a25788383d66cd220c9f1eb023b95cc266e537814b6`.
+
+No V5 cache is available locally, so no biological diagnostic has been run. No Argos access, staging, reads, gate call, peak expansion, environment change, accuracy claim or merge occurred. This candidate must be pushed and re-reviewed at its synchronized exact PR head in the fixed PMA project conversation; implementation approval alone will not authorize execution. See `docs/handoff/2026-10-20-print-streamed-scoring-validation-candidate.zh-CN.md` for exact finding-to-fix detail.

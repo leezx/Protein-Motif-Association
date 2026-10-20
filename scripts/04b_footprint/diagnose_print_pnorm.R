@@ -11,7 +11,69 @@ sha256_file <- function(path) {
   strsplit(result[[1L]], "[[:space:]]+")[[1L]][[1L]]
 }
 
+classify_pnorm_warning <- function(text) {
+  if (identical(text, "NaNs produced")) return("PNORM_NANS_PRODUCED")
+  "UNCLASSIFIED_WARNING"
+}
+
+summarize_diagnostic_gate <- function(calls, positions) {
+  warning_count <- if (nrow(calls)) sum(calls$warning_count) else 0L
+  unclassified <- if (nrow(calls))
+    sum(calls$unclassified_warning_count) else 0L
+  unlocated <- if (nrow(calls))
+    sum(calls$warning_count[calls$anomaly_positions == 0L]) else 0L
+  unknown_mask <- if (nrow(positions))
+    sum(positions$anomaly_position & is.na(positions$native_zero_coverage_mask)) else 0L
+  unmasked <- if (nrow(positions))
+    sum(positions$anomaly_position & positions$native_zero_coverage_mask %in% FALSE) else 0L
+  current_replay_gate <- if (unclassified > 0L) "BLOCKED_UNCLASSIFIED_WARNING" else
+    if (unlocated > 0L) "BLOCKED_UNLOCATED_WARNING" else
+      if (unknown_mask > 0L) "BLOCKED_UNKNOWN_MASK" else
+        if (unmasked > 0L) "BLOCKED_UNMASKED_ANOMALY" else
+          if (warning_count == 0L) "NO_REPLAY_WARNING" else
+            "PASS_CURRENT_REPLAY_ANOMALIES_ALL_MASKED"
+  list(
+    diagnostic_warning_count = warning_count,
+    unclassified_warning_count = unclassified,
+    warnings_without_elementwise_anomaly = unlocated,
+    anomaly_positions_with_unknown_mask = unknown_mask,
+    anomaly_positions_not_masked = unmasked,
+    current_replay_anomaly_gate = current_replay_gate,
+    historical_v5_warning_count_reference = 28L,
+    historical_v5_warning_comparability = "NOT_ESTABLISHED_CONTEXTS_DIFFER",
+    scale_up_warning_gate = "BLOCKED_HISTORICAL_CONTEXT_NOT_REPRODUCED"
+  )
+}
+
 assert_that <- function(ok, message) if (!isTRUE(ok)) stop(message, call. = FALSE)
+
+assert_new_output_path <- function(path) {
+  assert_that(!file.exists(path), "diagnostic output path already exists")
+  invisible(path)
+}
+
+run_with_integrity_guard <- function(thunk, audit) {
+  primary <- tryCatch(list(value = thunk(), error = NULL), error = function(e) {
+    list(value = NULL, error = e)
+  })
+  integrity <- NULL
+  if (length(audit$paths) && length(audit$before_hashes)) {
+    integrity <- tryCatch({
+      after <- vapply(audit$paths, sha256_file, character(1))
+      names(after) <- audit$paths
+      if (!identical(audit$before_hashes, after))
+        stop("read-only input/output hashes changed during diagnostic")
+      NULL
+    }, error = identity)
+  }
+  if (!is.null(primary$error) && !is.null(integrity)) {
+    stop(sprintf("diagnostic failed: %s; post-error integrity verification also failed: %s",
+                 conditionMessage(primary$error), conditionMessage(integrity)), call. = FALSE)
+  }
+  if (!is.null(primary$error)) stop(primary$error)
+  if (!is.null(integrity)) stop(integrity)
+  primary$value
+}
 
 make_diagnostic_scorers <- function(native_region_scorer, native_footprint_scorer,
                                     native_window_sum, state,
@@ -98,14 +160,19 @@ collect_call_rows <- function(call, context) {
       scorer_path = call$path, flank = flank,
       vector_length = n, warning_count = length(call_warnings),
       warning_text = paste(call_warnings, collapse = " | "),
+      warning_categories = paste(unique(vapply(call_warnings, classify_pnorm_warning,
+                                               character(1))), collapse = " | "),
+      unclassified_warning_count = sum(vapply(call_warnings, classify_pnorm_warning,
+                                              character(1)) == "UNCLASSIFIED_WARNING"),
       nonfinite_q = sum(!is.finite(values$q)),
       nonfinite_mean = sum(!is.finite(values$mean)),
       nonfinite_sd = sum(!is.finite(values$sd)),
       nonpositive_sd = sum(values$sd <= 0, na.rm = TRUE),
       nonfinite_p = sum(!is.finite(values$p)),
       anomaly_positions = sum(anomaly),
-      anomaly_positions_native_masked = sum(anomaly & mask),
-      anomaly_positions_not_masked = sum(anomaly & !mask),
+      anomaly_positions_native_masked = sum(anomaly & mask, na.rm = TRUE),
+      anomaly_positions_not_masked = sum(anomaly & mask %in% FALSE, na.rm = TRUE),
+      anomaly_positions_unknown_mask = sum(anomaly & is.na(mask), na.rm = TRUE),
       stringsAsFactors = FALSE
     )
     indices <- which(anomaly)
@@ -116,6 +183,7 @@ collect_call_rows <- function(call, context) {
         radius = context$radius, scorer_pass = call$scorer_pass,
         scorer_path = call$path, flank = flank,
         local_position_1based = indices,
+        anomaly_position = TRUE,
         genomic_position_0based = context$start0 + indices - 1L,
         q = values$q[indices], predicted_mean = values$mean[indices],
         predicted_sd = values$sd[indices], pnorm_result = values$p[indices],
@@ -133,6 +201,7 @@ collect_call_rows <- function(call, context) {
         bed_start0 = context$start0, bed_end0 = context$end0,
         radius = context$radius, scorer_pass = call$scorer_pass,
         scorer_path = call$path, flank = flank,
+        anomaly_position = FALSE,
         local_position_1based = NA_integer_, genomic_position_0based = NA_integer_,
         q = NA_real_, predicted_mean = NA_real_, predicted_sd = NA_real_,
         pnorm_result = NA_real_, left_total_insertion = NA_real_,
@@ -195,7 +264,7 @@ if (identical(commandArgs(trailingOnly = TRUE), "--self-test")) {
   quit(status = 0L)
 }
 
-main <- function(args) {
+main_impl <- function(args, audit) {
   if (length(args) != 8L) {
     stop(paste(
       "usage: Rscript diagnose_print_pnorm.R PRINT_REPO V5_MAIN_DIR SELECTED_BED",
@@ -210,7 +279,7 @@ main <- function(args) {
   shared_dir <- normalizePath(args[[6]], mustWork = TRUE)
   evidence_dir <- normalizePath(args[[7]], mustWork = TRUE)
   diagnostic_dir <- args[[8]]
-  assert_that(!file.exists(diagnostic_dir), "diagnostic output path already exists")
+  assert_new_output_path(diagnostic_dir)
   repo_head <- system2("git", c("-C", shQuote(print_repo), "rev-parse", "HEAD"), stdout = TRUE)
   repo_status <- system2("git", c("-C", shQuote(print_repo), "status", "--porcelain"), stdout = TRUE)
   assert_that(length(repo_head) == 1L &&
@@ -222,8 +291,52 @@ main <- function(args) {
                                                                   value = TRUE)[[1]])))
   diagnostic_script <- file.path(script_dir, "diagnose_print_pnorm.R")
   helper <- file.path(script_dir, "print_variable_width.R")
-  helper_env <- new.env(parent = globalenv())
-  sys.source(helper, envir = helper_env)
+  required <- c("utils.R", "getCounts.R", "getBias.R", "getFootprints.R")
+  for (file in required) {
+    path <- file.path(print_repo, "code", file)
+    assert_that(file.exists(path), paste("missing pinned PRINT source:", file))
+  }
+  count_path <- file.path(main_dir, "data", "chunkedCountTensor", "chunk_1.rds")
+  bias_dir <- file.path(main_dir, "bias_groups")
+  bias_paths <- sort(list.files(bias_dir, pattern = "^group_[0-9]{6}\\.rds$", full.names = TRUE))
+  model_paths <- file.path(shared_dir, "dispModel", c("dispersionModel10bp.rds", "dispersionModel20bp.rds"))
+  track_paths <- sprintf("%s.r%d.track.tsv.gz", output_prefix, c(10L, 20L))
+  event_paths <- sprintf("%s.r%d.native_events.bed", output_prefix, c(10L, 20L))
+  compare_path <- paste0(output_prefix, ".direct-comparison.tsv")
+  evidence_paths <- file.path(evidence_dir, c("summary.json", "smoke_completion.json"))
+  all_inputs <- c(selected_bed, selection_map, count_path, bias_paths, model_paths,
+                  track_paths, event_paths, compare_path,
+                  file.path(print_repo, "code", required), helper,
+                  diagnostic_script, evidence_paths)
+  assert_that(length(bias_paths) > 0L && all(file.exists(all_inputs)),
+              "one or more reviewed V5 read-only inputs are missing")
+  # Establish the immutable pre-read baseline before source(), readRDS(), fread(),
+  # or any other operation that loads cache/evidence contents. Rscript has
+  # necessarily loaded this diagnostic file to start the process; its bytes are
+  # recorded here, while all other code/data inputs are pinned before loading.
+  # Only the six published V5 evidence/track/event files have historical trusted
+  # SHA pins; count/bias/model caches are frozen now, not asserted to be original
+  # V5 bytes.
+  before_hashes <- vapply(all_inputs, sha256_file, character(1))
+  names(before_hashes) <- normalizePath(all_inputs)
+  audit$paths <- normalizePath(all_inputs)
+  audit$before_hashes <- before_hashes
+  expected_hashes <- c(
+    "51e7d2292b4baa7d2e4851d14b7acddb3ab0974f73ca4e88d11e1d79c51d71b5",
+    "f6789a5d1f5ebc5c65467bf6d3287cbcac5172ce020eedfda2414d91035b7a0a",
+    "4ee07f188d4c0b43ea813fa2930b3da9ea41e2e2b2f83cf0d1aa70ff2bfda72b",
+    "b54254670978d006781af4fb228ff744c9fbac2b09afb2fc07e915801778c447",
+    "30aedcd7843e947164290335cdfaff61b33338f7b44e7c6ebb887394d4fa66c8",
+    "b18d8916b5df3ade276e1f6f50628a9b82bf34b6b4741acb6ae552dbf4b8ad72"
+  )
+  names(expected_hashes) <- c(basename(evidence_paths), basename(track_paths), basename(event_paths))
+  for (name in names(expected_hashes)) {
+    path <- c(evidence_paths, track_paths, event_paths)[match(name,
+      basename(c(evidence_paths, track_paths, event_paths)))]
+    assert_that(identical(unname(before_hashes[[normalizePath(path)]]), expected_hashes[[name]]),
+                paste("V5 evidence/output SHA-256 mismatch:", name))
+  }
+
   suppressPackageStartupMessages({
     library(GenomicRanges)
     library(data.table)
@@ -233,11 +346,8 @@ main <- function(args) {
     library(Matrix)
     library(caTools)
   })
-  required <- c("utils.R", "getCounts.R", "getBias.R", "getFootprints.R")
-  for (file in required) {
-    path <- file.path(print_repo, "code", file)
-    assert_that(file.exists(path), paste("missing pinned PRINT source:", file))
-  }
+  helper_env <- new.env(parent = globalenv())
+  sys.source(helper, envir = helper_env)
   print_env <- new.env(parent = globalenv())
   for (file in required) sys.source(file.path(print_repo, "code", file), envir = print_env)
   native_region <- get("regionFootprintScoring", envir = print_env, inherits = FALSE)
@@ -259,21 +369,6 @@ main <- function(args) {
               "selection BED and map coordinates disagree")
   assert_that(length(unique(bed[[1]])) >= 2L && length(unique(bed_width)) >= 3L,
               "selected regions no longer meet the reviewed 8-peak design")
-
-  count_path <- file.path(main_dir, "data", "chunkedCountTensor", "chunk_1.rds")
-  bias_dir <- file.path(main_dir, "bias_groups")
-  bias_paths <- sort(list.files(bias_dir, pattern = "^group_[0-9]{6}\\.rds$", full.names = TRUE))
-  model_paths <- file.path(shared_dir, "dispModel", c("dispersionModel10bp.rds", "dispersionModel20bp.rds"))
-  track_paths <- sprintf("%s.r%d.track.tsv.gz", output_prefix, c(10L, 20L))
-  event_paths <- sprintf("%s.r%d.native_events.bed", output_prefix, c(10L, 20L))
-  compare_path <- paste0(output_prefix, ".direct-comparison.tsv")
-  evidence_paths <- file.path(evidence_dir, c("summary.json", "smoke_completion.json"))
-  all_inputs <- c(selected_bed, selection_map, count_path, bias_paths, model_paths,
-                  track_paths, event_paths, compare_path,
-                  file.path(print_repo, "code", required), helper,
-                  diagnostic_script, evidence_paths)
-  assert_that(length(bias_paths) > 0L && all(file.exists(all_inputs)),
-              "one or more reviewed V5 read-only inputs are missing")
   count_data <- readRDS(count_path)
   assert_that(length(count_data) == 8L, "cached count tensor is not exactly eight rows")
   bias_by_row <- vector("list", 8L)
@@ -300,23 +395,6 @@ main <- function(args) {
   assert_that(nrow(observed_pairs) == 16L &&
                 nrow(data.table::fsetdiff(expected_pairs, observed_pairs)) == 0L,
               "V5 record does not preserve all 16 original peak-radius comparisons")
-  before_hashes <- vapply(all_inputs, sha256_file, character(1))
-  names(before_hashes) <- normalizePath(all_inputs)
-  expected_hashes <- c(
-    "51e7d2292b4baa7d2e4851d14b7acddb3ab0974f73ca4e88d11e1d79c51d71b5",
-    "f6789a5d1f5ebc5c65467bf6d3287cbcac5172ce020eedfda2414d91035b7a0a",
-    "4ee07f188d4c0b43ea813fa2930b3da9ea41e2e2b2f83cf0d1aa70ff2bfda72b",
-    "b54254670978d006781af4fb228ff744c9fbac2b09afb2fc07e915801778c447",
-    "30aedcd7843e947164290335cdfaff61b33338f7b44e7c6ebb887394d4fa66c8",
-    "b18d8916b5df3ade276e1f6f50628a9b82bf34b6b4741acb6ae552dbf4b8ad72"
-  )
-  names(expected_hashes) <- c(basename(evidence_paths), basename(track_paths), basename(event_paths))
-  for (name in names(expected_hashes)) {
-    path <- c(evidence_paths, track_paths, event_paths)[match(name,
-      basename(c(evidence_paths, track_paths, event_paths)))]
-    assert_that(identical(unname(before_hashes[[normalizePath(path)]]), expected_hashes[[name]]),
-                paste("V5 evidence/output SHA-256 mismatch:", name))
-  }
   track_data <- lapply(track_paths, data.table::fread)
   event_data <- lapply(event_paths, function(path) {
     if (file.info(path)$size == 0) return(data.table::data.table())
@@ -344,7 +422,6 @@ main <- function(args) {
   event_rows <- vector("list", 2L)
   names(event_rows) <- c("10", "20")
   track_offsets <- cumsum(c(0L, head(bed_width, -1L)))
-  total_warning_count <- 0L
 
   for (peak in 1:8) {
     count <- count_data[[peak]]
@@ -374,7 +451,6 @@ main <- function(args) {
           rows <- collect_call_rows(call, context)
           call_rows <- c(call_rows, rows$calls)
           position_rows <- c(position_rows, rows$positions)
-          total_warning_count <- total_warning_count + sum(vapply(call$warnings, length, integer(1)))
         }
         track <- track_data[[if (radius == 10L) 1L else 2L]]
         offset <- track_offsets[[peak]]
@@ -418,6 +494,7 @@ main <- function(args) {
 
   calls_table <- data.table::rbindlist(call_rows, fill = TRUE)
   positions_table <- data.table::rbindlist(position_rows, fill = TRUE)
+  gate_summary <- summarize_diagnostic_gate(calls_table, positions_table)
   data.table::fwrite(calls_table, file.path(diagnostic_dir, "pnorm_calls.tsv"), sep = "\t", na = "NA")
   data.table::fwrite(positions_table, file.path(diagnostic_dir, "pnorm_positions.tsv"), sep = "\t", na = "NA")
   manifest <- list(
@@ -425,14 +502,19 @@ main <- function(args) {
     print_commit = "8dad7317c3a640454a191dba2acd138e6edc54ac",
     peak_rows = 8L, radii = c(10L, 20L),
     scorer_passes = c("native_replay_1", "native_replay_2"),
-    expected_warning_count = 28L, observed_warning_count = total_warning_count,
+    warning_count_scope = "reported separately per replay/pass/path/peak/radius/flank in pnorm_calls.tsv",
     scorer_paths = c("pseudobulk_matrix", "cell_type_score"),
     warning_muffling = FALSE, score_or_event_outputs_rewritten = FALSE,
     input_hashes_before_after_identical = TRUE,
     inputs = as.list(before_hashes),
     diagnostic_outputs = list(calls = "pnorm_calls.tsv", positions = "pnorm_positions.tsv"),
-    warning_calls = sum(calls_table$warning_count),
-    prior_v5_warning_count_match = identical(total_warning_count, 28L),
+    warning_counts_by_context_file = "pnorm_calls.tsv",
+    warning_counts_are_not_claimed_to_reproduce_the_historical_v5_context = TRUE,
+    historical_v5_warning_count_reference = 28L,
+    historical_v5_warning_comparability = "NOT_ESTABLISHED_CONTEXTS_DIFFER",
+    diagnostic_warning_count = gate_summary$diagnostic_warning_count,
+    warnings_without_elementwise_anomaly = gate_summary$warnings_without_elementwise_anomaly,
+    unclassified_warning_count = gate_summary$unclassified_warning_count,
     logged_anomaly_position_rows = sum(!is.na(positions_table$genomic_position_0based)),
     warning_only_call_rows_without_elementwise_anomaly = sum(is.na(positions_table$genomic_position_0based)),
     unique_peak_radius_path_flank_positions = if (nrow(positions_table))
@@ -440,10 +522,13 @@ main <- function(args) {
                                          .(peak_row, radius, scorer_pass, scorer_path,
                                            flank, genomic_position_0based)]) else 0L,
     anomalous_positions_native_masked = sum(positions_table$native_zero_coverage_mask %in% TRUE, na.rm = TRUE),
-    anomalous_positions_not_masked = sum(positions_table$native_zero_coverage_mask %in% FALSE, na.rm = TRUE),
-    scale_up_warning_gate = if (total_warning_count != 28L) "BLOCKED_WARNING_COUNT_CHANGED" else
-      if (sum(positions_table$native_zero_coverage_mask %in% FALSE, na.rm = TRUE) > 0L)
-        "BLOCKED_UNMASKED_ANOMALY" else "WARNING_POSITIONS_ALL_ZERO_COVERAGE_MASKED",
+    anomalous_positions_not_masked = gate_summary$anomaly_positions_not_masked,
+    anomaly_positions_with_unknown_mask = gate_summary$anomaly_positions_with_unknown_mask,
+    current_replay_anomaly_gate = gate_summary$current_replay_anomaly_gate,
+    scale_up_warning_gate = gate_summary$scale_up_warning_gate,
+    input_hash_scope = "all input bytes hashed before diagnostic source/readRDS/fread; own script bytes recorded after Rscript launch; unpinned count/bias/model caches are frozen at diagnostic start, not asserted to match original V5 bytes",
+    input_hashes_before = as.list(before_hashes),
+    input_hashes_after = as.list(after_hashes),
     R_version = R.version.string,
     package_versions = as.list(vapply(c("GenomicRanges", "data.table", "dplyr", "Matrix",
                                         "caTools", "cladoRcpp"),
@@ -453,6 +538,11 @@ main <- function(args) {
   jsonlite::write_json(manifest, file.path(diagnostic_dir, "manifest.json"),
                        auto_unbox = TRUE, pretty = TRUE, null = "null")
   cat(jsonlite::toJSON(manifest, auto_unbox = TRUE, pretty = TRUE), "\n")
+}
+
+main <- function(args) {
+  audit <- new.env(parent = emptyenv())
+  run_with_integrity_guard(function() main_impl(args, audit), audit)
 }
 
 native_events_for_region <- function(result, chromosome, start0) {

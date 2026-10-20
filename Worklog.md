@@ -906,4 +906,8 @@ The fixed PMA conversation approved exact evidence-record HEAD `ee64e13f060b6fe2
 
 用户明确要求先不评准确度，在Argos上用同一ATAC BAM全局调用无motif footprint，10–20核并行并报告计算时间/资源。将本轮收敛为K562 `ENCSR868FGK` / `ENCFF534DCE.bam` 与冻结 `k562_speed_1kb.bed` 的77,668个1-kb可及/阴性窗口（77.668 Mb；不声称逐碱基扫描全hg38）。HINT 16 chunks、PRINT 16 R workers、TOBIAS 16 cores、TraceBIND PRINT-bias reduced mode（无mtDNA微调/mito-FDR）16 R workers；每工具一次、顺序执行以限制总活动CPU为16并避免高内存任务争抢。每任务24 h、不可变Argos gate 44-GiB RLIMIT_AS、CPU-only/no-GPU；无安装、调参、重试或算法修改。PRINT/TraceBIND用同一BAM导出的既有片段文件，28:18.88准备时间单列并计入from-BAM总时间；110,891,807行与110,891,952独立过滤计数差异不用于吞吐归一化。记录wall、user/sys CPU、GNU-time max RSS范围、输出行数/hash、准确模式和失败阶段；本轮不评准确度、不选赢家。
 
-已更新当前benchmark设计、`docs/CODEX_HANDOFF.md`、十轮交接文件和PR #8 body，加入四个实际wrapper参数与门禁/停止规则。PR #8现HEAD `ca0fc15912c06f4aadf4494e7b51a2e984489c00`；`git diff --check`待运行，随后在固定PMA对话请求exact-head审核。尚未访问Argos/启动任何任务；GPT exact-head APPROVE前不发Argos命令。该单轮推进面向用户目标：将产生可复核的同样本、同窗口、16核下工具时间/资源记录；准确度结论保持未评估。
+已更新当前benchmark设计、`docs/CODEX_HANDOFF.md`、十轮交接文件和PR #8 body，加入四个实际wrapper参数与门禁/停止规则。首次提交 `7d0c015733f0c2f23b3bcdb53a51f6ea01a841dd` 已推送到同一PR，`git diff --check`通过，PR body已追加新方案。为完整记录提交/同步再补本Worklog和handoff状态后，将以最终HEAD在固定PMA对话请求exact-head审核。尚未访问Argos/启动任何任务；GPT exact-head APPROVE前不发Argos命令。该单轮推进面向用户目标：将产生可复核的同样本、同窗口、16核下工具时间/资源记录；准确度结论保持未评估。
+
+## 2026-10-19 22:24 EDT — 运行方案提交与PR同步
+
+`docs/STEP4B_ATAC_FOOTPRINT_BENCHMARK_DESIGN.md`、当前 handoff、dated handoff 和PR #8 body已同步到用户最新要求的16核单样本runtime-only方案。首次提交 `7d0c015733f0c2f23b3bcdb53a51f6ea01a841dd` 已推送；PR仍OPEN。`git diff --check`通过；本轮没有运行测试。首次审计命令中的 `python` 在本机不存在，改用已安装 `python3` 完成文档写入，未影响仓库外部环境。当前提交仅用于记录提交、PR body同步和最终审核目标，随后会在最终HEAD上请求固定PMA对话exact-head review。未连接Argos、未启动任务、未碰PR #7/ChIP数据。

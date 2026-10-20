@@ -167,16 +167,25 @@ def group_pss(pgid):
 
 
 def terminate_group(pgid, log, reason):
-    log.write(json.dumps({"event": "terminate", "reason": reason,
-                          "time_epoch": time.time(), "pgid": pgid}) + "\n")
-    log.flush()
+    # Cleanup must not depend on the watchdog log being writable (e.g. disk full).
+    try:
+        log.write(json.dumps({"event": "terminate", "reason": reason,
+                              "time_epoch": time.time(), "pgid": pgid}) + "\n")
+        log.flush()
+    except Exception:
+        pass
     try:
         os.killpg(pgid, signal.SIGTERM)
     except OSError:
         return
     deadline = time.time() + 60
     while time.time() < deadline:
-        members, scan_failures = group_members(pgid)
+        try:
+            members, scan_failures = group_members(pgid)
+        except Exception:
+            # Even a failed membership poll must not prevent the final KILL.
+            time.sleep(1)
+            continue
         if not scan_failures and (not members or all(state == "Z" for _, state in members)):
             return
         time.sleep(1)

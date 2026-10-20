@@ -13,10 +13,11 @@ The pnorm assertion checks the NaN mask exactly and finite values with tolerance
 
 Candidate script SHA-256:
 `352eee934b00ad8317a1cb3d5aac83776e0bfbae4ba7b7e4eb8b55af5a3e622b`. `git diff --check` passed.
-R parse and `tests/test_print_pnorm_diagnostic.R` have not been run. This is a local candidate only;
-it is not yet pushed, reviewed, or executable-verified. No Argos access or analysis occurred, and
-PRINT scoring behavior remains unchanged. The fixed-PMA review requires the two local R commands;
-run them only after the user authorizes local verification.
+R parse and `tests/test_print_pnorm_diagnostic.R` have not been run, so executable verification is
+pending. The change is pushed in PR #8 commit `bc39d1c`; the PR body and handoff must be synchronized
+to the final audit commit before fixed-PMA review. No Argos access or analysis occurred, and PRINT
+scoring behavior remains unchanged. Run the reviewer-requested local R commands only after the user
+authorizes local verification.
 
 ## PRINT forward-pass audit candidate — fixed-PMA REQUEST_CHANGES; synthetic self-test repaired locally
 

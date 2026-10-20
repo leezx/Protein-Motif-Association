@@ -106,5 +106,6 @@ role coverage 单独失败。`pnorm` 断言现在精确核对 NaN 位置，并�
 源文件 SHA-256：`352eee934b00ad8317a1cb3d5aac83776e0bfbae4ba7b7e4eb8b55af5a3e622b`。
 
 静态 `git diff --check` 已通过。R parser 和 `tests/test_print_pnorm_diagnostic.R` 未运行；尚未
-推送或固定 PMA 复审，也未访问 Argos、缓存或分析数据。没有修改 PRINT 打分语义或输出。
-用户授权本地源码修改，但尚未明确授权运行这两条 R 验证命令。
+请求固定 PMA 复审，也未访问 Argos、缓存或分析数据。没有修改 PRINT 打分语义或输出。用户授权
+本地源码修改，但尚未明确授权运行这两条 R 验证命令。此四文件修订已推送到 PR #8，提交
+`bc39d1c`；随后将同步最终 exact HEAD 的审计记录和 PR 描述。

@@ -45,12 +45,14 @@ only and does not authorize Argos access or execution.
    HINT/TOBIAS/PRINT/TraceBIND timings remain descriptive because their
    inputs, filtering, thread counts, or completion status differed.
 
-4. **Stop rule.** First perform only the reviewed, read-only input/label/score-interface
-   qualification. If the label or common-score gate fails, report **accuracy cannot be ranked**.
-   Whether a timing-only four-job matrix may still run despite that failure is explicitly submitted
-   for fixed-PMA review; do not infer its authorization from this document. Only an exact-head
-   `APPROVE` and the user's existing task-specific execution direction can release any dependent
-   Argos job. This plan does not authorize a PR merge.
+4. **Stop rule.** The fixed-PMA reviewer approved timing-only in principle even if accuracy fails,
+   but only after exact commands/gate wrappers are reviewed and all required dependencies are
+   already present; a human stage release is still required. This approved read-only qualification
+   found the selected ChIP label fails its replicate gate, HINT/TraceBIND lack full continuous
+   scores, and the checked R library lacks `tracebind`. Therefore accuracy is **cannot rank**, and
+   a new four-way timing matrix is not currently launch-ready. Existing timing reports may be
+   summarized descriptively; do not combine incompatible runs into a speed rank. No job is
+   authorized by this status paragraph and no PR merge is authorized.
 
 **Current qualification result (2026-10-19).** The fixed PMA conversation approved exact PR #8 HEAD
 `324d4e04a6652ff4f77a894b61fd7fcb52bd16cd` for the bounded read-only qualification. The four HCT116

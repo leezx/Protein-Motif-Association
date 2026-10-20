@@ -1530,6 +1530,7 @@ Pushed the required audit update as `a36a2d82bffd928ea9f8498ecaf75503c5534f32`; 
 - Fixed PMA reviewed exact HEAD `0a91d615aa250f53c9ffeb72ec7b64cd513fd76e` and returned `REQUEST_CHANGES`. It found that the synthetic bias branch was not triggered, matrix bias addition used R's column-major vector recycling, and unit/symmetric scaling failed to expose left/right output-column swaps.
 - Corrected the built-in fixture to pass the branch-triggering bias vector, use explicit column-wise bias addition, use non-unit feature/target scales, asymmetric left/right model outputs, and distinct expected right-side pnorm values. Added a synthetic serialization-error assertion that checks error propagation and temporary-file cleanup through injected internal dependencies.
 - New script SHA-256: `1449fcb9df64ed2fd771e9bad6ba4e12ecdbd56a6e7fe646fcea5a9ac7e4f10e`. `git diff --check` passed. R parser/tests not run; no Argos access, stage, cache read, preflight, or execution. No scoring change. This is the second repair cycle for the same synthetic fixture issue; if exact review still finds a blocker, stop and ask the user before further iteration.
+- Publication record: pushed this four-file update to PR #8 as `99260be744929857b425651f1220ed43cc68f26d`; the PR description will be synchronized to this exact head. Fixed-PMA review is pending.
 
 ### 2026-10-20 15:04 EDT — fixed-PMA rejected forward-audit candidate; repaired locally
 

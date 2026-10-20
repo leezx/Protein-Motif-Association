@@ -45,6 +45,10 @@ script SHA-256: `1449fcb9df64ed2fd771e9bad6ba4e12ecdbd56a6e7fe646fcea5a9ac7e4f10
 without user request. No Argos access/stage/cache read/preflight/run occurred. This exact candidate
 must be reviewed again before any dependent step.
 
+The second-cycle repair is pushed as PR #8 exact HEAD
+`99260be744929857b425651f1220ed43cc68f26d`. The PR body needs to be synchronized and the fixed
+PMA conversation must review this exact HEAD. No tests or remote operations have run.
+
 ## PRINT pnorm diagnostic — completed; scientific gate BLOCKED
 
 ### Fixed-PMA result review (2026-10-20 14:52 EDT)

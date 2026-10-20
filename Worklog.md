@@ -1386,3 +1386,7 @@ Fixed the two exact-head `REQUEST_CHANGES` findings from the fixed `PMA｜固定
 ### 2026-10-20 13:22 EDT — complete timing-contract regression after review repair
 
 During the fix, the first run of the new timing-contract test failed because its “missing scorer stage” fixture mistakenly still included the scorer stage; corrected the fixture to remove that field. Added fail-closed validation accepting either normal pipeline wall or validation pipeline wall including legacy oracle, while requiring the combined scoring-dispatch and per-radius output-materialization/publication stages. Re-ran the full named local suite; all checks pass, including the new timing-contract test. Updated the smoke launcher's pin after base-supervisor edits and synchronized hashes in the current handoffs. No Argos access/staging/gate. The same-PR review request must use hashes at the committed exact HEAD.
+
+### 2026-10-20 13:23 EDT — same-PR code repair pushed
+
+Committed the review fixes as `ae0445632b253b33fd2339dfe2ba8abc8fb5a1c8` and pushed to the existing PR #8 branch. `git ls-remote` and GitHub API both show this code commit as the live PR head; PR remains OPEN/unmerged. The prior V4 request was at parent HEAD `8b60f31c...` and its old approval request is superseded by the review's REQUEST_CHANGES. The final exact-head packet and synchronized PR body/handoffs must be refreshed after the audit record is pushed. No remote code stage or Argos read/gate was performed.

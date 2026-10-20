@@ -84,3 +84,5 @@ V4 固定：16 workers；r10/r20；30 分钟端到端执行预算；每进程 44
 
 计时监督器现在接受两种明确的 runner pipeline wall 字段（常规路径和包含 oracle 的验证路径），并强制
 检查联合评分派发字段及两个尺度的输出物化/发布字段；对应单元测试验证两种合法形式和缺失评分字段。
+
+2026-10-20 13:23 EDT：同 PR 代码修复提交 `ae0445632b253b33fd2339dfe2ba8abc8fb5a1c8` 已推送；`git ls-remote` 与 GitHub API 均确认它是 PR #8 当时 live head，PR OPEN、未合并。旧 V4 审核请求对应父提交 `8b60f31c...`，收到 REQUEST_CHANGES 后已失效。下一步同步最终 Worklog/handoff/PR body 后，必须在固定 PMA 对话请求新 exact-head 审查。无 Argos staging、访问或运行。

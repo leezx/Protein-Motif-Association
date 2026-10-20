@@ -14,7 +14,8 @@ explicitly labeled as including the legacy oracle in 8-row validation mode; the 
 supervisor remains the source of total process/caller wall. The legacy `getFootprints()` comparison
 temporarily binds the untouched sourced scorer in its lexical environment and restores the worker
 wrapper on both normal return and error. A regression fixture verifies the independent binding and
-restoration behavior. This has not been exercised against real PRINT/HDF5/PSOCK data.
+restoration behavior. The stage validator accepts either pipeline-wall label while requiring score
+dispatch and output-publishing stages. This has not been exercised against real PRINT/HDF5/PSOCK data.
 
 Local checks passed after the repair: `Rscript tests/test_print_variable_width.R`, R parser for both
 R files, Python compile for the two supervisors, `python3 tests/test_print_speed64_supervisor.py`,
@@ -29,6 +30,11 @@ SHA-256: runner `f388b705d021862ff99e45cda576c43194b3234fc457b2afc79308f49f135c3
 fresh exact-head review, V4 must pin smoke wrapper SHA
 `34f3d550da0ca74e2f1d4f5c0b03d81dcd3a2000e0ce904b54caeb9e3d5a0ea5`. No Argos access, staging,
 or execution has occurred. The V4 one-shot remains unapproved.
+
+The same-PR source/test repair commit `ae0445632b253b33fd2339dfe2ba8abc8fb5a1c8` was pushed after the
+review at parent HEAD `8b60f31c480736046ec62c9cc85de81a819d9d63` returned `REQUEST_CHANGES`. The old
+one-shot request is superseded; only a fresh exact-head review of the final pushed tip can release
+the one V4 smoke. PR #8 remains OPEN/unmerged.
 
 Footprinting only; Claude owns ChIP BED6/PR #7. PR #8 remains the sole workstream. The user
 authorized local PRINT-source changes. The fixed `PMA｜固定阶段审核` conversation recommended

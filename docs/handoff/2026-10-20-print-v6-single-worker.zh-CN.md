@@ -21,4 +21,6 @@ V6 的可检验假设：V4/V5观察到的快速高RSS增幅可能与并行worker
 
 ## 门禁
 
-V6 尚未远端预检/启动。代码和记录保留在同一个OPEN PR #8，不能合并。必须由固定 `PMA｜固定阶段审核` 对话对当前 exact HEAD 做 L1/L2审查，并明确批准一次V6尝试；只有全部 fresh resource/path/hash/dependency/process checks通过后，才经不可变gate启动一次。任何预检或运行失败保留证据，不重跑。此候选不授权准确度、motif、其他caller、优化、安装、ChIP/PR #7或合并。
+固定 `PMA｜固定阶段审核` 对 exact PR #8 HEAD `f54d31c6f7dc39e52eda3f21aaf099b03928e303` 给出 L1 无阻塞、L2 限制保留，并明确批准一次V6单次尝试。审核专门确认通过 `rcapps3.dfci.harvard.edu` 登录后远端自报 `rcGPUs.dfci.harvard.edu` 仍属于此次批准范围。fresh preflight 全部通过：远端 x86_64、CPU affinity 0–71、MemAvailable 969,416,036 kB、R 4.2.2/依赖可用；BED 行数159,628；BED/fragments/bias/model/PRINT source/runner/supervisor/immutable gate 哈希与审核值匹配；PRINT checkout clean；唯一V6输出路径不存在且无匹配任务。supervisor 与 R runner 被复制到外部唯一目录后，immutable gate `BG_K562_PRINT_FULLPEAK_20261020_V6` 于08:08:06 EDT启动一次。
+
+截至08:18 EDT，PRINT在单CPU上活动；最新有效采样进程组VmRSS约26.3 GiB，仍低于40-GiB采样软停止，且近期采样稳定。尚无输出文件，不能宣称取得结果、完整耗时或实际峰值内存。单worker可能抑制并行内存，但不能证明因果，也可能延长运行。40-GiB为采样软停止，44-GiB RLIMIT_AS为每进程限制，均非任务组硬内存上限。继续只读监控当前这一次gate；不得重跑。完成后将核验exit/status、四阶段时间、track/事件行数与校验、GNU-time资源统计、watchdog最大有效RSS采样和无残留进程。

@@ -1,10 +1,10 @@
-# CURRENT OPERATIVE FOOTPRINT TASK — 2026-10-20 07:54 EDT
+# CURRENT OPERATIVE FOOTPRINT TASK — 2026-10-20 08:18 EDT
 
-## Current candidate — V6 single-worker PRINT, awaiting fixed-PMA exact-head review
+## Current run — V6 single-worker PRINT is active
 
-The user continued to request lower resource use and a usable full-peak PRINT run. The next same-PR candidate preserves all159,628 K562 peaks, radii10/20, frozen inputs, PRINT version and CPU-only mode; it reduces workers4→1 and sampled process-group VmRSS soft-stop40 GiB. This tests whether parallel worker memory caused V5's abrupt RSS jump; that is a hypothesis, not an established cause or a guarantee of completion. The soft-stop remains sampled, not a hard task cap; the immutable gate retains per-process44-GiB RLIMIT_AS. Unique V6 evidence/output paths end in `_20261020_v6`.
+The fixed PMA conversation approved exact PR #8 HEAD `f54d31c6f7dc39e52eda3f21aaf099b03928e303` and explicitly authorized one V6 attempt. It confirmed that the SSH alias `rcapps3.dfci.harvard.edu` landing on `rcGPUs.dfci.harvard.edu` is within the reviewed target. Fresh preflight passed: x86_64; affinity 0–71; 969,416,036 kB MemAvailable; R 4.2.2 and required namespaces; 159,628 peak rows; frozen BED, fragment, bias/model, PRINT source and runner hashes match; PRINT checkout is clean; V6 output/status paths are absent and no matching process was present. The immutable gate hash matched. The reviewed runner and `run_print.R` were staged at unique V6 paths and launched once at 08:08:06 EDT as `BG_K562_PRINT_FULLPEAK_20261020_V6`.
 
-V6 has not run or been remotely preflighted. PR #8 must receive exact-current-head L1/L2 `APPROVE` and explicit authorization for exactly one V6 attempt in the fixed PMA project conversation. If approved, all fresh Argos input/model/source/gate/hash, dependency, output-path, resource and process checks must pass before launch. Failure is preserved; no retry. No accuracy, motif, other caller, ChIP/PR #7, or merge.
+At 08:18 EDT the PRINT R caller remained active on one CPU; latest sampled process-group VmRSS was about 26.3 GiB and stable, below the 40-GiB sampled soft-stop. No output/track/timing files had appeared yet. This is early progress only, not a completed run, peak-memory measurement or speed result. The 40-GiB threshold is a sampled soft stop, not a hard task cap; the immutable gate's 44-GiB RLIMIT_AS is per process. Continue monitoring the gate status, watchdog, output validation, native events and final GNU-time summary. Preserve the single approved attempt; do not restart after any failure. No accuracy, motif, other caller, ChIP/PR #7 or merge.
 
 ## Latest PRINT attempt — V5 resource-reduced run stopped; no valid footprint output
 

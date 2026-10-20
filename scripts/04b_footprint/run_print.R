@@ -77,6 +77,13 @@ groups(project) <- "all"
 groupCellType(project) <- "all"
 project <- getCountTensor(project, frags, barcodeGroups, returnCombined = TRUE, nCores = nCores)
 timing$counts <- tic() - t0
+# The fixed PRINT scorer requires a global `project` binding for some fields.
+# Group calls overwrite that binding, so freeze the full count source and shared
+# labels before the first group is bound; never derive a later group's rows
+# from `.GlobalEnv$project`.
+full_count_tensor <- countTensor(project)
+full_group_labels <- groups(project)
+full_cell_type_labels <- groupCellType(project)
 
 # Footprint each exact-width group using the unchanged native per-region caller.
 # The global index map, not region coordinates, restores duplicates and original
@@ -104,9 +111,9 @@ for (g in seq_along(bias_groups)) {
   dataDir(project_group) <- paste0(group_data_dir, "/")
   mainDir(project_group) <- main
   regionRanges(project_group) <- regions[idx]
-  groups(project_group) <- groups(project)
-  groupCellType(project_group) <- groupCellType(project)
-  countTensor(project_group) <- validate_count_group(countTensor(project), idx, widths)
+  groups(project_group) <- full_group_labels
+  groupCellType(project_group) <- full_cell_type_labels
+  countTensor(project_group) <- validate_count_group(full_count_tensor, idx, widths)
   bind_active_print_project(project_group)
   assert_active_print_project(project_group)
   regionBias(project_group) <- readRDS(item$bias_path)

@@ -52,6 +52,16 @@ for (g in groups) {
   stopifnot(length(selected) == length(g$index))
   for (j in seq_along(g$index)) stopifnot(identical(selected[[j]], counts[[g$index[[j]]]]))
 }
+# Simulate the runner's top-level binding across consecutive groups. The
+# immutable full source must survive replacing .GlobalEnv$project with a
+# previous group's project/countTensor.
+full_count_source <- counts
+for (g in groups[seq_len(min(2L, length(groups)))]) {
+  group_project <- list(countTensor = validate_count_group(full_count_source, g$index, widths))
+  bind_active_print_project(group_project)
+  next_group_counts <- validate_count_group(full_count_source, g$index, widths)
+  stopifnot(identical(next_group_counts, counts[g$index]))
+}
 bad_counts <- counts
 bad_counts[[2L]]$position[[1L]] <- widths[[2L]] + 1L
 stopifnot(inherits(try(validate_count_group(bad_counts, 2L, widths), silent = TRUE), "try-error"))

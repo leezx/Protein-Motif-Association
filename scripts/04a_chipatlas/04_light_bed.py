@@ -1,7 +1,8 @@
 """Step 4a §10: light per-target non-redundant BED from an experiment-level occupancy BED6+18 (Output A layout).
 
 usage: 04_light_bed.py <occupancy.bed.gz> <experiments.tsv.gz> <chrom.sizes> <release_dir> <prefix> [workers]
-For each target (HGNC symbol, else the ChIP-Atlas antigen with whitespace -> _), overlapping or book-ended peaks
+For each target (HGNC symbol, else the ChIP-Atlas antigen with whitespace -> _; PMA_LIGHT_TARGET=antigen always
+uses the ChIP-Atlas antigen, as for histone marks), overlapping or book-ended peaks
 of that target are merged across all its experiments (chained, like bedtools merge per name). Writes to release_dir:
   <prefix>.bed.gz (+.tbi), <prefix>.bb   BED6: chrom, start, end, target, score = min(1000, n_experiments), .
   <prefix>.detail.tsv.gz (+.tbi)          chrom, start, end, target, n_experiments, n_peaks, max_qscore,
@@ -25,8 +26,11 @@ import sys
 from pathlib import Path
 
 
+USE_ANTIGEN = os.environ.get("PMA_LIGHT_TARGET", "hgnc") == "antigen"  # histone: ChIP-Atlas name, not HGNC
+
+
 def target_of(f):
-    t = f[8] if f[8] != "." else f[7]
+    t = f[7] if USE_ANTIGEN or f[8] == "." else f[8]
     return "_".join(t.split()) or "."
 
 

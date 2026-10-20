@@ -316,7 +316,8 @@ a separate file.
 of that target, as `bedtools merge` per name.
 - Target: the HGNC symbol (Output A column 9); otherwise the curated ChIP-Atlas antigen (column 8) with
   whitespace replaced by `_`.
-- Histone marks use the antigen (e.g. `H3K27ac`).
+- Histone marks always use the ChIP-Atlas antigen (`PMA_LIGHT_TARGET=antigen`, e.g. `H3K27ac`, `H2A.Z`). HGNC
+  mapping of histone antigens is unreliable: `H2B` → H2BC21, `H2A` → H2AC20, `H3.6` → the pseudogene H3P16.
 - No peak is filtered. Blacklist overlap is counted per region, not removed.
 
 **Inputs.**

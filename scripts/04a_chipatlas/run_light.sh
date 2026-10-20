@@ -12,13 +12,16 @@ protein)
     $SIZES $P/light_v1/protein PMA_chipatlas_hg38_protein_nr $N ;;
 histone)
   ST=$P/histone_v1_work; REL=$P/histone_v1; mkdir -p $ST $REL
+  if [ "${PMA_LIGHT_ONLY:-0}" != 1 ]; then  # PMA_LIGHT_ONLY=1 reuses an existing histone BED6+18
   ( cd $HERE && PMA_OCC_CLASSES=Histone python 01_experiments.py $RAW $ST > $ST/01.log 2>&1 )
   pigz -dc -p 4 $RAW/allPeaks_light.hg38.05.bed.gz \
     | mawk -v ids=$ST/scope_ids.txt 'BEGIN{while((getline l < ids)>0) keep[l]=1} ($4 in keep){print}' \
     | ( cd $HERE && python 02_peaks.py $ST $RAW/reference 2> $ST/02.log ) \
     | bgzip -@ $N > $REL/PMA_chipatlas_hg38_histone_occupancy.bed.gz
   tabix -f -p bed $REL/PMA_chipatlas_hg38_histone_occupancy.bed.gz
-  python $HERE/04_light_bed.py $REL/PMA_chipatlas_hg38_histone_occupancy.bed.gz $ST/experiments_stage1.tsv.gz \
+  fi
+  [ -s $REL/PMA_chipatlas_hg38_histone_occupancy.bed.gz.tbi ] || { echo "histone BED missing" >&2; exit 1; }
+  PMA_LIGHT_TARGET=antigen python $HERE/04_light_bed.py $REL/PMA_chipatlas_hg38_histone_occupancy.bed.gz $ST/experiments_stage1.tsv.gz \
     $SIZES $P/light_v1/histone PMA_chipatlas_hg38_histone_nr $N ;;
 *) echo "usage: run_light.sh protein|histone [workers]" >&2; exit 2 ;;
 esac

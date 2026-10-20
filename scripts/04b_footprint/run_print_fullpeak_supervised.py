@@ -46,6 +46,8 @@ CPUS = list(range(16))
 PSS_LIMIT_KB = 100 * 1024 * 1024
 MAX_WALL_SECONDS = 24 * 60 * 60
 SAMPLE_SECONDS = 2
+SAMPLE_BUDGET_SECONDS = 1.5
+MAX_SAMPLE_INTERVAL_OVERRUN_SECONDS = 0.25
 STOP_REQUESTED = []
 REQUIRED_TIMING_STAGES = {"bias", "counts", "footprint_r10", "footprint_r20"}
 
@@ -141,6 +143,24 @@ def group_members(pgid):
     return result, failures
 
 
+def parse_pss_kb(lines):
+    total = 0
+    rows = 0
+    for line in lines:
+        if line.startswith("Pss:"):
+            fields = line.split()
+            if len(fields) != 3 or fields[2] != "kB":
+                raise ValueError("malformed Pss row")
+            value = int(fields[1])
+            if value < 0:
+                raise ValueError("negative Pss row")
+            total += value
+            rows += 1
+    if rows == 0:
+        raise ValueError("no Pss rows")
+    return total
+
+
 def group_pss(pgid):
     members, scan_failures = group_members(pgid)
     total = 0
@@ -149,21 +169,58 @@ def group_pss(pgid):
         if state == "Z":
             continue
         try:
-            with open("/proc/%d/smaps_rollup" % pid, "r") as handle:
-                pss = None
-                for line in handle:
-                    if line.startswith("Pss:"):
-                        pss = int(line.split()[1])
-                        break
-            if pss is None:
-                failures.append(pid)
-            else:
-                total += pss
+            # This host exposes smaps but not smaps_rollup. Sum every Pss: row
+            # to preserve the same accounting field; never accept a partial
+            # read as a complete sample.
+            with open("/proc/%d/smaps" % pid, "r") as handle:
+                pss = parse_pss_kb(handle)
+            total += pss
         except (IOError, OSError, ValueError):
             # A process that vanished between the /proc scans is a harmless race.
             if os.path.exists("/proc/%d" % pid):
                 failures.append(pid)
     return members, total, failures
+
+
+def sample_helper(pgid):
+    """One bounded helper process reads a complete process-group PSS snapshot."""
+    members, pss_kb, failures = group_pss(pgid)
+    sys.stdout.write(json.dumps({"members": members, "pss_kb": pss_kb,
+                                 "failures": failures}) + "\n")
+    sys.stdout.flush()
+    return 0
+
+
+def timed_group_pss(pgid, timeout_seconds):
+    """Run smaps scanning out-of-process so a blocked read cannot stall cleanup."""
+    command = [sys.executable, os.path.abspath(__file__), "--sample-pgid", str(pgid)]
+    started = time.monotonic()
+    sampler = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                               universal_newlines=True, start_new_session=True)
+    try:
+        stdout, stderr = sampler.communicate(timeout=timeout_seconds)
+    except subprocess.TimeoutExpired:
+        # The helper has no children. Its own session separates cleanup from
+        # both the monitored caller and the supervisor.
+        try:
+            os.killpg(sampler.pid, signal.SIGKILL)
+        except OSError:
+            pass
+        sampler.communicate()
+        return [], None, [-2], time.monotonic() - started
+    elapsed = time.monotonic() - started
+    if sampler.returncode != 0:
+        return [], None, [-3], elapsed
+    try:
+        result = json.loads(stdout)
+        members = [(int(pid), str(state)) for pid, state in result["members"]]
+        pss_kb = int(result["pss_kb"])
+        failures = [int(pid) for pid in result["failures"]]
+        if pss_kb < 0:
+            raise ValueError("negative aggregate PSS")
+        return members, pss_kb, failures, elapsed
+    except (ValueError, TypeError, KeyError, IndexError):
+        return [], None, [-4], elapsed
 
 
 def terminate_group(pgid, log, reason):
@@ -227,10 +284,9 @@ def preflight():
     if os.uname()[4] != "x86_64":
         raise RuntimeError("the prepared R runtime requires x86_64")
     try:
-        with open("/proc/self/smaps_rollup", "r") as handle:
-            if not any(line.startswith("Pss:") for line in handle):
-                raise RuntimeError("/proc/self/smaps_rollup has no Pss field")
-    except (IOError, OSError) as error:
+        with open("/proc/self/smaps", "r") as handle:
+            parse_pss_kb(handle)
+    except (IOError, OSError, ValueError) as error:
         raise RuntimeError("aggregate-PSS watchdog unavailable: " + str(error))
     allowed = sorted(os.sched_getaffinity(0))
     if len(allowed) < len(CPUS):
@@ -287,7 +343,10 @@ def preflight():
     subprocess.check_call(probe, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     preflight_facts = {"mem_available_kb": int(mem_available[0].split()[1]),
                        "load_average": list(os.getloadavg()),
-                       "allowed_cpu_ids": allowed}
+                       "allowed_cpu_ids": allowed,
+                       "pss_backend": "/proc/<pid>/smaps Pss rows summed to EOF",
+                       "pss_sample_interval_seconds": SAMPLE_SECONDS,
+                       "pss_sample_deadline_seconds": SAMPLE_BUDGET_SECONDS}
     preflight_facts["r_version"] = subprocess.check_output(
         [RSCRIPT, "--version"], stderr=subprocess.STDOUT,
         universal_newlines=True).strip()
@@ -296,6 +355,12 @@ def preflight():
 
 
 def main():
+    if len(sys.argv) == 3 and sys.argv[1] == "--sample-pgid":
+        try:
+            return sample_helper(int(sys.argv[2]))
+        except Exception as error:
+            sys.stderr.write(str(error) + "\n")
+            return 2
     signal.signal(signal.SIGTERM, request_stop)
     signal.signal(signal.SIGINT, request_stop)
     os.makedirs(ROOT, mode=0o700, exist_ok=True)
@@ -335,13 +400,20 @@ def main():
                 peak_pss = 0
                 failures_in_row = 0
                 reason = "normal_exit"
+                next_sample_due = time.monotonic()
                 while True:
                     if STOP_REQUESTED:
                         reason = "signal_%d" % STOP_REQUESTED[-1]
                         terminate_group(pgid, log, reason)
                         cleanup_needed = False
                         break
-                    members, pss_kb, failures = group_pss(pgid)
+                    sample_started = time.monotonic()
+                    interval_overrun = sample_started - next_sample_due
+                    members, pss_kb, failures, sample_elapsed = timed_group_pss(
+                        pgid, SAMPLE_BUDGET_SECONDS)
+                    next_sample_due += SAMPLE_SECONDS
+                    if interval_overrun > MAX_SAMPLE_INTERVAL_OVERRUN_SECONDS:
+                        failures.append(-5)  # fixed start-to-start cadence was missed
                     if process.poll() is None and not members:
                         failures.append(-1)  # process group vanished while caller is alive
                     elif process.poll() is None and process.pid not in {pid for pid, _ in members}:
@@ -350,13 +422,17 @@ def main():
                         failures_in_row += 1
                     else:
                         failures_in_row = 0
-                    peak_pss = max(peak_pss, pss_kb)
+                    if pss_kb is not None:
+                        peak_pss = max(peak_pss, pss_kb)
                     log.write(json.dumps({"event": "sample", "time_epoch": time.time(),
                                           "pgid": pgid, "pids": [p for p, _ in members],
                                           "pss_kb": pss_kb, "peak_pss_kb": peak_pss,
+                                          "pss_backend": "smaps:Pss-sum",
+                                          "sample_elapsed_seconds": sample_elapsed,
+                                          "sample_interval_overrun_seconds": interval_overrun,
                                           "sample_failures": failures}) + "\n")
                     log.flush()
-                    if pss_kb >= PSS_LIMIT_KB:
+                    if pss_kb is not None and pss_kb >= PSS_LIMIT_KB:
                         reason = "aggregate_pss_limit_100_gib"
                         terminate_group(pgid, log, reason)
                         break
@@ -382,7 +458,9 @@ def main():
                         terminate_group(pgid, log, reason)
                         cleanup_needed = False
                         break
-                    time.sleep(SAMPLE_SECONDS)
+                    sleep_seconds = next_sample_due - time.monotonic()
+                    if sleep_seconds > 0:
+                        time.sleep(sleep_seconds)
                 return_code = process.wait()
                 cleanup_needed = False
                 caller_elapsed = time.time() - caller_started

@@ -1,6 +1,6 @@
 # Step 4b PRINT 全峰集执行交接
 
-> **最新状态（2026-10-20 00:04 EDT）：V1、V2 各一次尝试均已停止，均未生成 PRINT 结果。V2 在 caller 113.8018 秒后因 `smaps` PSS sampler 连续超时/未能在 0.5 秒内回收而按 fail-closed 规则退出；最后一个有效样本约 24.2 GiB，但不是全程峰值。没有完整运行时或有效 track/event/timing 文件，不能给 PRINT 全峰计算时间。两次单次授权均已消耗；不得重跑。固定 PMA 对话认为采样链路延迟超预算是最有证据支持的解释，不能据此单独断言由进程映射增长造成。下一次尝试必须先在同一 PR 完成并审核有证据支持的整任务内存监控/控制方案，再获新 exact-head APPROVE 与单次执行授权。standalone 登录说明见 `/Volumes/Stelligen_SSD/Stelligen/computingResource.md`：`ssh zz950@rcapps3.dfci.harvard.edu`；rcapps8 的 ARM 架构与共享 x86 R runtime 不兼容，PRINT 也不使用 GPU。**
+> **最新状态（2026-10-20 00:09 EDT）：V1、V2 各一次尝试均已停止，均未生成 PRINT 结果。V2 在 caller 113.8018 秒后因 `smaps` PSS sampler 连续超时/未能在 0.5 秒内回收而按 fail-closed 规则退出；最后一个有效样本约 24.2 GiB，但不是全程峰值。没有完整运行时或有效 track/event/timing 文件，不能给 PRINT 全峰计算时间。两次单次授权均已消耗；不得重跑。固定 PMA 对话认为采样链路延迟超预算是最有证据支持的解释，不能据此单独断言由进程映射增长造成。依用户既有 direct-login 指示做了只读 cgroup 核验：rcapps3 是 cgroup v1；当前 SSH shell 位于共享 `/system.slice/ssh.service`，memory hierarchy 开启，但该 cgroup limit 实际无限且 root-owned、`zz950` 不可写，因此不能按单个 PRINT 任务隔离、限制或统计。**
 
 ## 当前结论与决策门（2026-10-20 00:04 EDT）
 
@@ -10,6 +10,12 @@
 - GPT 不建议盲目延长 deadline/cadence，也不建议以减少 worker 数掩盖问题；后者会改变计划的 16 核测速条件。若节点没有可靠的整任务内存控制/统计接口，应停止该执行路径。
 - `computingResource.md` 说明 standalone 节点的直登方式。节点有 GPU，但本任务是 CPU-only；rcapps3 与当前 x86 R 环境匹配，rcapps8 之前的只读检查显示架构不匹配。
 - V1、V2 的单次批准都已耗尽。当前不复制脚本、不改环境、不启动任务。任何新尝试先需同一 PR 中新方案、新 HEAD 的 fixed-PMA exact-head 审核和新的单次批准。
+
+## 2026-10-20 00:09 EDT — read-only cgroup capability check
+
+Per the user's earlier direct-login/node-check instruction, ran a read-only cgroup probe on `rcapps3`; no job was launched and no system state was changed. `/proc/self/cgroup` reports `5:memory:/system.slice/ssh.service`; the mounted controller is cgroup v1 at `/sys/fs/cgroup/memory`, with `memory.use_hierarchy=1`. The visible aggregate `memory.limit_in_bytes` is `9223372036854771712` bytes (effectively unlimited); `memory.usage_in_bytes` was `52099489792` bytes and the cgroup high-water value was `398863462400` bytes. These are shared SSH-service accounting values, not this PRINT task's values. The cgroup mount and `system.slice/ssh.service` directories are root-owned and not writable by `zz950`; there is no task-specific delegated subgroup. Therefore cgroup v1 cannot provide a per-task cap or attributable memory statistic for this run from the current account. Do not infer availability from the presence of `memory.*` files.
+
+The fixed PMA reviewer verified the current PR documentation exact HEAD `cfd177af57bb554b65abe695eb2d9fd8bf9d293c` and returned `APPROVE` for the factual record only (no execution permission). It said the only justified follow-up would be a separately authorized, bounded read-only check for cgroup version/mount, task membership, hierarchy accounting, memory limits/usage, and delegated write/launch permissions. This probe returned a negative per-task-isolation result. Any alternative such as process-group RSS sampling needs a clear definition, bounded failure behavior and exact-head review; it is not authorized by the prior V2 approval. No relaunch, code edit, environment change, accuracy ranking, motif analysis, other caller, ChIP/PR #7 work or merge.
 
 ## 目标与边界
 

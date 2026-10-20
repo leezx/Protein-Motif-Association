@@ -5,7 +5,7 @@
 #         <out_prefix>.timing.tsv
 suppressPackageStartupMessages({
   library(tracebind); library(data.table); library(GenomicRanges); library(dplyr); library(tibble); library(tidyr)
-  library(parallel)
+  library(parallel); library(foreach)
 })
 a <- commandArgs(trailingOnly = TRUE)
 reticulate::use_python(a[1], required = TRUE)

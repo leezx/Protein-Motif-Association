@@ -47,7 +47,8 @@ if ! (
   set -u
   [ "$activation_rc" -eq 0 ] || exit "$activation_rc"
   [ "${CONDA_DEFAULT_ENV:-}" = r4p3 ] || exit 1
-  export R_LIBS=/home/zz950/softwares/R_lib_tracebind:/home/zz950/softwares/R_lib_4
+  # PRINT's isolated cladoRcpp overlay must be visible to the PSOCK workers as well as the parent R process.
+  export R_LIBS=/home/zz950/PMA_fetch/pma_r_print_overlay_v1/lib:/home/zz950/softwares/R_lib_tracebind:/home/zz950/softwares/R_lib_4
   command -v Rscript >/dev/null || exit 1
   Rscript -e 'suppressPackageStartupMessages({library(GenomicRanges); library(data.table); library(tracebind); library(reticulate)})'
 ); then

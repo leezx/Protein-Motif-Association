@@ -1,0 +1,854 @@
+#!/usr/bin/python3
+"""One-shot PRINT run with a sampled process-group VmRSS soft-stop watchdog."""
+from __future__ import print_function
+
+import glob
+import gzip
+import hashlib
+import json
+import math
+import os
+import signal
+import socket
+import subprocess
+import sys
+import time
+
+
+RUN_ID = "BG_K562_PRINT_FULLPEAK_20261020_V7"
+RUNNER_SHA256 = "f388b705d021862ff99e45cda576c43194b3234fc457b2afc79308f49f135c31"
+RUNNER_HELPER_SHA256 = "6657838e9e1d95ff08124b95fc78da9aae266ddce5b83e255c59d4d5ad8069b0"
+BED_SHA256 = "c0c1d0b5350a962b9d7a7f1d2edef1ca98005029c79f07979533f3a14cb40945"
+FRAGS_SHA256 = "238367780a1b7a2a24595a4259bdbe91cb8be439c2e5fda210831ad60d77544f"
+BIAS_H5_SHA256 = "574140487a0a829c7a59735e0e7a64a3f3a227a7e5ceb8ea5f355f7cc3289402"
+MODEL_SHA256 = {
+    10: "c0cd01806684784abc0cb6894e6cfcd0234704f88baf3045121a2b6e07737414",
+    20: "1413478ee5dfef1655a419adf67ef18b503d7bcd4c82273c4c5c0f485cf2d0b3",
+}
+ROOT = "/home/zz950/PMA_fetch/pma_print_fullpeak_rcapps3_20261020_v7"
+OUTPUT_DIR = "/home/zz950/DATA/2.PROJECTS/PMA/atac_footprint/processed/round1/runs_print_fullpeak_rcapps3_20261020_v7"
+PRINT_REPO = "/home/zz950/softwares/src/PRINT"
+PRINT_REPO_COMMIT = "8dad7317c3a640454a191dba2acd138e6edc54ac"
+PRINT_MODULE_SHA256 = {
+    "utils.R": "8c20776317dd5a9207aeebb9dd084f9e4f0d5d80c1056f599c411fe696ecc8b7",
+    "getCounts.R": "2f54f1c2c6a8cd410ed102cc934679f14c977ef002b8c1abf50c12018212d495",
+    "getBias.R": "455b6ac5a33807d558399679d9947d29561d00fc7a7a7ffa2b8cc948e8f04615",
+    "getFootprints.R": "7944dfa194cdf1eeda3cdfa821dab7df45cf59d7aa36d74ae206f77fb7e0babd",
+}
+SHARED = "/home/zz950/DATA/2.PROJECTS/PMA/atac_footprint/processed/round1/print_shared"
+BED = "/home/zz950/DATA/2.PROJECTS/PMA/atac_footprint/raw/2026-10-19/encode_k562/ENCSR868FGK/ENCFF993BAP.bed.gz"
+FRAGS = "/home/zz950/DATA/2.PROJECTS/PMA/atac_footprint/processed/round1/frags/k562_speed.frags.tsv.gz"
+RUNNER = os.path.join(ROOT, "run_print.R")
+RUNNER_HELPER = os.path.join(ROOT, "print_variable_width.R")
+RSCRIPT = "/home/zz950/softwares/miniconda3/envs/r4p3/bin/Rscript"
+RLIBS = ":".join(("/home/zz950/PMA_fetch/pma_r_print_overlay_v1/lib",
+                   "/home/zz950/softwares/R_lib_tracebind",
+                   "/home/zz950/softwares/R_lib_4"))
+CPUS = list(range(1))
+RSS_SOFT_STOP_KB = 40 * 1024 * 1024
+MAX_WALL_SECONDS = 24 * 60 * 60
+SAMPLE_SECONDS = 2
+SAMPLE_BUDGET_SECONDS = 1.5
+MAX_SAMPLE_INTERVAL_OVERRUN_SECONDS = 0.25
+STOP_REQUESTED = []
+RUN_DEADLINE_MONOTONIC = None
+PROCESS_GROUP_REGISTRY = None
+REQUIRED_TIMING_STAGES = {
+    "bias", "counts", "score_dispatch_r10_r20",
+    "output_materialization_r10", "output_materialization_r20", "output_publish",
+}
+REQUIRED_PIPELINE_WALL_STAGES = {
+    "pipeline_wall_through_validation",
+    "pipeline_wall_through_validation_including_legacy_oracle",
+}
+
+
+def timing_stage_gaps(stages):
+    missing = sorted(REQUIRED_TIMING_STAGES.difference(stages))
+    if not REQUIRED_PIPELINE_WALL_STAGES.intersection(stages):
+        missing.append("pipeline_wall_through_validation[_including_legacy_oracle]")
+    return missing
+
+
+def remaining_wall_seconds():
+    if RUN_DEADLINE_MONOTONIC is None:
+        return None
+    remaining = RUN_DEADLINE_MONOTONIC - time.monotonic()
+    if remaining <= 0:
+        raise TimeoutError("end-to-end wall deadline expired")
+    return remaining
+
+
+def check_wall_deadline():
+    remaining_wall_seconds()
+
+
+def bounded_check_output(command, **kwargs):
+    timeout = remaining_wall_seconds()
+    kwargs.setdefault("stdout", subprocess.PIPE)
+    if kwargs.get("stderr") == subprocess.STDOUT:
+        kwargs["stderr"] = subprocess.STDOUT
+    else:
+        kwargs.setdefault("stderr", subprocess.PIPE)
+    kwargs.pop("timeout", None)
+    returncode, stdout, stderr = run_registered_process(command, "preflight", timeout,
+                                                        **kwargs)
+    if returncode:
+        raise subprocess.CalledProcessError(returncode, command, output=stdout,
+                                            stderr=stderr)
+    return stdout
+
+
+def bounded_check_call(command, **kwargs):
+    timeout = remaining_wall_seconds()
+    kwargs.pop("timeout", None)
+    returncode, _, _ = run_registered_process(command, "preflight", timeout, **kwargs)
+    if returncode:
+        raise subprocess.CalledProcessError(returncode, command)
+    return 0
+
+
+def registry_event(action, pgid, role):
+    if not PROCESS_GROUP_REGISTRY:
+        return
+    record = {"action": action, "pgid": int(pgid), "role": str(role),
+              "time_epoch": time.time()}
+    with open(PROCESS_GROUP_REGISTRY, "a") as handle:
+        handle.write(json.dumps(record, sort_keys=True) + "\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+
+
+_GATED_EXEC_CODE = (
+    "import os,sys; fd=int(sys.argv[1]); token=os.read(fd,1); os.close(fd); "
+    "os._exit(125) if token != b'1' else None; "
+    "os.execvp(sys.argv[2], sys.argv[2:])"
+)
+
+
+def start_registered_process(command, role, **kwargs):
+    """Start an exec-gated session so it cannot run before the outer registry pins its PGID."""
+    inherited_fds = tuple(kwargs.pop("pass_fds", ()))
+    read_fd, write_fd = os.pipe()
+    process = None
+    try:
+        launcher = [sys.executable, "-c", _GATED_EXEC_CODE, str(read_fd)] + list(command)
+        process = subprocess.Popen(launcher, start_new_session=True,
+                                   pass_fds=tuple(sorted(set(inherited_fds + (read_fd,)))),
+                                   **kwargs)
+    finally:
+        os.close(read_fd)
+
+    pgid = process.pid
+    try:
+        # The child is blocked in the launcher until this durable registration succeeds.
+        registry_event("register", pgid, role)
+        if os.write(write_fd, b"1") != 1:
+            raise OSError("failed to release registered child process")
+    except BaseException as error:
+        # EOF prevents exec; kill/reap anyway so a registry failure cannot leak a session.
+        os.close(write_fd)
+        write_fd = None
+        cleaned = terminate_group(pgid, None, "%s_registration_failure" % role)
+        try:
+            process.communicate(timeout=5)
+        except subprocess.TimeoutExpired:
+            cleaned = False
+        if cleaned:
+            try:
+                registry_event("unregister", pgid, role)
+            except OSError:
+                pass
+        if not cleaned:
+            raise RuntimeError("%s registration failed and child cleanup was incomplete" % role) from error
+        raise
+    finally:
+        if write_fd is not None:
+            os.close(write_fd)
+    return process
+
+
+def process_group_has_live_members(pgid):
+    members, failures = group_members(pgid)
+    live = [member for member in members if member[1] != "Z"]
+    return live, failures
+
+
+def run_registered_process(command, role, timeout=None, **kwargs):
+    process = start_registered_process(command, role, **kwargs)
+    pgid = process.pid
+    try:
+        stdout, stderr = process.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        cleaned = terminate_group(pgid, None, "%s_timeout" % role)
+        try:
+            stdout, stderr = process.communicate(timeout=5)
+        except subprocess.TimeoutExpired:
+            for stream in (process.stdout, process.stderr):
+                if stream is not None:
+                    stream.close()
+            raise RuntimeError("timed-out %s process could not be reaped; group_clean=%s" %
+                               (role, cleaned))
+        if not cleaned:
+            raise RuntimeError("timed-out %s process group cleanup incomplete" % role)
+        registry_event("unregister", pgid, role)
+        raise
+    live, scan_failures = process_group_has_live_members(pgid)
+    if live or scan_failures:
+        cleaned = terminate_group(pgid, None, "%s_orphaned_process_group" % role)
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            cleaned = False
+        if not cleaned:
+            raise RuntimeError("%s process group cleanup incomplete" % role)
+        raise RuntimeError("%s command left a child process behind" % role)
+    registry_event("unregister", pgid, role)
+    return process.returncode, stdout, stderr
+
+
+def sha256(path):
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        while True:
+            check_wall_deadline()
+            if STOP_REQUESTED:
+                raise RuntimeError("stop requested during input hashing")
+            block = handle.read(8 * 1024 * 1024)
+            if not block:
+                break
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def require_file(path):
+    check_wall_deadline()
+    if not os.path.isfile(path) or not os.access(path, os.R_OK):
+        raise RuntimeError("required readable file missing: " + path)
+
+
+def line_count(path):
+    opener = gzip.open if path.endswith(".gz") else open
+    count = 0
+    with opener(path, "rb") as handle:
+        for _ in handle:
+            check_wall_deadline()
+            count += 1
+    return count
+
+
+def validate_track(path):
+    data_rows = 0
+    with gzip.open(path, "rt") as handle:
+        check_wall_deadline()
+        header = handle.readline().rstrip("\r\n").split("\t")
+        if header != ["chrom", "pos", "score"]:
+            raise RuntimeError("invalid PRINT score-track header: " + path)
+        for line in handle:
+            check_wall_deadline()
+            if not line.strip():
+                continue
+            fields = line.rstrip("\r\n").split("\t")
+            if len(fields) != 3:
+                raise RuntimeError("malformed PRINT score-track row: " + path)
+            int(fields[1])
+            score = float(fields[2])
+            if not math.isfinite(score):
+                raise RuntimeError("non-finite PRINT score: " + path)
+            data_rows += 1
+    return data_rows
+
+
+def validate_event_bed(path):
+    rows = 0
+    with open(path, "r") as handle:
+        for line_number, line in enumerate(handle, 1):
+            check_wall_deadline()
+            fields = line.rstrip("\r\n").split("\t")
+            if len(fields) != 4:
+                raise RuntimeError("malformed native-event BED row %d: %s" % (line_number, path))
+            start, end = int(fields[1]), int(fields[2])
+            score = float(fields[3])
+            if not fields[0] or not math.isfinite(score) or start < 0 or end <= start:
+                raise RuntimeError("invalid native-event interval row %d: %s" % (line_number, path))
+            rows += 1
+    return rows
+
+
+def read_proc_stat(pid):
+    with open("/proc/%d/stat" % pid, "r") as handle:
+        raw = handle.read()
+    close = raw.rfind(")")
+    if close < 0:
+        raise ValueError("malformed proc stat")
+    fields = raw[close + 2:].split()
+    if len(fields) < 20:
+        raise ValueError("short proc stat")
+    # fields begin at proc stat field 3: state, ppid, pgrp, ..., starttime.
+    return fields[0], int(fields[2]), int(fields[19])
+
+
+def group_members(pgid):
+    result = []
+    failures = []
+    for stat_path in glob.glob("/proc/[0-9]*/stat"):
+        pid = int(stat_path.split("/")[2])
+        try:
+            state, process_group, starttime = read_proc_stat(pid)
+            if process_group == pgid:
+                result.append((pid, state, starttime))
+        except (IOError, OSError):
+            # /proc/<pid> disappearing during enumeration is an expected race.
+            if os.path.exists("/proc/%d" % pid):
+                failures.append(pid)
+        except (ValueError, IndexError):
+            if os.path.exists("/proc/%d" % pid):
+                failures.append(pid)
+    return result, failures
+
+
+def parse_vmrss_kb(lines):
+    total = 0
+    rows = 0
+    for line in lines:
+        if line.startswith("VmRSS:"):
+            fields = line.split()
+            if len(fields) != 3 or fields[2] != "kB" or rows:
+                raise ValueError("malformed or duplicate VmRSS row")
+            value = int(fields[1])
+            if value < 0:
+                raise ValueError("negative VmRSS row")
+            total += value
+            rows += 1
+    if rows == 0:
+        raise ValueError("no VmRSS row")
+    return total
+
+
+def group_vmrss(pgid):
+    members, scan_failures = group_members(pgid)
+    total = 0
+    failures = list(scan_failures)
+    sampled_identities = set()
+    for pid, state, starttime in members:
+        if state == "Z":
+            continue
+        try:
+            before = read_proc_stat(pid)
+            if before[1] != pgid or before[2] != starttime:
+                failures.append(pid)
+                continue
+            with open("/proc/%d/status" % pid, "r") as handle:
+                rss = parse_vmrss_kb(handle)
+            after = read_proc_stat(pid)
+            if after[1] != pgid or after[2] != starttime:
+                failures.append(pid)
+                continue
+            sampled_identities.add((pid, starttime))
+            total += rss
+        except (IOError, OSError, ValueError):
+            # A vanished process is harmless only if its PID is truly gone.
+            if os.path.exists("/proc/%d" % pid):
+                failures.append(pid)
+    members_after, scan_failures_after = group_members(pgid)
+    failures.extend(scan_failures_after)
+    if any((pid, starttime) not in sampled_identities and state != "Z"
+           for pid, state, starttime in members_after):
+        failures.append(-8)  # membership changed; never accept an incomplete snapshot
+    return members_after, total, failures
+
+
+def sample_helper(pgid):
+    """One bounded helper reads a sampled process-group VmRSS sum."""
+    members, rss_kb, failures = group_vmrss(pgid)
+    sys.stdout.write(json.dumps({"members": members, "rss_kb": rss_kb,
+                                 "failures": failures}) + "\n")
+    sys.stdout.flush()
+    return 0
+
+
+def kill_and_reap_sampler(sampler, timeout_seconds):
+    if sampler.poll() is None:
+        try:
+            os.killpg(sampler.pid, signal.SIGKILL)
+        except OSError:
+            pass
+    try:
+        sampler.wait(timeout=timeout_seconds)
+        return (sampler.poll() is not None, None)
+    except subprocess.TimeoutExpired:
+        return (False, "TimeoutExpired")
+    except Exception as error:
+        return (False, type(error).__name__)
+
+
+def timed_group_vmrss(pgid, timeout_seconds):
+    """Bound status-file sampling in a helper so it cannot stall the caller."""
+    command = [sys.executable, os.path.abspath(__file__), "--sample-pgid", str(pgid)]
+    started = time.monotonic()
+    sampler = None
+    cleanup_failed = False
+    cleanup_error_type = None
+    communicate_completed = False
+    result = ([], None, [-3], 0.0)
+    try:
+        sampler = start_registered_process(command, "rss_sampler",
+                                           stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                           universal_newlines=True)
+        try:
+            stdout, stderr = sampler.communicate(timeout=timeout_seconds)
+            communicate_completed = True
+        except subprocess.TimeoutExpired:
+            result = ([], None, [-2], time.monotonic() - started)
+        else:
+            elapsed = time.monotonic() - started
+            if sampler.returncode != 0:
+                result = ([], None, [-3], elapsed)
+            else:
+                try:
+                    payload = json.loads(stdout)
+                    members = [(int(pid), str(state), int(starttime))
+                               for pid, state, starttime in payload["members"]]
+                    rss_kb = int(payload["rss_kb"])
+                    failures = [int(pid) for pid in payload["failures"]]
+                    if rss_kb < 0:
+                        raise ValueError("negative aggregate VmRSS")
+                    result = (members, rss_kb, failures, elapsed)
+                except (ValueError, TypeError, KeyError, IndexError):
+                    result = ([], None, [-4], elapsed)
+    except Exception:
+        result = ([], None, [-3], time.monotonic() - started)
+    finally:
+        if sampler is not None:
+            try:
+                # A successful communicate() already waited for and reaped the
+                # helper. Do not communicate a second time on its closed pipes.
+                if not communicate_completed and sampler.poll() is None:
+                    sampler_reaped, cleanup_error_type = kill_and_reap_sampler(sampler, 0.5)
+                    cleanup_failed = not sampler_reaped
+            except Exception as error:
+                cleanup_failed = True
+                cleanup_error_type = type(error).__name__
+            finally:
+                for stream in (sampler.stdout, sampler.stderr):
+                    if stream is not None:
+                        try:
+                            stream.close()
+                        except Exception as error:
+                            cleanup_failed = True
+                            cleanup_error_type = type(error).__name__
+        if sampler is not None and sampler.poll() is not None:
+            live, scan_failures = process_group_has_live_members(sampler.pid)
+            if not live and not scan_failures:
+                registry_event("unregister", sampler.pid, "rss_sampler")
+    return result + (sampler, cleanup_failed, cleanup_error_type,
+                     sampler.returncode if sampler is not None else None,
+                     communicate_completed)
+
+
+def terminate_group(pgid, log, reason):
+    # Cleanup must not depend on the watchdog log being writable (e.g. disk full).
+    try:
+        log.write(json.dumps({"event": "terminate", "reason": reason,
+                              "time_epoch": time.time(), "pgid": pgid}) + "\n")
+        log.flush()
+    except Exception:
+        pass
+    try:
+        os.killpg(pgid, signal.SIGTERM)
+    except ProcessLookupError:
+        return True
+    except OSError:
+        return False
+    deadline = time.monotonic() + 60
+    while time.monotonic() < deadline:
+        try:
+            members, scan_failures = group_members(pgid)
+        except Exception:
+            # Keep the final KILL deadline even when /proc enumeration fails.
+            time.sleep(1)
+            continue
+        if not scan_failures and (not members or all(state == "Z" for _, state, _ in members)):
+            registry_event("unregister", pgid, reason)
+            return True
+        time.sleep(1)
+    try:
+        os.killpg(pgid, signal.SIGKILL)
+    except ProcessLookupError:
+        registry_event("unregister", pgid, reason)
+        return True
+    except OSError:
+        return False
+    reap_deadline = time.monotonic() + 5
+    while time.monotonic() < reap_deadline:
+        try:
+            members, scan_failures = group_members(pgid)
+        except Exception:
+            time.sleep(0.1)
+            continue
+        if not scan_failures and (not members or all(state == "Z" for _, state, _ in members)):
+            registry_event("unregister", pgid, reason)
+            return True
+        time.sleep(0.1)
+    return False
+
+
+def request_stop(signum, frame):
+    STOP_REQUESTED.append(signum)
+
+
+def read_timing_stages(path):
+    opener = gzip.open if path.endswith(".gz") else open
+    with opener(path, "rt") as handle:
+        check_wall_deadline()
+        header = handle.readline().rstrip("\r\n").split("\t")
+        if header != ["stage", "seconds"]:
+            raise RuntimeError("timing TSV header is invalid")
+        stages = []
+        for line in handle:
+            check_wall_deadline()
+            if not line.strip():
+                continue
+            fields = line.rstrip("\r\n").split("\t")
+            if len(fields) != 2:
+                raise RuntimeError("malformed timing TSV row")
+            seconds = float(fields[1])
+            if not math.isfinite(seconds) or seconds < 0:
+                raise RuntimeError("negative timing duration")
+            stages.append(fields[0])
+    return stages
+
+
+def preflight():
+    if STOP_REQUESTED:
+        raise RuntimeError("stop requested before preflight")
+    if socket.gethostname().split(".")[0] not in ("rcGPUs", "rcapps3"):
+        raise RuntimeError("must run only on the rcapps3/rcGPUs x86_64 host")
+    if os.uname()[4] != "x86_64":
+        raise RuntimeError("the prepared R runtime requires x86_64")
+    try:
+        with open("/proc/self/status", "r") as handle:
+            parse_vmrss_kb(handle)
+    except (IOError, OSError, ValueError) as error:
+        raise RuntimeError("process-group VmRSS monitor unavailable: " + str(error))
+    allowed = sorted(os.sched_getaffinity(0))
+    if len(allowed) < len(CPUS):
+        raise RuntimeError("fewer than %d CPUs are available to this process" % len(CPUS))
+    with open("/proc/meminfo", "r") as handle:
+        mem_available = [line for line in handle if line.startswith("MemAvailable:")]
+    if not mem_available or int(mem_available[0].split()[1]) < 256 * 1024 * 1024:
+        raise RuntimeError("less than 256 GiB MemAvailable; refusing to start")
+    require_file(BED)
+    require_file(FRAGS)
+    require_file(RUNNER)
+    require_file(RUNNER_HELPER)
+    require_file(RSCRIPT)
+    require_file(os.path.join(SHARED, "precomputedTn5Bias", "hg38Tn5Bias.h5"))
+    for radius in (10, 20):
+        require_file(os.path.join(SHARED, "dispModel", "dispersionModel%dbp.rds" % radius))
+    if os.path.exists(OUTPUT_DIR):
+        raise RuntimeError("refusing to reuse output directory: " + OUTPUT_DIR)
+    if sha256(BED) != BED_SHA256:
+        raise RuntimeError("frozen peak BED SHA-256 mismatch")
+    if sha256(RUNNER) != RUNNER_SHA256:
+        raise RuntimeError("reviewed run_print.R SHA-256 mismatch")
+    if sha256(RUNNER_HELPER) != RUNNER_HELPER_SHA256:
+        raise RuntimeError("reviewed PRINT variable-width helper SHA-256 mismatch")
+    commit = bounded_check_output(["git", "-C", PRINT_REPO, "rev-parse", "HEAD"],
+                                  universal_newlines=True).strip()
+    dirty = bounded_check_output(["git", "-C", PRINT_REPO, "status", "--porcelain"],
+                                 universal_newlines=True)
+    if commit != PRINT_REPO_COMMIT or dirty.strip():
+        raise RuntimeError("PRINT source checkout is not the reviewed clean commit")
+    module_hashes = {}
+    for filename, expected in PRINT_MODULE_SHA256.items():
+        module_path = os.path.join(PRINT_REPO, "code", filename)
+        require_file(module_path)
+        module_hashes[filename] = sha256(module_path)
+        if module_hashes[filename] != expected:
+            raise RuntimeError("PRINT module SHA-256 mismatch: " + filename)
+    fragment_hash = sha256(FRAGS)
+    bias_path = os.path.join(SHARED, "precomputedTn5Bias", "hg38Tn5Bias.h5")
+    bias_hash = sha256(bias_path)
+    model_hashes = {str(r): sha256(os.path.join(SHARED, "dispModel", "dispersionModel%dbp.rds" % r)) for r in (10, 20)}
+    if fragment_hash != FRAGS_SHA256:
+        raise RuntimeError("frozen fragment file SHA-256 mismatch")
+    if bias_hash != BIAS_H5_SHA256:
+        raise RuntimeError("frozen hg38 bias model SHA-256 mismatch")
+    for radius in (10, 20):
+        if model_hashes[str(radius)] != MODEL_SHA256[radius]:
+            raise RuntimeError("frozen dispersion model SHA-256 mismatch at radius %d" % radius)
+    frozen_hashes = {"bed_sha256": BED_SHA256, "fragments_sha256": fragment_hash,
+                     "runner_sha256": sha256(RUNNER),
+                     "runner_helper_sha256": sha256(RUNNER_HELPER),
+                     "print_repo_commit": commit, "print_module_sha256": module_hashes,
+                     "bias_h5_sha256": bias_hash,
+                     "dispersion_model_sha256": model_hashes}
+    env = os.environ.copy()
+    env["R_LIBS"] = RLIBS
+    probe = [RSCRIPT, "-e", "stopifnot(requireNamespace('cladoRcpp',quietly=TRUE),requireNamespace('GenomicRanges',quietly=TRUE),requireNamespace('data.table',quietly=TRUE),requireNamespace('rhdf5',quietly=TRUE))"]
+    bounded_check_call(probe, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    preflight_facts = {"mem_available_kb": int(mem_available[0].split()[1]),
+                       "load_average": list(os.getloadavg()),
+                       "allowed_cpu_ids": allowed,
+                       "rss_backend": "/proc/<pid>/status VmRSS summed across sampled process-group members",
+                       "rss_is_approximate_soft_stop_not_hard_limit": True,
+                       "rss_sample_interval_seconds": SAMPLE_SECONDS,
+                       "rss_sample_deadline_seconds": SAMPLE_BUDGET_SECONDS}
+    preflight_facts["r_version"] = bounded_check_output(
+        [RSCRIPT, "--version"], stderr=subprocess.STDOUT,
+        universal_newlines=True).strip()
+    preflight_facts["supervisor_sha256"] = sha256(os.path.abspath(__file__))
+    return allowed[:len(CPUS)], frozen_hashes, preflight_facts
+
+
+def main():
+    if len(sys.argv) == 3 and sys.argv[1] == "--sample-pgid":
+        try:
+            return sample_helper(int(sys.argv[2]))
+        except Exception as error:
+            sys.stderr.write(str(error) + "\n")
+            return 2
+    signal.signal(signal.SIGTERM, request_stop)
+    signal.signal(signal.SIGINT, request_stop)
+    os.makedirs(ROOT, mode=0o700, exist_ok=True)
+    log_path = os.path.join(ROOT, "watchdog.jsonl")
+    with open(log_path, "a") as log:
+        started_monotonic = time.monotonic()
+        if RUN_DEADLINE_MONOTONIC is None:
+            deadline = started_monotonic + MAX_WALL_SECONDS
+        else:
+            deadline = RUN_DEADLINE_MONOTONIC
+        process = None
+        pgid = None
+        cleanup_needed = False
+        reason = "normal_exit"
+        peak_rss = 0
+        try:
+            if STOP_REQUESTED:
+                raise RuntimeError("stop requested before preflight")
+            check_wall_deadline()
+            cpus, frozen_hashes, preflight_facts = preflight()
+            check_wall_deadline()
+            preflight_seconds = time.monotonic() - started_monotonic
+            os.makedirs(OUTPUT_DIR, mode=0o700, exist_ok=False)
+            prefix = os.path.join(OUTPUT_DIR, "print")
+            environment = os.environ.copy()
+            environment.update({"R_LIBS": RLIBS, "OMP_NUM_THREADS": "1",
+                                "OPENBLAS_NUM_THREADS": "1", "MKL_NUM_THREADS": "1",
+                                "NUMEXPR_NUM_THREADS": "1", "CUDA_VISIBLE_DEVICES": "",
+                                "PRINT_DIRECT_COMPARE": os.environ.get("PRINT_DIRECT_COMPARE", "0")})
+            command = ["/usr/bin/time", "-v", "/usr/bin/taskset", "-c",
+                       ",".join(str(cpu) for cpu in cpus), RSCRIPT, RUNNER,
+                       PRINT_REPO, SHARED, BED, FRAGS, prefix, str(len(cpus)), "10,20"]
+            os.makedirs(os.path.join(ROOT, "runlogs"), mode=0o700, exist_ok=True)
+            stdout_path = os.path.join(ROOT, "runlogs", "caller.stdout")
+            time_path = os.path.join(ROOT, "runlogs", "gnu_time.stderr")
+            with open(stdout_path, "wb") as stdout, open(time_path, "wb") as stderr:
+                if STOP_REQUESTED:
+                    raise RuntimeError("stop requested before caller launch")
+                check_wall_deadline()
+                process = start_registered_process(command, "print_caller",
+                                                    stdout=stdout, stderr=stderr,
+                                                    env=environment)
+                caller_started_monotonic = time.monotonic()
+                pgid = process.pid
+                cleanup_needed = True
+                peak_rss = 0
+                failures_in_row = 0
+                reason = "normal_exit"
+                next_sample_due = time.monotonic()
+                while True:
+                    if STOP_REQUESTED:
+                        reason = "signal_%d" % STOP_REQUESTED[-1]
+                        terminate_group(pgid, log, reason)
+                        cleanup_needed = False
+                        break
+                    sample_started = time.monotonic()
+                    interval_overrun = sample_started - next_sample_due
+                    (members, rss_kb, failures, sample_elapsed, sampler,
+                     sampler_cleanup_failed, sampler_cleanup_error_type,
+                     sampler_returncode, sampler_communicate_completed) = timed_group_vmrss(
+                         pgid, SAMPLE_BUDGET_SECONDS)
+                    next_sample_due += SAMPLE_SECONDS
+                    if interval_overrun > MAX_SAMPLE_INTERVAL_OVERRUN_SECONDS:
+                        failures.append(-5)  # fixed start-to-start cadence was missed
+                        rss_kb = None
+                    if sample_elapsed > SAMPLE_BUDGET_SECONDS:
+                        failures.append(-6)  # a late helper result is not a valid sample
+                        rss_kb = None
+                    if sampler_cleanup_failed:
+                        failures.append(-7)  # helper still alive after bounded cleanup
+                        rss_kb = None
+                    if process.poll() is None and not members:
+                        failures.append(-1)  # process group vanished while caller is alive
+                    elif process.poll() is None and process.pid not in {pid for pid, _, _ in members}:
+                        failures.append(process.pid)  # cannot account for the group leader
+                    if failures:
+                        failures_in_row += 1
+                    else:
+                        failures_in_row = 0
+                    if rss_kb is not None and not failures:
+                        peak_rss = max(peak_rss, rss_kb)
+                    log.write(json.dumps({"event": "sample", "time_epoch": time.time(),
+                                          "pgid": pgid, "pids": [p for p, _, _ in members],
+                                          "rss_kb": rss_kb, "peak_rss_kb": peak_rss,
+                                          "rss_backend": "status:VmRSS-sum",
+                                          "rss_soft_stop_not_hard_limit": True,
+                                          "sample_elapsed_seconds": sample_elapsed,
+                                          "sample_interval_overrun_seconds": interval_overrun,
+                                          "sampler_cleanup_failed": sampler_cleanup_failed,
+                                          "sampler_cleanup_error_type": sampler_cleanup_error_type,
+                                          "sampler_returncode": sampler_returncode,
+                                          "sampler_communicate_completed": sampler_communicate_completed,
+                                          "sample_failures": failures}) + "\n")
+                    log.flush()
+                    if sampler_cleanup_failed:
+                        reason = "rss_sampler_unreaped"
+                        terminate_group(pgid, log, reason)
+                        cleanup_needed = False
+                        (sampler_reaped, sampler_reap_error_type) = (True, None)
+                        if sampler is not None:
+                            sampler_reaped, sampler_reap_error_type = kill_and_reap_sampler(sampler, 0.5)
+                        if not sampler_reaped:
+                            try:
+                                log.write(json.dumps({"event": "sampler_reap_failed",
+                                                      "sampler_pid": sampler.pid,
+                                                      "sampler_returncode": sampler.returncode,
+                                                      "sampler_cleanup_error_type": sampler_reap_error_type,
+                                                      "time_epoch": time.time()}) + "\n")
+                                log.flush()
+                            except Exception:
+                                pass
+                        break
+                    if rss_kb is not None and rss_kb >= RSS_SOFT_STOP_KB:
+                        soft_stop_gib = RSS_SOFT_STOP_KB // (1024 * 1024)
+                        reason = "process_group_sampled_vmrss_soft_stop_%d_gib" % soft_stop_gib
+                        terminate_group(pgid, log, reason)
+                        break
+                    if failures_in_row >= 3:
+                        reason = "three_consecutive_rss_sampling_failures"
+                        terminate_group(pgid, log, reason)
+                        break
+                    if time.monotonic() >= deadline:
+                        reason = "wall_timeout_%d_seconds" % MAX_WALL_SECONDS
+                        terminate_group(pgid, log, reason)
+                        break
+                    if process.poll() is not None:
+                        members, scan_failures = group_members(pgid)
+                        if scan_failures:
+                            reason = "process_group_enumeration_failed_after_main_exit"
+                            terminate_group(pgid, log, reason)
+                            cleanup_needed = False
+                            break
+                        if not members or all(state == "Z" for _, state, _ in members):
+                            cleanup_needed = False
+                            break
+                        reason = "orphaned_process_group_after_main_exit"
+                        terminate_group(pgid, log, reason)
+                        cleanup_needed = False
+                        break
+                    sleep_seconds = next_sample_due - time.monotonic()
+                    if sleep_seconds > 0:
+                        time.sleep(sleep_seconds)
+                return_code = process.wait()
+                cleanup_needed = False
+                members, scan_failures = group_members(pgid)
+                if not scan_failures and (not members or all(state == "Z" for _, state, _ in members)):
+                    registry_event("unregister", pgid, "print_caller")
+                caller_elapsed = time.monotonic() - caller_started_monotonic
+            summary = {"run_id": RUN_ID, "host": socket.gethostname(),
+                       "architecture": os.uname()[4], "cpus": cpus, "workers": len(cpus),
+                       "radii_bp": [10, 20], "caller_exit": return_code,
+                       "stop_reason": reason,
+                       "watchdog_peak_sampled_process_group_vmrss_kb": peak_rss,
+                       "watchdog_soft_stop_gib": RSS_SOFT_STOP_KB // (1024 * 1024),
+                       "watchdog_is_hard_task_memory_limit": False,
+                       "wall_limit_seconds": MAX_WALL_SECONDS,
+                       "preflight_seconds": preflight_seconds,
+                       "caller_wall_seconds_including_time_wrapper": caller_elapsed,
+                       "bed_path": BED, "fragments_path": FRAGS, "runner_path": RUNNER,
+                       "runner_helper_path": RUNNER_HELPER,
+                       "output_prefix": prefix, "output_dir": OUTPUT_DIR,
+                       "watchdog_path": log_path, "gnu_time_path": time_path,
+                       "caller_stdout_path": stdout_path,
+                       "preflight_facts": preflight_facts}
+            summary.update(frozen_hashes)
+            for radius in (10, 20):
+                for suffix in (".r%d.track.tsv.gz" % radius, ".r%d.native_events.bed" % radius):
+                    path = prefix + suffix
+                    if os.path.isfile(path):
+                        summary[path] = {"bytes": os.path.getsize(path), "sha256": sha256(path),
+                                         "rows": line_count(path)}
+            timing_path = prefix + ".timing.tsv"
+            if os.path.isfile(timing_path):
+                summary[timing_path] = {"bytes": os.path.getsize(timing_path), "sha256": sha256(timing_path),
+                                        "rows": line_count(timing_path)}
+            required_outputs = [prefix + ".r%d.track.tsv.gz" % radius for radius in (10, 20)]
+            required_outputs.extend([prefix + ".r%d.native_events.bed" % radius for radius in (10, 20)])
+            required_outputs.append(timing_path)
+            missing_outputs = [path for path in required_outputs if not os.path.isfile(path)]
+            track_validation = {}
+            track_errors = []
+            event_validation = {}
+            for radius in (10, 20):
+                path = prefix + ".r%d.track.tsv.gz" % radius
+                if os.path.isfile(path):
+                    try:
+                        track_validation[path] = {"data_rows": validate_track(path)}
+                    except Exception as validation_error:
+                        track_errors.append({"path": path, "error": str(validation_error)})
+                event_path = prefix + ".r%d.native_events.bed" % radius
+                if os.path.isfile(event_path):
+                    try:
+                        event_validation[event_path] = {"rows_validated": validate_event_bed(event_path)}
+                    except Exception as validation_error:
+                        track_errors.append({"path": event_path, "error": str(validation_error)})
+            empty_tracks = [prefix + ".r%d.track.tsv.gz" % radius for radius in (10, 20)
+                            if os.path.isfile(prefix + ".r%d.track.tsv.gz" % radius)
+                            and track_validation.get(prefix + ".r%d.track.tsv.gz" % radius, {}).get("data_rows", 0) < 1]
+            timing_rows = summary.get(timing_path, {}).get("rows", 0)
+            timing_stages = read_timing_stages(timing_path) if os.path.isfile(timing_path) else []
+            missing_timing_stages = timing_stage_gaps(timing_stages)
+            summary["required_output_files_valid"] = (not missing_outputs and not empty_tracks
+                                                       and timing_rows >= 2
+                                                       and not missing_timing_stages
+                                                       and not track_errors)
+            summary["missing_outputs"] = missing_outputs
+            summary["empty_score_tracks"] = empty_tracks
+            summary["missing_timing_stages"] = missing_timing_stages
+            summary["score_track_validation"] = track_validation
+            summary["native_event_validation"] = event_validation
+            summary["score_track_errors"] = track_errors
+            with open(os.path.join(ROOT, "summary.json"), "w") as handle:
+                json.dump(summary, handle, indent=2, sort_keys=True)
+                handle.write("\n")
+            print(json.dumps(summary, sort_keys=True))
+            if reason != "normal_exit":
+                return 124
+            if return_code == 0 and not summary["required_output_files_valid"]:
+                return 3
+            return return_code
+        except Exception as error:
+            if cleanup_needed and pgid is not None:
+                terminate_group(pgid, log, "supervisor_exception")
+                cleanup_needed = False
+            if process is not None:
+                try:
+                    process.wait(timeout=65)
+                except subprocess.TimeoutExpired:
+                    terminate_group(pgid, log, "child_reap_timeout")
+                    try:
+                        process.wait(timeout=5)
+                    except Exception:
+                        pass
+            log.write(json.dumps({"event": "preflight_or_supervisor_error",
+                                  "error": str(error), "time_epoch": time.time(),
+                                  "signal_requested": STOP_REQUESTED}) + "\n")
+            log.flush()
+            print("FAIL_CLOSED: " + str(error), file=sys.stderr)
+            return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main())

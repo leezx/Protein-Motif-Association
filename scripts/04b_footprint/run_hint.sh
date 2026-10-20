@@ -15,6 +15,7 @@ pids=(); chunks=()
 for f in "$CHUNK_DIR"/r_*; do
   [ -f "$f" ] || continue
   chunks+=("$f")
+  mkdir -p "$f.out"
   ( "$B/rgt-hint" footprinting --atac-seq --paired-end --organism=hg38 --output-location="$f.out" --output-prefix=fp \
       "$BAM" "$f" > "$f.log" 2>&1 ) &
   pids+=("$!")

@@ -15,7 +15,7 @@ import sys
 import time
 
 
-RUN_ID = "BG_K562_PRINT_FULLPEAK_20261020_V5"
+RUN_ID = "BG_K562_PRINT_FULLPEAK_20261020_V6"
 RUNNER_SHA256 = "3b658a2021d13278f9b5e46e7aba2426613a1a53d71d52bd7fd6ee617489a966"
 BED_SHA256 = "c0c1d0b5350a962b9d7a7f1d2edef1ca98005029c79f07979533f3a14cb40945"
 FRAGS_SHA256 = "238367780a1b7a2a24595a4259bdbe91cb8be439c2e5fda210831ad60d77544f"
@@ -24,8 +24,8 @@ MODEL_SHA256 = {
     10: "c0cd01806684784abc0cb6894e6cfcd0234704f88baf3045121a2b6e07737414",
     20: "1413478ee5dfef1655a419adf67ef18b503d7bcd4c82273c4c5c0f485cf2d0b3",
 }
-ROOT = "/home/zz950/PMA_fetch/pma_print_fullpeak_rcapps3_20261020_v5"
-OUTPUT_DIR = "/home/zz950/DATA/2.PROJECTS/PMA/atac_footprint/processed/round1/runs_print_fullpeak_rcapps3_20261020_v5"
+ROOT = "/home/zz950/PMA_fetch/pma_print_fullpeak_rcapps3_20261020_v6"
+OUTPUT_DIR = "/home/zz950/DATA/2.PROJECTS/PMA/atac_footprint/processed/round1/runs_print_fullpeak_rcapps3_20261020_v6"
 PRINT_REPO = "/home/zz950/softwares/src/PRINT"
 PRINT_REPO_COMMIT = "8dad7317c3a640454a191dba2acd138e6edc54ac"
 PRINT_MODULE_SHA256 = {
@@ -42,8 +42,8 @@ RSCRIPT = "/home/zz950/softwares/miniconda3/envs/r4p3/bin/Rscript"
 RLIBS = ":".join(("/home/zz950/PMA_fetch/pma_r_print_overlay_v1/lib",
                    "/home/zz950/softwares/R_lib_tracebind",
                    "/home/zz950/softwares/R_lib_4"))
-CPUS = list(range(4))
-RSS_SOFT_STOP_KB = 64 * 1024 * 1024
+CPUS = list(range(1))
+RSS_SOFT_STOP_KB = 40 * 1024 * 1024
 MAX_WALL_SECONDS = 24 * 60 * 60
 SAMPLE_SECONDS = 2
 SAMPLE_BUDGET_SECONDS = 1.5
@@ -347,7 +347,7 @@ def preflight():
         raise RuntimeError("process-group VmRSS monitor unavailable: " + str(error))
     allowed = sorted(os.sched_getaffinity(0))
     if len(allowed) < len(CPUS):
-        raise RuntimeError("fewer than 16 CPUs are available to this process")
+        raise RuntimeError("fewer than %d CPUs are available to this process" % len(CPUS))
     with open("/proc/meminfo", "r") as handle:
         mem_available = [line for line in handle if line.startswith("MemAvailable:")]
     if not mem_available or int(mem_available[0].split()[1]) < 256 * 1024 * 1024:
@@ -443,7 +443,7 @@ def main():
                                 "NUMEXPR_NUM_THREADS": "1", "CUDA_VISIBLE_DEVICES": ""})
             command = ["/usr/bin/time", "-v", "/usr/bin/taskset", "-c",
                        ",".join(str(cpu) for cpu in cpus), RSCRIPT, RUNNER,
-                       PRINT_REPO, SHARED, BED, FRAGS, prefix, "4", "10,20"]
+                       PRINT_REPO, SHARED, BED, FRAGS, prefix, "1", "10,20"]
             os.makedirs(os.path.join(ROOT, "runlogs"), mode=0o700, exist_ok=True)
             stdout_path = os.path.join(ROOT, "runlogs", "caller.stdout")
             time_path = os.path.join(ROOT, "runlogs", "gnu_time.stderr")
@@ -556,7 +556,7 @@ def main():
                 cleanup_needed = False
                 caller_elapsed = time.time() - caller_started
             summary = {"run_id": RUN_ID, "host": socket.gethostname(),
-                       "architecture": os.uname()[4], "cpus": cpus, "workers": 4,
+                       "architecture": os.uname()[4], "cpus": cpus, "workers": 1,
                        "radii_bp": [10, 20], "caller_exit": return_code,
                        "stop_reason": reason,
                        "watchdog_peak_sampled_process_group_vmrss_kb": peak_rss,

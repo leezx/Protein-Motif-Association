@@ -1,5 +1,11 @@
 # CURRENT OPERATIVE FOOTPRINT TASK — 2026-10-20 07:54 EDT
 
+## Current candidate — V6 single-worker PRINT, awaiting fixed-PMA exact-head review
+
+The user continued to request lower resource use and a usable full-peak PRINT run. The next same-PR candidate preserves all159,628 K562 peaks, radii10/20, frozen inputs, PRINT version and CPU-only mode; it reduces workers4→1 and sampled process-group VmRSS soft-stop40 GiB. This tests whether parallel worker memory caused V5's abrupt RSS jump; that is a hypothesis, not an established cause or a guarantee of completion. The soft-stop remains sampled, not a hard task cap; the immutable gate retains per-process44-GiB RLIMIT_AS. Unique V6 evidence/output paths end in `_20261020_v6`.
+
+V6 has not run or been remotely preflighted. PR #8 must receive exact-current-head L1/L2 `APPROVE` and explicit authorization for exactly one V6 attempt in the fixed PMA project conversation. If approved, all fresh Argos input/model/source/gate/hash, dependency, output-path, resource and process checks must pass before launch. Failure is preserved; no retry. No accuracy, motif, other caller, ChIP/PR #7, or merge.
+
 ## Latest PRINT attempt — V5 resource-reduced run stopped; no valid footprint output
 
 PR #8 remains OPEN/unmerged at code HEAD `9a1abbd86c44179b993d99ef875446e3fa164f9d`, which received fixed-PMA exact-head `APPROVE` and explicit authorization for exactly one V5 attempt. On `rcapps3`, the final preflight passed at 07:50:46 EDT: x86_64, 72 CPUs/affinity 0–71, 969,867,212 kB MemAvailable, V5 paths/status absent, no matching process, all frozen peak/fragments/bias/model/PRINT module/gate/runner/supervisor hashes matched, pinned PRINT checkout clean, and R 4.2.2 dependencies available. The manual preflight rehash took about 150 s; the supervisor's in-gate preflight took 112.5545 s. These are setup/validation, not caller runtime.

@@ -1130,3 +1130,9 @@ The fixed `PMA｜固定阶段审核` conversation reviewed exact PR #8 HEAD `3fa
 - L2 is `BLOCKED / UNVERIFIED-critical`: actual HDF5 extraction, PRINT S4 replacement behavior, parallel full-caller integration, and actual result dimensions are not verified. The synthetic regression addresses only the full-source rebinding bug; it is not end-to-end evidence.
 - Review explicitly authorizes no Argos access, preflight, V7 run, or merge. V6 one-shot authorization is consumed; no new V7 authorization was given. No remote access or computation occurred.
 - Follow-up documentation/PR text will record this review as a docs-only amendment; code hashes remain runner `199e329bf7b9f26148ac51f4403e01663099c052193ab64a5f82d82b1de36968`, helper `ef0cb4dafbf883e6ac61dfe1ab0ad97f91cd92aafe51abab2132ada5f9cb0835`, supervisor `c4c54bc19e24d649eae1e84b14f2a64b1a85af36260b55a576876b36e115a4e1`.
+
+## 2026-10-20 09:50 EDT — fixed-PMA audit update review
+
+- Fixed PMA verified live PR #8 HEAD `04569d1e2992af6e9e0630c985ed83997a14630d`, OPEN/unmerged; since implementation review HEAD `4d6bc67`, only three documentation files changed.
+- L1: no blocker; the `full_count_tensor` finding and `4d6bc67` code APPROVE were accurately recorded. L2 remains `BLOCKED / UNVERIFIED-critical` for real HDF5, PRINT S4, parallel end-to-end, and output-dimension validation. The audit review approved documentation only and explicitly did not authorize Argos, preflight, V7, or merge.
+- Reviewer noted the `CODEX_HANDOFF` status heading still said “local and unreviewed”; corrected in this follow-up docs-only update. No code or tests changed, and no remote execution occurred.

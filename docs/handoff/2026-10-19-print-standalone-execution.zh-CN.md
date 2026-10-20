@@ -1,5 +1,7 @@
 # Step 4b PRINT 全峰集执行交接
 
+> **当前门禁（2026-10-19 23:52 EDT）：V1 已在 rcapps3 做过且仅做过一次尝试，因监督器回收状态缺陷在 PRINT 分析开始前安全退出。下文“V1 历史执行计划”中的 V1 路径、哈希和命令仅用于审计，严禁复制或重跑。当前候选只有 V2：`BG_K562_PRINT_FULLPEAK_20261020_V2`，launcher SHA256 `88dc0c8c8206c9e1ed04b40c455a64957d2f4e10ebd551f5fa0f1daa79c85c0d`；该修订刚修正 `cleanup_failed = not sampler_reaped`，尚未获固定 `PMA｜固定阶段审核` 对话对当前 HEAD 的批准，尚未同步或运行。只有该固定 PMA 对话对当前完整 PR HEAD 明确 APPROVE 并允许一次 V2 尝试后，才可重新做 fresh preflight、同步和启动。**
+
 ## 目标与边界
 
 本轮只在同一样本 K562 `ENCSR868FGK` 的完整原始 ENCODE ATAC IDR peak 区间上运行 PRINT，使用固定的两个尺度 `10,20`、16 个 CPU worker，输出原生逐位点 track 和事件 BED，并记录时间、CPU、内存、退出码、行数和哈希。本轮只评估计算时间/资源和输出规模，不排名准确度，不发现 motif，不运行其他 caller，不优化/C++ 移植，不触碰 Claude 负责的 ChIP BED6/PR #7，不合并 PR #8。
@@ -14,7 +16,7 @@
 - `rcapps3` 于 23:02 EDT 有 917 GiB 可用、72 核、负载 51.1；R 4.2.2 与 `cladoRcpp`、`GenomicRanges`、`data.table`、`rhdf5` 通过只读 namespace 检查，固定输出目录未存在。正式启动前刷新资源；若不足则暂停。
 - 已检查 `rcapps3` 与 `rcapps8` 的登录和系统资源。未提交 QSUB。
 
-## 执行前门禁与拟定命令
+## V1 历史执行计划（不可执行；仅保留审计记录）
 
 之前 PR #8 HEAD `1664b565c7e52928b2d05f789e2887bcca05a3a7` 的 GPT 批准仅覆盖任务定义/文档，明确不授权计算。随后用户明确授权在 QSUB 不可用时直登 standalone 节点；因此已在同一 PR 更新为 rcapps3 方案。当前 launcher、路径、模型和输入 hash 的完整 execution scope 须先获固定 PMA 对话 `PMA｜固定阶段审核` exact-head APPROVE；只有当前完整 HEAD 获 APPROVE 后才能运行 caller。
 
@@ -53,6 +55,11 @@ On `rcapps3`, launched exactly one approved gate `BG_K562_PRINT_FULLPEAK_2026102
 
 The fixed PMA conversation assessed the most likely cause as the supervisor calling `communicate()` a second time in `finally` after its first call had already returned and reaped the sampler. A repeated call on closed pipes may throw; the broad exception handler then incorrectly marked the helper unreaped. The recorded 0.150-s elapsed sample and immediate caller termination are consistent with this, but the run log lacks the original exception type, so the root cause is not proven. Minimal same-PR repair: record successful communication, skip all duplicate communication after success, use bounded `wait()` after SIGKILL, close pipes, and log cleanup error type, return code, and whether communication completed. V1 repair supervisor SHA256 was `7426bc50604a11fdd0dff0a620383026adbb69f4f3ecd3d0cb05fdc89a0796e6`; the current candidate additionally uses fresh V2 run/log/output paths and has supervisor SHA256 `99388372316954d701a4d32646da0f8b824c838a567d17ed63fa212d519cd123`. Local syntax compile and `git diff --check` pass. No remote diagnostic, environment change or V2 run. The V1 one-attempt approval has been consumed; V2 requires exact-head review in the fixed PMA conversation with explicit approval for one new single attempt.
 
-## 2026-10-19 23:50 EDT — V2 attempt definition awaiting exact-head approval
+## 2026-10-19 23:50 EDT — V2 初始候选记录（历史版本；不可执行）
 
 To preserve V1 failure evidence, the candidate supervisor now pins a unique V2 gate ID `BG_K562_PRINT_FULLPEAK_20261020_V2`, run root `/home/zz950/PMA_fetch/pma_print_fullpeak_rcapps3_20261020_v2/`, and output root `/home/zz950/DATA/2.PROJECTS/PMA/atac_footprint/processed/round1/runs_print_fullpeak_rcapps3_20261020_v2/`. Current supervisor SHA256 `99388372316954d701a4d32646da0f8b824c838a567d17ed63fa212d519cd123`. The same frozen sample, all 159,628 original peaks, PRINT-only radii 10/20, 16 CPUs and CPU-only design remain unchanged. V2 has not been copied to Argos or launched; exact-head review in the fixed PMA conversation must explicitly approve one new attempt.
+
+
+## 2026-10-19 23:52 EDT — corrected V2 candidate; exact-head review pending
+
+PMA exact-head review of the prior V2 candidate (`993883...`) found an L1 boolean inversion: `kill_and_reap_sampler()` returns `reaped`, but the caller treated it as `cleanup_failed`. Corrected to `cleanup_failed = not sampler_reaped`. Current local launcher SHA256 is `88dc0c8c8206c9e1ed04b40c455a64957d2f4e10ebd551f5fa0f1daa79c85c0d`. In-memory syntax compilation and `git diff --check` pass. The V1 plan, paths, hashes, and launch command above are historical and must not be run. Current V2 uses the unique V2 paths stated in the 23:50 historical entry. V2 has not been copied to Argos or launched. Await review of the final PR HEAD in the same fixed PMA project conversation and explicit approval for one attempt; do not run preflight-dependent setup, sync, or caller before that approval.

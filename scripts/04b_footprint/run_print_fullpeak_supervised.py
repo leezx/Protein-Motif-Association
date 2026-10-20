@@ -246,7 +246,8 @@ def timed_group_pss(pgid, timeout_seconds):
                 # A successful communicate() already waited for and reaped the
                 # helper. Do not communicate a second time on its closed pipes.
                 if not communicate_completed and sampler.poll() is None:
-                    cleanup_failed, cleanup_error_type = kill_and_reap_sampler(sampler, 0.5)
+                    sampler_reaped, cleanup_error_type = kill_and_reap_sampler(sampler, 0.5)
+                    cleanup_failed = not sampler_reaped
             except Exception as error:
                 cleanup_failed = True
                 cleanup_error_type = type(error).__name__

@@ -1,6 +1,39 @@
-# CURRENT OPERATIVE FOOTPRINT TASK — 2026-10-20 14:47 EDT
+# CURRENT OPERATIVE FOOTPRINT TASK — 2026-10-20 14:55 EDT
 
 ## PRINT pnorm diagnostic — completed; scientific gate BLOCKED
+
+### Fixed-PMA result review (2026-10-20 14:52 EDT)
+
+The fixed `PMA｜固定阶段审核` conversation reviewed the exact diagnostic result and returned
+`APPROVE` for recording this result, with L1 PASS limited to the bounded diagnostic, L2 BLOCKED,
+and L3 human acceptance pending. This is not approval to alter the scoring method, inspect remote
+model/cache inputs again, or run a follow-up. The user has separately authorized local PRINT-source
+modifications.
+
+The reviewer inspected the official PRINT source pinned at
+`8dad7317c3a640454a191dba2acd138e6edc54ac`. Its dispersion predictor has a ReLU hidden layer and
+an unconstrained linear output layer; de-standardized predicted SD is passed to `pnorm` without a
+nonnegative constraint. This establishes that the architecture permits negative SD. It does **not**
+establish that this is the cause of all 292 observed records: feature ordering, standardization,
+model export, and the exact forward calculation still need to be reconstructed against selected
+cached examples. The reviewer also confirmed that native PRINT replaces `NA` p-values with 1,
+which makes these positions least-significant/background in the caller; it does not make the
+underlying probability calculation valid.
+
+The next falsifiable check, if separately authorized for one read-only Argos run, is to select a
+negative-SD position and a nearby valid position from the same peak/radius/flank, then record raw
+five-feature inputs, standardized features, model identity/hash, feature and target order, scaling
+parameters, raw and de-standardized model outputs, boundary distance, left/right insertion totals,
+and native mask. Reconstruct the negative SD from those logged values within a declared tolerance.
+Do not clamp SD or change scoring. First inspect available historical logs for the old warning
+context mapping; do not repeat the eight-peak replay solely to reproduce the count 28. The 292
+records include repeated contexts and are not 292 unique genomic positions. Do not call the cases
+out-of-distribution until compared with training-feature ranges.
+
+This finding narrows the mechanism but leaves its concrete origin unresolved. Accuracy ranking and
+full-peak suitability remain blocked. Any remote/cache read or further computation requires a new
+precise scope and one-time release through the fixed PMA conversation; the prior diagnostic
+one-shot is consumed.
 
 The approved one-time diagnostic ran on Argos under gate ID
 `BG_K562_PRINT_PNORM_DIAG_20261020_V1`; gate status is `EXIT=0`, started at
@@ -51,8 +84,14 @@ stdout/stderr are retained beside them. No biological data or result files are i
   before any scale-up.
 - Trust: high for the recorded diagnostic observations and unchanged inputs; insufficient for
   biological interpretation or accuracy ranking.
-- Next: record/review this exact result in the fixed PMA project conversation and obtain a
-  methodologically sound next step before modifying PRINT scoring or running more data.
+- Next: an observation-only local forward-pass audit candidate now captures the predictor's
+  standardized five-feature input, weight tensors, standardized output, and model scales. For each
+  negative-SD pnorm call it selects one anomalous position and the nearest positive-SD comparator,
+  reconstructs both affine layers/ReLU/de-standardization, and compares the reconstruction with
+  native pnorm arguments. SHA-256: `8faca52a9bd02ff378190a20fd4768347a705438ac1a071b6b1d9fe532c1b165`.
+  It has not been executed or staged remotely. Keep scoring unchanged;
+  submit the exact implementation to the fixed PMA conversation before any remote cache read. Do
+  not reuse the consumed diagnostic gate.
 
 The earlier “implementation approved; execution packet under review” text immediately below is
 historical and superseded by this completed one-shot result.

@@ -11,6 +11,16 @@ sha256_file <- function(path) {
   strsplit(result[[1L]], "[[:space:]]+")[[1L]][[1L]]
 }
 
+sha256_object <- function(object) {
+  path <- tempfile("print-model-weights-")
+  on.exit(unlink(path), add = TRUE)
+  connection <- file(path, open = "wb")
+  on.exit(if (isOpen(connection)) close(connection), add = TRUE)
+  writeBin(serialize(object, NULL, version = 3L), connection)
+  close(connection)
+  sha256_file(path)
+}
+
 classify_pnorm_warning <- function(text) {
   if (identical(text, "NaNs produced")) return("PNORM_NANS_PRODUCED")
   "UNCLASSIFIED_WARNING"
@@ -77,7 +87,8 @@ run_with_integrity_guard <- function(thunk, audit) {
 
 make_diagnostic_scorers <- function(native_region_scorer, native_footprint_scorer,
                                     native_window_sum, state,
-                                    bulk_safe_wrapper = identity) {
+                                    bulk_safe_wrapper = identity,
+                                    capture_forward = FALSE) {
   assert_that(is.function(native_region_scorer) && is.function(native_footprint_scorer) &&
                 is.function(native_window_sum), "native PRINT scoring functions are required")
   if (is.null(state$completed_calls)) state$completed_calls <- list()
@@ -109,6 +120,20 @@ make_diagnostic_scorers <- function(native_region_scorer, native_footprint_score
   diagnostic_footprint_scorer <- native_footprint_scorer
   footprint_env <- new.env(parent = environment(native_footprint_scorer))
   footprint_env$pnorm <- pnorm_wrapper
+  if (capture_forward) {
+    native_predict_dispersion <- get("predictDispersion",
+                                     envir = environment(native_footprint_scorer),
+                                     inherits = TRUE)
+    footprint_env$predictDispersion <- function(x, modelWeights) {
+      value <- native_predict_dispersion(x, modelWeights)
+      current <- state$current_call
+      assert_that(!is.null(current), "dispersion predictor called outside tracked scorer")
+      current$scaled_features <- x
+      current$model_weights <- modelWeights
+      current$standardized_output <- value
+      value
+    }
+  }
   environment(diagnostic_footprint_scorer) <- footprint_env
 
   observed_footprint_scorer <- function(Tn5Insertion, Tn5Bias, dispersionModel,
@@ -122,6 +147,7 @@ make_diagnostic_scorers <- function(native_region_scorer, native_footprint_score
     state$current_call$flank_index <- 0L
     state$current_call$left_total <- window$center + window$leftFlank
     state$current_call$right_total <- window$center + window$rightFlank
+    state$current_call$dispersion_model <- dispersionModel
     state$current_call$warnings <- list(left = character(), right = character())
     state$current_call$inputs <- list()
     on.exit(state$current_call <- NULL, add = TRUE)
@@ -145,6 +171,7 @@ make_diagnostic_scorers <- function(native_region_scorer, native_footprint_score
 collect_call_rows <- function(call, context) {
   call_rows <- list()
   position_rows <- list()
+  forward_audit_rows <- list()
   for (flank in c("left", "right")) {
     values <- call$inputs[[flank]]
     if (is.null(values)) stop("missing native pnorm flank result")
@@ -193,6 +220,81 @@ collect_call_rows <- function(call, context) {
         warning_text = paste(call_warnings, collapse = " | "),
         stringsAsFactors = FALSE
       )
+      capture <- call$scaled_features
+      weights <- call$model_weights
+      model <- call$dispersion_model
+      standardized_output <- call$standardized_output
+      if (!is.null(capture) && !is.null(weights) && !is.null(model) &&
+          !is.null(standardized_output)) {
+        if (nrow(capture) != n || ncol(capture) != 5L || nrow(standardized_output) != n ||
+            ncol(standardized_output) != 4L) {
+          stop("captured PRINT dispersion matrices have unexpected dimensions")
+        }
+        # One anomalous location and the closest finite positive-SD comparator per pnorm call.
+        negative_sd_indices <- which(is.finite(values$sd) & values$sd <= 0)
+        if (!length(negative_sd_indices)) next
+        anomaly_index <- negative_sd_indices[[1L]]
+        valid <- which(is.finite(values$sd) & values$sd > 0 & is.finite(values$mean))
+        comparator <- if (length(valid)) valid[which.min(abs(valid - anomaly_index))] else NA_integer_
+        selected <- c(anomaly_index, comparator)
+        selected <- selected[!is.na(selected)]
+        weights_hash <- sha256_object(weights)
+        for (idx in selected) {
+          scaled <- as.numeric(capture[idx, , drop = TRUE])
+          raw_features <- scaled * as.numeric(model$featureSD) + as.numeric(model$featureMean)
+          layer1_linear <- as.numeric(scaled %*% weights[[1]]) + as.numeric(weights[[2]])
+          layer1_relu <- pmax(layer1_linear, 0)
+          reconstructed_standardized <- as.numeric(layer1_relu %*% weights[[3]]) +
+            as.numeric(weights[[4]])
+          reconstructed_unscaled <- reconstructed_standardized * as.numeric(model$targetSD) +
+            as.numeric(model$targetMean)
+          captured_unscaled <- as.numeric(standardized_output[idx, ]) *
+            as.numeric(model$targetSD) + as.numeric(model$targetMean)
+          comparison_error <- max(abs(reconstructed_unscaled - captured_unscaled))
+          flank_output_columns <- if (identical(flank, "left")) 1:2 else 3:4
+          scorer_error <- max(abs(reconstructed_unscaled[flank_output_columns] -
+                                    c(values$mean[idx], values$sd[idx])))
+          forward_audit_rows[[length(forward_audit_rows) + 1L]] <- data.frame(
+          peak_row = context$peak_row, chromosome = context$chromosome,
+          bed_start0 = context$start0, bed_end0 = context$end0,
+          radius = context$radius, scorer_pass = call$scorer_pass,
+          scorer_path = call$path, flank = flank,
+          role = if (idx == anomaly_index) "negative_sd" else "nearest_valid_sd",
+          local_position_1based = idx,
+          genomic_position_0based = context$start0 + idx - 1L,
+          distance_to_peak_left = idx - 1L,
+          distance_to_peak_right = n - idx,
+          left_total_insertion = call$left_total[idx],
+          right_total_insertion = call$right_total[idx],
+          native_zero_coverage_mask = mask[idx],
+          feature_order = "left_bias_sum;right_bias_sum;center_bias_sum;log10_left_total;log10_right_total",
+          target_order = "left_ratio_mean;left_ratio_sd;right_ratio_mean;right_ratio_sd",
+          weight_shapes = paste(vapply(weights, function(w) paste(dim(w), collapse = "x"),
+                                       character(1)), collapse = ";"),
+          feature_left_bias_sum = raw_features[[1L]],
+          feature_right_bias_sum = raw_features[[2L]],
+          feature_center_bias_sum = raw_features[[3L]],
+          feature_log10_left_total = raw_features[[4L]],
+          feature_log10_right_total = raw_features[[5L]],
+          scaled_features = paste(format(scaled, digits = 17), collapse = ";"),
+          feature_mean = paste(format(model$featureMean, digits = 17), collapse = ";"),
+          feature_sd = paste(format(model$featureSD, digits = 17), collapse = ";"),
+          weights_sha256 = weights_hash,
+          layer1_linear = paste(format(layer1_linear, digits = 17), collapse = ";"),
+          layer1_relu = paste(format(layer1_relu, digits = 17), collapse = ";"),
+          standardized_output = paste(format(standardized_output[idx, ], digits = 17), collapse = ";"),
+          reconstructed_standardized_output = paste(format(reconstructed_standardized, digits = 17), collapse = ";"),
+          target_mean = paste(format(model$targetMean, digits = 17), collapse = ";"),
+          target_sd = paste(format(model$targetSD, digits = 17), collapse = ";"),
+          reconstructed_unscaled_output = paste(format(reconstructed_unscaled, digits = 17), collapse = ";"),
+          captured_unscaled_output = paste(format(captured_unscaled, digits = 17), collapse = ";"),
+          scorer_mean = values$mean[idx], scorer_sd = values$sd[idx],
+          max_forward_reconstruction_abs_error = comparison_error,
+          max_scorer_output_abs_error = scorer_error,
+          stringsAsFactors = FALSE
+          )
+        }
+      }
     }
     if (length(call_warnings) && !length(indices)) {
       # Preserve a warning with no elementwise anomaly as an explicit row.
@@ -211,7 +313,8 @@ collect_call_rows <- function(call, context) {
       )
     }
   }
-  list(calls = call_rows, positions = position_rows)
+  list(calls = call_rows, positions = position_rows,
+       forward_audit = forward_audit_rows)
 }
 
 run_self_test <- function() {
@@ -416,9 +519,10 @@ main_impl <- function(args, audit) {
   state$completed_calls <- list()
   wrapped <- make_diagnostic_scorers(
     native_region, native_fp, native_window, state,
-    bulk_safe_wrapper = helper_env$make_bulk_safe_region_scorer
+    bulk_safe_wrapper = helper_env$make_bulk_safe_region_scorer,
+    capture_forward = TRUE
   )
-  call_rows <- list(); position_rows <- list()
+  call_rows <- list(); position_rows <- list(); forward_audit_rows <- list()
   event_rows <- vector("list", 2L)
   names(event_rows) <- c("10", "20")
   track_offsets <- cumsum(c(0L, head(bed_width, -1L)))
@@ -451,6 +555,7 @@ main_impl <- function(args, audit) {
           rows <- collect_call_rows(call, context)
           call_rows <- c(call_rows, rows$calls)
           position_rows <- c(position_rows, rows$positions)
+          forward_audit_rows <- c(forward_audit_rows, rows$forward_audit)
         }
         track <- track_data[[if (radius == 10L) 1L else 2L]]
         offset <- track_offsets[[peak]]
@@ -494,9 +599,27 @@ main_impl <- function(args, audit) {
 
   calls_table <- data.table::rbindlist(call_rows, fill = TRUE)
   positions_table <- data.table::rbindlist(position_rows, fill = TRUE)
+  forward_audit_table <- if (length(forward_audit_rows))
+    data.table::rbindlist(forward_audit_rows, fill = TRUE) else data.table::data.table()
   gate_summary <- summarize_diagnostic_gate(calls_table, positions_table)
+  forward_tolerance <- 1e-10
+  forward_reconstruction_error <- if (nrow(forward_audit_table) > 0L)
+    max(forward_audit_table$max_forward_reconstruction_abs_error) else Inf
+  scorer_reconstruction_error <- if (nrow(forward_audit_table) > 0L)
+    max(forward_audit_table$max_scorer_output_abs_error) else Inf
+  forward_reconstruction_gate <- if (is.finite(forward_reconstruction_error) &&
+                                        is.finite(scorer_reconstruction_error) &&
+                                        forward_reconstruction_error <= forward_tolerance &&
+                                        scorer_reconstruction_error <= forward_tolerance) {
+    "PASS_RECONSTRUCTED_SELECTED_ROWS"
+  } else {
+    "BLOCKED_RECONSTRUCTION_MISMATCH_OR_NO_ROWS"
+  }
   data.table::fwrite(calls_table, file.path(diagnostic_dir, "pnorm_calls.tsv"), sep = "\t", na = "NA")
   data.table::fwrite(positions_table, file.path(diagnostic_dir, "pnorm_positions.tsv"), sep = "\t", na = "NA")
+  data.table::fwrite(forward_audit_table,
+                     file.path(diagnostic_dir, "dispersion_forward_audit.tsv"),
+                     sep = "\t", na = "NA")
   manifest <- list(
     diagnostic = "PRINT pnorm observational replay on existing V5 eight-peak cache",
     print_commit = "8dad7317c3a640454a191dba2acd138e6edc54ac",
@@ -507,7 +630,12 @@ main_impl <- function(args, audit) {
     warning_muffling = FALSE, score_or_event_outputs_rewritten = FALSE,
     input_hashes_before_after_identical = TRUE,
     inputs = as.list(before_hashes),
-    diagnostic_outputs = list(calls = "pnorm_calls.tsv", positions = "pnorm_positions.tsv"),
+    diagnostic_outputs = list(calls = "pnorm_calls.tsv", positions = "pnorm_positions.tsv",
+                              forward_audit = "dispersion_forward_audit.tsv"),
+    forward_reconstruction_tolerance = forward_tolerance,
+    forward_reconstruction_gate = forward_reconstruction_gate,
+    forward_reconstruction_max_abs_error = forward_reconstruction_error,
+    scorer_reconstruction_max_abs_error = scorer_reconstruction_error,
     warning_counts_by_context_file = "pnorm_calls.tsv",
     warning_counts_are_not_claimed_to_reproduce_the_historical_v5_context = TRUE,
     historical_v5_warning_count_reference = 28L,

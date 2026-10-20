@@ -6,6 +6,8 @@
 
 PR #8 HEAD `819dfe44754536ffa07feb9dbff841e21ff9ca7e` 收到 `REQUEST_CHANGES`：不能称 12,838,026,244-byte HDF5 为“same-sample bias”，因为现有证据只证明它是预计算 hg38 Tn5-bias HDF5，未证明按 K562 样本校准。已在 `docs/CODEX_HANDOFF.md` 做唯一措辞修正，并明确不声称样本特异性校准。此文档修正不授权或解除计算门槛；QSUB 仍被 Argos 队列/PE/作业级内存配置阻塞。
 
+同一固定 PMA 对话已于 HEAD `9959384b2b7d56d949149c2a050b6fea7ed35dbc` 复审并 `APPROVE`，上一 finding 关闭，没有其他 L1/L2 例外。此批准只针对文档/范围，不批准 QSUB、PRINT、安装、PR #7 或合并。最新只读检查仍为 normal.q QERROR、0/32 available、无 PE；无分析运行。
+
 ## 目前已核实
 
 - 样本：K562 `ENCSR868FGK`，ATAC BAM `ENCFF534DCE.bam`；用户只要求本次计算时间/资源，K562 的 ENCODE nucleosome-free-fraction 警告意味着不得把本次结果写成准确度证据。

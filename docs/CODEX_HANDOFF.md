@@ -1,4 +1,4 @@
-# CURRENT OPERATIVE FOOTPRINT TASK — 2026-10-20 09:50 EDT
+# CURRENT OPERATIVE FOOTPRINT TASK — 2026-10-20 09:51 EDT
 
 ## Current status — V6 failed; PRINT width-group code review passed, integration remains blocked
 
@@ -11,6 +11,12 @@ Local checks passed: `Rscript tests/test_print_variable_width.R`, R parsing of r
 Candidate file hashes: runner `199e329bf7b9f26148ac51f4403e01663099c052193ab64a5f82d82b1de36968`; helper `ef0cb4dafbf883e6ac61dfe1ab0ad97f91cd92aafe51abab2132ada5f9cb0835`; supervisor `c4c54bc19e24d649eae1e84b14f2a64b1a85af36260b55a576876b36e115a4e1`. L1 is reviewed PASS at implementation HEAD `4d6bc67`; L2 remains BLOCKED because real HDF5/PRINT S4/parallel integration has not been run. The synthetic test now exercises two consecutive groups after global-project rebinding; local R/Python/runner checks pass. Since the exact-head review explicitly did not authorize Argos, no preflight or V7 is allowed from it. Future external execution still requires a fresh explicit one-run human authorization plus a valid stage gate.
 
 The earlier V6 failure and resource evidence remain below as historical run facts.
+
+### Proposed L2 integration smoke — fixed-PMA technical guidance only, not run approval
+
+Fixed PMA recommends one isolated 8-region smoke using unchanged rows from the frozen BED, at least two chromosomes, three widths, exact-width group sizes 3/2/2/1, and shuffled group order. Use the frozen real bias HDF5, models, PRINT commit, and fragments; compute one 8-row real countTensor, then run the grouped path with radii 10/20 and 2 workers. Compare each grouped result with direct per-region `regionFootprintScoring()` on the same counts/bias/model: counts and coordinates exact; bias, aggregate ATAC, scores, summits, native event intervals/scores equal under predeclared absolute/relative tolerance 1e-10 and identical NA masks. Re-read exported track/BED and validate original BED row mapping, independent empty group/radius caches, required outputs, exit 0, no residual process. If the real 8-row sample produces no event, existing synthetic event fixtures must cover export mapping; do not claim native-event integration passed.
+
+The suggested cap is 30 minutes total wall, using the current 40-GiB sampled group VmRSS soft-stop and 44-GiB per-process RLIMIT_AS; report preflight and caller time separately, GNU-time CPU/RSS and watchdog sampled max. Any mismatch, missing output, threshold or timeout stops with logs retained and no retry/automatic full-scale fallback. A successful smoke could support `L2=PASS` only for the tested implementation-integration paths; it would not establish full-peak behavior, memory feasibility, completed full-run timing, or accuracy. Full-scale V7 is a separate review and one-run authorization. This design guidance does not authorize Argos access or execution.
 
 ---
 

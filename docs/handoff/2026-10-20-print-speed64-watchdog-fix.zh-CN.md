@@ -1,6 +1,6 @@
 # PRINT 64-peak watchdog review 修订
 
-时间：2026-10-20 11:29 EDT
+时间：2026-10-20 11:30 EDT
 范围：仅 PMA Step 4b footprint，PR #8；Claude 负责的 ChIP BED6/PR #7 不在范围。
 
 ## 审核 finding
@@ -10,6 +10,9 @@
 preflight、caller 和输出校验；阻塞读取可能拖过 deadline，且没有独立父进程在超时后清理 worker
 及已登记的独立进程组。handoff 还把 30 分钟总预算错误写成 caller-stage 预算。审核没有访问 Argos，
 不批准本次 gate 调用。L2 准确度继续 `BLOCKED / UNVERIFIED-critical`，不属于 runtime-only 任务阻塞项。
+
+修复 commit `58f62eefebdc3c6058843f0a47536604b198273e` 已推送；GitHub PR API 的 head 和
+`git ls-remote origin refs/heads/task_20261019_hint_overlay_smoke` 均报告此 SHA。PR #8 仍 OPEN。
 
 ## 同一 PR 的最小修订
 

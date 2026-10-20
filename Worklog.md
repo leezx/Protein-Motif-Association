@@ -1305,3 +1305,9 @@ The fixed `PMA｜固定阶段审核` conversation reviewed exact PR #8 HEAD `3fa
 - Added regression coverage for parent delegation and a blocked worker with a registered detached process group; updated the consumed V3 smoke test to treat its reviewed runner SHA as historical after the current runner gained warning capture. Updated candidate handoff and CODEX_HANDOFF scope/budget wording.
 - Validation: Python `py_compile`; `python3 tests/test_print_speed64_supervisor.py`; `python3 tests/test_print_smoke_deadline.py`; R parse for `run_print.R`; `git diff --check` — all passed. Candidate wrapper SHA-256 `d741ba0234741de452f5d10682e76b5585d54b51b4496c3fb6653c013099ac6a`; pinned outer watchdog SHA-256 `1b4c574e71a8d63c34c92c26810c822e627c4cd25cd78eb7cbc85e8996ca68ad`.
 - No Argos command, source-data read, staging, environment change, footprint execution, merge, or accuracy claim. Next: same-PR commit/push, verify live exact HEAD, request a new fixed-PMA Quick review; run only if that review explicitly approves and grants one gate invocation.
+
+### 2026-10-20 11:30 EDT — push watchdog fix for exact-head review
+
+- Committed same-PR timeout supervision fix as `58f62eefebdc3c6058843f0a47536604b198273e` and pushed to `task_20261019_hint_overlay_smoke`.
+- Verified `git ls-remote` and GitHub PR API both report PR #8 live HEAD `58f62eefebdc3c6058843f0a47536604b198273e`, state OPEN. The first `gh pr view` response was stale; API/remote ref then confirmed the pushed SHA. No merge.
+- Updated candidate and current handoff to describe the independent parent, full 30-minute execution budget and separate 60-second cleanup grace; added dated review-fix handoff. No Argos access or gate run. Next: update PR body and request fixed-PMA Quick review for the final exact HEAD.

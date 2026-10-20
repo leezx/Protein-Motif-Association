@@ -41,7 +41,8 @@
 
 ## 精确候选身份
 
-- PR #8 review target：推送后再记录的 live exact HEAD；目前未获审批。
+- PR #8 code fix `58f62eefebdc3c6058843f0a47536604b198273e` 已推送；GitHub API 确认分支 live HEAD
+  与此一致。它仍待固定 PMA exact-head review 和明确单次运行放行。
 - Run ID：`BG_K562_PRINT_PEAK_SPEED64_20261020_V1`。
 - Code stage：`/home/zz950/PMA_fetch/pma_print_peak_speed_code_20261020_v1`。
 - Evidence root：`/home/zz950/PMA_fetch/pma_print_peak_speed_rcapps3_20261020_v1`。

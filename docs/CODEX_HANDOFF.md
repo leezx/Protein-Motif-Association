@@ -1,9 +1,13 @@
-# CURRENT OPERATIVE FOOTPRINT TASK — 2026-10-20 11:22 EDT
+# CURRENT OPERATIVE FOOTPRINT TASK — 2026-10-20 11:30 EDT
 
 ## 64-peak PRINT speed candidate — review required, not authorized to run
 
-Footprinting only; Claude owns ChIP BED6/PR #7. PR #8 is OPEN and unmerged at live HEAD
-`d2474134f31bf6c288922964dbaed4b5fbdfee59` before the current same-PR watchdog fix. The fixed `PMA｜固定阶段审核` conversation confirmed
+Footprinting only; Claude owns ChIP BED6/PR #7. PR #8 is OPEN and unmerged. Commit
+`58f62eefebdc3c6058843f0a47536604b198273e` contains the same-PR watchdog fix and is pushed to the
+PR branch; confirm the current live PR HEAD before review because a records-only follow-up may be
+added. Fixed PMA review of prior HEAD `6c500bf9afeff5e44eba153ddd2d91d2952f5c69` returned
+`REQUEST_CHANGES` on the missing independent timeout parent and misstated budget scope. No Argos
+run was approved. The fixed `PMA｜固定阶段审核` conversation confirmed
 that the active V3 record and code both use a sampled process-group `VmRSS` sum; the PSS wording
 appears only in a historical full-peak V2 snapshot. No monitor rewrite is needed for the V3-based
 candidate. `VmRSS` sampling can double-count shared pages and can miss short-lived or escaped

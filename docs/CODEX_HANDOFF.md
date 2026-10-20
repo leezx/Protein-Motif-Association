@@ -2,10 +2,10 @@
 
 ## PRINT pnorm diagnostic — implementation approved; execution packet under review
 
-At PR #8 branch `task_20261019_hint_overlay_smoke`, the current exact HEAD is
-`6cf2b6b9a55555c1be13a927978066bbddfca23c`, OPEN and unmerged. The user authorized local PRINT-source
-work. The fixed `PMA｜固定阶段审核` conversation approved the diagnostic implementation at that
-exact HEAD, but explicitly did not authorize execution. V5's one-shot is consumed. No Argos
+At PR #8 branch `task_20261019_hint_overlay_smoke`, diagnostic implementation review approved HEAD
+`6cf2b6b9a55555c1be13a927978066bbddfca23c`; the current audit revision follows it on the same
+OPEN, unmerged PR. The user authorized local PRINT-source work. The fixed `PMA｜固定阶段审核`
+conversation approved implementation only, not execution. V5's one-shot is consumed. No Argos
 access/staging/input read/gate call is authorized yet.
 
 New `scripts/04b_footprint/diagnose_print_pnorm.R` is an observation-only candidate against the
@@ -18,23 +18,38 @@ Native `pnorm` values/warnings are retained; SDs are not clamped, warnings are n
 score/event/cache file is rewritten. Before/after SHA-256 checks cover every read source/cache,
 baseline output, and V5 summary/completion artifact. The script verifies the 16 original comparison
 rows and 14/17 event counts and refuses any non-V5 source, non-eight-peak input, pre-existing output
-directory, altered pinned tracks/events, or changed input hashes. It reports an unmasked anomaly or
-warning-count mismatch as a scale-up BLOCK, not a pass.
+directory, altered pinned tracks/events, or changed input hashes. Unknown/unlocated warnings or
+anomalies outside a known native zero-coverage mask remain BLOCKED. The historical V5 count of 28
+is reference-only because the original run used different scoring contexts; even an all-masked new
+replay only classifies that replay and does not explain the historical warning set or release
+scale-up.
 
 Local regression: `Rscript tests/test_print_pnorm_diagnostic.R` passes on synthetic pnorm inputs,
 confirms the native pnorm return values are identical, both internal scorer paths are captured,
 warnings remain visible, and genomic positions map correctly to masked and unmasked cases. R parser
 and `git diff --check` pass. This does not execute against V5 biological caches, and local V5 caches
-are unavailable here. Candidate SHA-256: diagnostic `c5f7f6964de840408a1bcdb2e6ca1435c463411fb6287e7b28c59b46b72a5c2c`; regression
-`755a18f1d7427708cc821c5ab07b88c26ffdee9179de1861acabc72629c2ff5f`.
+are unavailable here. Current SHA-256: diagnostic
+`3d883552675d765010fb08663d011ef0ee285c13c106fdc5ab4617488055aca0`, helper
+`9dee1d7588e7a47a9449ae88a61710c4f16dd4b6f40cef93886b6421ef1f362b`, regression
+`98c3139f3ec6c24d70987a25788383d66cd220c9f1eb023b95cc266e537814b6`.
 
 The current implementation and its fixes are pushed to the same PR #8.
 
-The next gate is review of the exact command/resource packet in the existing fixed PMA project
-conversation, plus an explicit one-time execution release. Only then may a fresh preflight be
-performed. Until both conditions are met, do not access Argos, stage code, read the V5 cache, run the
-diagnostic, expand peaks, claim biological accuracy, or merge. The packet will be recorded in
-`docs/handoff/2026-10-20-print-pnorm-diagnostic-run-review.zh-CN.md`.
+The proposed command packet at `docs/handoff/2026-10-20-print-pnorm-diagnostic-run-review.zh-CN.md`
+was reviewed at PR #8 HEAD `ff7703e3e29d5acf5ce62c4974f91e15d0e945c7` and returned
+`REQUEST_CHANGES`: the documented gate audit did not include its argv parser/exec source; `NSLOTS=1`
+does not restrict CPU affinity; and replay results must not be described as closing the historical
+V5 warning issue. The reviewer requested the gate source excerpt and hash from an already authorized
+read-only inspection, explicit one-core affinity plus single-thread BLAS/OpenMP, the corrected
+interpretation, and synchronization of this operative summary. No Argos access, stage, input read,
+run, peak expansion, accuracy claim, or merge is authorized. The reviewer’s phrase “already
+authorized read-only inspection” conflicts with its explicit denial of remote access/preflight/read.
+Ask the fixed PMA reviewer to authorize one narrow inspection of the immutable gate script only
+(verify its SHA and quote the argument parser/exec lines), excluding input/cache/process inspection,
+staging, environment changes, and gate invocation. The replacement packet will bind the child
+process to one CPU using `taskset -c <verified-online-cpu>` and preserve single-thread BLAS/OpenMP
+settings. Do not connect to Argos until that narrow inspection is explicitly authorized; do not run
+the diagnostic until the corrected exact-head packet has a new explicit one-time release.
 
 ## PRINT V5 8-peak integration validation — PASS; one-shot consumed
 

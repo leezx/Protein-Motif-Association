@@ -46,4 +46,4 @@ PR #8 的 variable-width 修复已获固定 PMA 对话对代码提交 `4d6bc6718
 
 当前候选代码 SHA-256：selector `7e2a67554e4d5c601cdb6c18a3758bb420520fa21d6324eff6f02d15c1dd5856`；PRINT runner `44853e1a865bcdf86c87ca6fbabd0279d86d144b14953b1b0533c679eb5098f2`；helper `fa2aaba9248a9a67621fe269210b7afd81920aaa3bf85cac443f0a2371865174`；base supervisor `34330aa103d9f15168fbacb4fbab5d278a6336a79ce0476a0c3ed2aa27606b33`；smoke supervisor `35a33b3ca779af5fb70ebcf960f26a7640bd2d33153bd4c1a68d6da24870808d`。
 
-没有 Argos 预检、远端计算、环境变更或数据读取；此前只读查询没有发现队列作业或 smoke 进程。本次改动提交并推送到同一 PR 后，在固定 PMA 对话请求新 exact-head L1/L2 review。当前 L2 仍 BLOCKED；本轮审核没有放行 smoke。若新 HEAD 获批准，仍只执行一轮 8-region smoke；失败保留日志且不重试，不自动扩展至全峰 V7。
+修复已在同一 PR 提交为 `a33a26c63488d983f7a243ede6df994fe8ed4721` 并推送；2026-10-20 10:12 EDT GitHub PR API 确认该实现提交为 live HEAD。后续状态同步会产生新的文档 tip，精确复审应以推送后的 live API SHA 为准。没有 Argos 预检、远端计算、环境变更或实验数据读取；之前只读查询未发现队列作业或 smoke 进程。本轮 `REQUEST_CHANGES` 没有放行 smoke，L2 仍 BLOCKED。若新的 exact HEAD 获 APPROVE，仍只执行一轮 8-region smoke；失败保留日志且不重试，不自动扩展至全峰 V7。

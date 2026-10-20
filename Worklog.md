@@ -1123,3 +1123,10 @@ The fixed `PMA｜固定阶段审核` conversation reviewed exact PR #8 HEAD `3fa
 - Updated runner SHA-256: `199e329bf7b9f26148ac51f4403e01663099c052193ab64a5f82d82b1de36968`; helper remains `ef0cb4dafbf883e6ac61dfe1ab0ad97f91cd92aafe51abab2132ada5f9cb0835`; supervisor pin updated in this local candidate.
 - Affected checks rerun after the code fix: synthetic variable-width contract, R parse, Python `py_compile`, existing Step 4b runner fixtures, and `git diff --check` all pass. This is still lightweight local validation, not real PRINT integration.
 - No Argos access/preflight, remote command, data read, environment change, caller execution, or V7 compute occurred. V6 authorization remains consumed. The fix is not yet pushed or reviewed. Next: same-PR audit/body update, push, and one exact-head fixed-PMA review. No V7 without APPROVE plus fresh explicit one-run human authorization.
+
+## 2026-10-20 09:50 EDT — fixed-PMA exact-head review of binding repair
+
+- Exact live PR #8 HEAD `4d6bc671853ecca21a14ff81c8b82fdbeb8086f4` was reviewed in `PMA｜固定阶段审核`. L1 finding is closed and code review is `APPROVE`: all groups now subset from saved full countTensor and saved labels rather than the `.GlobalEnv$project` binding that is overwritten for native PRINT calls. Reviewer found no new L1 blocker in the binding repair.
+- L2 is `BLOCKED / UNVERIFIED-critical`: actual HDF5 extraction, PRINT S4 replacement behavior, parallel full-caller integration, and actual result dimensions are not verified. The synthetic regression addresses only the full-source rebinding bug; it is not end-to-end evidence.
+- Review explicitly authorizes no Argos access, preflight, V7 run, or merge. V6 one-shot authorization is consumed; no new V7 authorization was given. No remote access or computation occurred.
+- Follow-up documentation/PR text will record this review as a docs-only amendment; code hashes remain runner `199e329bf7b9f26148ac51f4403e01663099c052193ab64a5f82d82b1de36968`, helper `ef0cb4dafbf883e6ac61dfe1ab0ad97f91cd92aafe51abab2132ada5f9cb0835`, supervisor `c4c54bc19e24d649eae1e84b14f2a64b1a85af36260b55a576876b36e115a4e1`.

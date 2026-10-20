@@ -37,6 +37,6 @@ V6 在 `getPrecomputedBias()` 阶段失败，未进入 counts 或 footprint 计�
 
 ## 状态与门禁
 
-PR #8 仍为 OPEN、未合并。实现提交 `e757e7c282a5b83f7456b3394f6b8f09988a1a17` 与文档提交 `4358c6c`、`d7b66d1` 已在原分支。固定 PMA 对 exact HEAD `d7b66d159c0136a201c02bc152cbbcf10f75d9c5` 的 L1/L2 代码审查发现 countTensor 全量来源在第二组前被全局 `project` 绑定覆盖，返回 `REQUEST_CHANGES`；其他索引/缓存/坐标方向未发现同类阻塞。最小本地修复现在在任何组绑定前保存完整 countTensor 与共享标签，并在各组按全局行号从该完整列表取子集；合成测试增加连续两组运行检查。修复目前尚未推送或复审。当前仍无 Argos 运行授权；即使之后代码获批，V7 仍需新的单次人类授权与 fresh preflight。
+PR #8 仍为 OPEN、未合并。实现提交 `e757e7c282a5b83f7456b3394f6b8f09988a1a17`、binding 修复提交 `4d6bc67` 与后续文档提交在原分支。固定 PMA 对 exact HEAD `d7b66d159c0136a201c02bc152cbbcf10f75d9c5` 的 L1/L2 代码审查发现 countTensor 全量来源被 active project 覆盖，返回 `REQUEST_CHANGES`；`4d6bc67` 已把完整 countTensor 与共享标签保存在独立绑定，并增加连续两组测试。固定 PMA 对 exact implementation HEAD `4d6bc671853ecca21a14ff81c8b82fdbeb8086f4` 复核：L1 finding 关闭、代码 `APPROVE`；L2 是 `BLOCKED / UNVERIFIED-critical`，因为未验证真实 HDF5 读取、PRINT S4 替换赋值、并行端到端及实际输出维度。该审核明确没有授权 Argos 访问、预检或 V7。V6 一次授权已消耗，V7 仍需新的单次人类授权和有效阶段门禁。
 
 未访问 Argos、未读实验数据、未安装依赖、未运行 caller、未启动准确度或 motif 分析、未合并 PR。

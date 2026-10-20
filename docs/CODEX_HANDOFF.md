@@ -1,5 +1,25 @@
 # PMA — handoff to Codex (2026-10-17, written by Claude Code)
 
+## Current live status — 2026-10-19 22:10 EDT — existing HCT116 pilot timing summarized
+
+Footprinting only; ChIP BED6 / PR #7 remains with Claude and out of scope. PR #8 is OPEN and
+unmerged. The fixed PMA conversation approved exact HEAD `e44334e3b13e00ea53a67871b69f13f224172dfa`
+for read-only extraction of the four existing HCT116 ctrl 2,000-region timing tables and matching
+task status/meta/GNU-time summaries. No caller, analysis, installation, data change, or new timing
+job was authorized or run.
+
+**Accuracy: cannot rank.** The chosen HCT116 CTCF ChIP labels fail the biological replicate gate
+(one biological replicate per condition plus technical replicates); HINT and TraceBIND current
+wrappers do not expose complete threshold-free scores. Missing scores were not filled with zero.
+Existing same-pilot resource observations (not a speed ranking): HINT 2:02.64 wall / 81.82 s
+user+system CPU / 224,548 KB max RSS; PRINT 17:46.01 / 231.41 s / 37,524,900 KB; TOBIAS
+15:16.06 / 867.82 s / 411,100 KB; TraceBIND PRINT-bias reduced mode 2:28:53 / 33,396.85 s /
+14,415,888 KB. The matching task records/GNU-time summaries and wrapper completion lines recorded successful exit status for all four jobs. TraceBIND used four R workers; other wrappers had
+different execution shapes. PRINT/TraceBIND preparation was outside caller timing. GNU-time max
+RSS is recorded as reported, not asserted to be process-tree aggregate. The TraceBIND value is not
+full mtDNA-fine-tuned/mito-FDR runtime. A fair end-to-end speed ranking and cancer-wide call remain
+unavailable/unapproved. See the dated handoff and benchmark design for stage times and evidence.
+
 ## Current live status — 2026-10-19 22:05 EDT — read-only qualification completed; accuracy cannot rank
 
 Footprinting only; ChIP BED6/PR #7 remains with Claude and out of scope. PR #8 is OPEN and unmerged

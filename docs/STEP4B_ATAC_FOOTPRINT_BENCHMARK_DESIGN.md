@@ -71,6 +71,16 @@ That approval does not cover material Section 4 revisions. The current read-only
 documented in `docs/CODEX_HANDOFF.md` and the dated handoff. No caller is selected, and no C/C++ port
 is approved.
 
+**Existing same-pilot resource observation (2026-10-20).** The fixed PMA conversation approved
+read-only extraction on exact HEAD `e44334e3b13e00ea53a67871b69f13f224172dfa`. The existing
+HCT116 ctrl 2,000-window jobs recorded: HINT 2:02.64 wall / 81.82 s user+system CPU / 224,548 KB
+max RSS; PRINT 17:46.01 / 231.41 s / 37,524,900 KB; TOBIAS 15:16.06 / 867.82 s / 411,100 KB;
+TraceBIND PRINT-bias reduced mode 2:28:53 / 33,396.85 s / 14,415,888 KB. Each task record/GNU-time summary and wrapper completion marker recorded success. TraceBIND used four R workers; the other wrappers used different execution shapes, and
+PRINT/TraceBIND preparation was outside the caller timer. These are descriptive pilot observations,
+not comparable speed/resource ranks. The RSS is GNU-time's recorded maximum, not asserted as
+process-tree aggregate. Accuracy is still `cannot rank` because the selected labels and shared-score
+gates fail; the table cannot nominate an accuracy winner or authorize a cancer-wide run.
+
 **PI direction.**
 - Read Hu et al. 2025 *Nature* ("Multiscale footprints reveal the organization of cis-regulatory
   elements", PRINT / seq2PRINT).

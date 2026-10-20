@@ -17,6 +17,34 @@
 > 已存在，再由用户作阶段放行。22:05 EDT 只读核验后，准确度已确定为“不能排名”；四方计时目前也未获放行。
 > 当前 checked R4.2.2 library 中缺少 TraceBIND，且本阶段不安装、不修改环境，因此不能启动四方计时。
 
+## 2026-10-19 22:10 EDT — existing HCT116 ctrl pilot timing summarized
+
+固定 PMA 项目对话批准 exact HEAD `e44334e3b13e00ea53a67871b69f13f224172dfa` 后，只读了
+HCT116 ctrl 2,000-window 四份 timing 表及对应任务 status/meta/GNU-time 摘要。没有启动 caller、
+分析或新计时任务，没有安装软件或改动数据/环境；PR #7/ChIP BED6 仍由 Claude 负责。
+
+Argos 外部目录 `processed/round1/runs_full_pr8_22667dc/ctrl/` 中的观察值：
+
+| 工具/模式（任务） | wall | user+system CPU | GNU-time max RSS | 任务记录 |
+|---|---:|---:|---:|---:|
+| HINT (`BG_FULL_hint_ctrl`) | 2:02.64 | 81.82 s | 224,548 KB | EXIT=0 |
+| PRINT r10+r20 (`BG_PRINT_FULL_ctrl_V1`) | 17:46.01 | 231.41 s | 37,524,900 KB | EXIT=0 |
+| TOBIAS ATACorrect+FootprintScores (`BG_FULL_TOBIAS_ctrl_V2`) | 15:16.06 | 867.82 s | 411,100 KB | GNU-time exit=0 + completion marker |
+| TraceBIND PRINT-bias reduced mode (`BG_TRACE_FULL_ctrl_V11`) | 2:28:53 | 33,396.85 s | 14,415,888 KB | EXIT=0 |
+
+各 timing 表阶段秒数：HINT 123；PRINT bias/counts/r10/r20 为 64.117/178.002/423.285/386.422；
+TOBIAS ATACorrect/FootprintScores/events 为 622/290/4；TraceBIND bias/counts/footprint 为
+528.265/175.346/8,210.065。四项映射到相同 HCT116 ctrl 与 2,000 区域 BED；HINT/TOBIAS 读
+BAM，PRINT/TraceBIND 读同一样本派生的 fragments。PRINT 的片段整理、TraceBIND 的片段与
+序列预计算不在 caller 计时内；TraceBIND 用 4 个 R workers，其他 wrapper 执行形态不同。因此
+这是同一小型 pilot 的实测资源描述，不能据此排速度名次或称端到端总时间。GNU-time RSS 只按
+原记录报告，不声称是进程树聚合峰值。TraceBIND 这一项不是完整 mtDNA fine-tuned/mito-FDR
+模式。
+
+准确度仍是 **不能排名**：HCT116 CTCF ChIP 每条件只有一个生物学重复，且 HINT/TraceBIND
+缺完整阈值前连续分数。当前结果不能给出准确度赢家、全基因组速度结论或 Cancer ATAC 运行授权。
+只读提取时，SSH 输出包含这四个任务各自的 wrapper stdout 完成/进度行，用于对应退出、输出计数和结束时间；没有打开 BAM、fragment、peak、BigWig、score matrix 或其他生物数据文件，也没有打开其他任务的 status 内容。
+
 更新时间：2026-10-19 16:46 EDT（UTC 20:46）
 范围：仅 footprint→de novo motif；ChIP BED6 / PR #7 由 Claude 负责，本交接不涉及。  
 PR #8：`task_20261019_hint_overlay_smoke`，OPEN、未合并。固定 PMA 对话 `PMA｜固定阶段审核` 对父 HEAD `03dbdd9a5bc8f54e1ef09056e3f4cc755e71ae2a` 批准第 3 轮公开研究元数据盘点；提交后的 HEAD `bfa06d4e86bbe77d4d4ebc84190f408fb6a216d9` 收到 `REQUEST_CHANGES`；三项 finding 已在同一 PR 修正并推送至内容提交 `6f9c04621dae462bb316366c0c0b41f79c4e12bd`；完整状态同步 HEAD `d15db7f4d292f6484f003c45035f7eb5449635e7` 获文档/方法和只读审计 `APPROVE`。之后按已批准的元数据范围核对 K562 候选，内容提交 `2eeb09deaf172885d31059124de03931415c5587` 已推送；状态同步 tip `08c334ddc3c436ea17ef7906ab277958dbcbeea0` 经复核，阶段关闭 HEAD `632eb4993f13d069e4d0bde4c984b747eab693e5` 获 round-3 文档/方法记录 `APPROVE`；随后按审核意见把两项非阻塞 attribution 修正同步到当前 tip `7746d8bf22324ed66426322f04efa1845cee154d`，无需另开复审。审查确认候选总结忠实，但提醒同一 biosample ID、旧平台或 audit 数量单独不能证明重复不独立或数据不可用。批准范围不包含实验数据文件、Argos、caller、分析、环境修改、ChIP 数据处理或合并。审核指出本手册上一时间行将 UTC/EDT 写反；此处已更正。未下载或读取 BAM、FASTQ、BED、BigWig、矩阵等实验数据文件。

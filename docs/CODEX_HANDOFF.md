@@ -1,4 +1,4 @@
-# CURRENT OPERATIVE FOOTPRINT TASK — 2026-10-20 15:15 EDT
+# CURRENT OPERATIVE FOOTPRINT TASK — 2026-10-20 15:55 EDT
 
 ## PRINT forward-audit candidate — second exact-head review finding repaired locally
 
@@ -12,12 +12,11 @@ after removing only `nearest_valid_sd`, context coverage must still pass while r
 The pnorm assertion checks the NaN mask exactly and finite values with tolerance `1e-14`.
 
 Candidate script SHA-256:
-`352eee934b00ad8317a1cb3d5aac83776e0bfbae4ba7b7e4eb8b55af5a3e622b`. `git diff --check` passed.
-R parse and `tests/test_print_pnorm_diagnostic.R` have not been run, so executable verification is
-pending. The change is pushed in PR #8 commit `bc39d1c`; the PR body and handoff must be synchronized
-to the final audit commit before fixed-PMA review. No Argos access or analysis occurred, and PRINT
-scoring behavior remains unchanged. Run the reviewer-requested local R commands only after the user
-authorizes local verification.
+`352eee934b00ad8317a1cb3d5aac83776e0bfbae4ba7b7e4eb8b55af5a3e622b`. The user authorized and both
+requested local checks passed: R parsing and `Rscript tests/test_print_pnorm_diagnostic.R` (self-test
+and gate/hash/output-guard tests PASS; four expected synthetic `NaNs produced` warnings). No Argos
+access or analysis occurred, and PRINT scoring behavior remains unchanged. The results are being
+recorded on PR #8 before exact-head review in the fixed PMA conversation.
 
 ## PRINT forward-pass audit candidate — fixed-PMA REQUEST_CHANGES; synthetic self-test repaired locally
 

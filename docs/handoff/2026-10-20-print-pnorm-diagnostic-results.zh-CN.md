@@ -105,7 +105,7 @@ context 与 role coverage 都通过，再仅移除 `nearest_valid_sd`，断言 c
 role coverage 单独失败。`pnorm` 断言现在精确核对 NaN 位置，并对有限值采用 `1e-14` 容差。
 源文件 SHA-256：`352eee934b00ad8317a1cb3d5aac83776e0bfbae4ba7b7e4eb8b55af5a3e622b`。
 
-静态 `git diff --check` 已通过。R parser 和 `tests/test_print_pnorm_diagnostic.R` 未运行；尚未
-请求固定 PMA 复审，也未访问 Argos、缓存或分析数据。没有修改 PRINT 打分语义或输出。用户授权
-本地源码修改，但尚未明确授权运行这两条 R 验证命令。此四文件修订已推送到 PR #8，提交
-`bc39d1c`；随后将同步最终 exact HEAD 的审计记录和 PR 描述。
+静态 `git diff --check` 已通过。用户授权后运行 R parser 与 `Rscript tests/test_print_pnorm_diagnostic.R`：
+均 PASS；自测及 gate/hash/output-guard 测试通过，显示四条预期合成 `NaNs produced` 警告。
+没有访问 Argos、缓存或分析数据，也没有修改 PRINT 打分语义或输出。源代码修订已推送 PR #8
+提交 `bc39d1c`；本验证记录将在审计同步提交中纳入，之后请求固定 PMA exact-head 复审。

@@ -210,3 +210,13 @@ PR #8：`task_20261019_hint_overlay_smoke`，OPEN、未合并。固定 PMA 对�
 4. 十轮结束后停止扩建 benchmark。若缺标签或同一可评分集合仍未建立，第 10 轮交付不可排名结论和精确缺口，不因任务期限放宽真值标准。
 
 **本轮可测推进：**已将连续分数、事件级备选、缺失值、折外泄漏和终止判据定义成表结构/计算合同。它尚未产生标签、连续 score adapters、折外预测或准确度数值；当前仍没有工具赢家。PMA 审核指出三项需消歧（哈希分折 vs 邻块、训练定向分数、截断 BED 的事件阈值能力），已在同 PR 作最小修订，等待复核；之后仍需人类接受方法阶段和具体执行授权。
+
+## 2026-10-19 22:30 EDT — Argos 任务级资源限制核验；按要求 fail-closed
+
+固定 PMA 对话 `PMA｜固定阶段审核` 先后批准只读检查不可变 gate、既有 K562 runner/meta、既有工具路径，以及当前 CPU/cgroup 限制；明确不批准任何 caller、计时、进程启动/停止、作业提交、安装或环境修改。核验只读取配置、脚本、路径元数据及 cgroup 字段，没有读取 BAM、BED、片段、FASTA、blacklist、score 或 footprint 文件。
+
+- 不可变 gate `/home/zz950/PMA_fetch/pma_bg_gate_v2.sh` SHA-256：`3776778b950be90cad124c04937eee422c81466154eccdadfe9e57d58224253c`。源码设置 `NSLOTS=1`、单线程 BLAS/OpenMP 环境、清空 `CUDA_VISIBLE_DEVICES`，并对每个进程设置 `ulimit -Sv/-Hv 46137344` KB。它不限制任务进程树总 RSS，也不限制总 CPU。
+- `/proc/self/status` 为 `Cpus_allowed_list=0-71`。当前为 cgroup v1：CPU quota `-1` / period `100000`（不限核）；SSH service memory limit `9223372036854771712` bytes（近似无限制），当前使用 `48031723520` bytes，历史 max usage `398863462400` bytes。账号对当前 cpu、memory、cpuset 控制文件均无写权限；`/run/user/68067/bus` 不存在。`taskset`、`timeout`、`systemd-run` 可执行文件存在，但没有证据证明可创建受限任务 cgroup；未执行这些工具。
+- 现有四 wrapper（代码 commit `44b9c1153692effb528b888129136ef2a920201f`）SHA-256：HINT `ab652df81d3ccf7e10e6ee4ea6def5a938ec646fc2cfaae6d7f2f7066d848663`；PRINT `cae788b22dfb8ffc6006bae168b356909b3082036faa4a73e853c496ce717abf`；TOBIAS `e94789f3e542e371df038f9be1542f64d7c431a16960e0491dd732e15c8fa9ef`；TraceBIND `b77ae55c0bc32018757e697062110f07ec96586bf70921041e65045cbe19c22d`。路径/依赖只做存在性检查，未运行程序或 import 探针。已知 PRINT `cladoRcpp` overlay 与 TraceBIND R 包路径存在；bounded PMA_fetch 搜索未找到 TraceBIND 模型文件，但这不证明其他根目录不存在。
+
+**决定：不启动任务。** 用户要求单任务内存不超过 50 GB，而现有 44-GiB `RLIMIT_AS` 是逐进程的；cgroup 当前无限制且账号无法写入。`taskset` 只能限制 CPU affinity，不能封顶总内存；抽样 RSS watchdog 也不能作为严格硬上限。因此不能声称满足内存合同，必须等 Argos 管理侧提供任务级 memory cgroup / 等价硬隔离及可验证启动接口。该能力确认后，再将具体 16 核、24 h、逐工具命令写进本 PR 并作 exact-head 复审。此前计划中的 16 核 K562 测速仍是方案，不是运行结果；HINT 32-chunk 与 TOBIAS 16-core 旧时长是不同调用条件下的历史观察，不能拼成排名。准确度未评估，未做 motif discovery，未运行任何新任务，未处理 ChIP/PR #7。

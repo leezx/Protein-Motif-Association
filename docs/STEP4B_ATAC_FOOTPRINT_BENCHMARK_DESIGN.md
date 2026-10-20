@@ -1,12 +1,15 @@
 # Step 4b — Genome-wide, motif-free ATAC-seq footprinting: benchmark design
 
-## Current operative plan — one bounded runtime-only global-window assessment (2026-10-20)
+## Current operative plan — blocked pending a task-level Argos memory cap (2026-10-19)
 
 This short plan is the sole execution path for the user's current request. It supersedes the older
 accuracy-first and multi-round run plans for this assessment. Do not add accuracy scoring, datasets,
-optimization, or more rounds. Exact-head review in the fixed PMA conversation is required before
-Argos execution. The user's current request is the human stage release for this narrowly scoped
-runtime-only assessment; it does not waive the exact-head GPT review gate.
+optimization, or more rounds. The fixed PMA reviewer approved read-only inspection of the existing
+gate, K562 launch scripts/meta, runtime paths and current CPU/memory controls. That inspection found
+no enforceable task-wide 50-GB memory limit in the current Argos session. **Fail closed: do not start
+any caller or timing task until Argos provides a verifiable task-level memory boundary and the exact
+launch command is reviewed at the current PR HEAD.** The user's stage release does not waive either
+the GPT review or resource-limit gate.
 
 1. **One sample and one fixed search space.** Reuse the already integrity-checked K562 ATAC
    `ENCSR868FGK` / `ENCFF534DCE.bam` and same-sample frozen `k562_speed_1kb.bed`: 77,668 nonoverlap
@@ -15,12 +18,14 @@ runtime-only assessment; it does not waive the exact-head GPT review gate.
    K562 is a runtime input only; ENCODE's nucleosome-free-fraction warning bars biological accuracy
    claims. ChIP BED6/PR #7 remains out of scope.
 
-2. **Four single runs, 16 cores each, internal parallelism.** Run current wrappers once each on the
+2. **Proposed runs, not released.** If a task-level limit becomes available and is reviewed, run
+   current wrappers once each on the
    same sample and BED: HINT with 16 independent chunks; PRINT with 16 R workers; TOBIAS with 16
    cores; and **TraceBIND PRINT-bias reduced mode** with 16 R workers (no mtDNA fine-tuning or
    mito-FDR). Run callers sequentially: each tool may use 16-way internal parallelism, total active
-   CPU stays at 16, and high-memory callers do not compete. Each task has 24 hours and the immutable
-   `pma_bg_gate_v2.sh` 44-GiB `RLIMIT_AS`; never exceed the user's ≤50-GB Argos limit. CPU only, no
+   CPU stays at 16, and high-memory callers do not compete. Each task has 24 hours, the immutable
+   `pma_bg_gate_v2.sh` 44-GiB per-process `RLIMIT_AS`, and an independently enforced task-wide cap
+   below 50 GB. CPU only, no
    GPU. Before each run, fail closed if an exact input, existing runtime, or required installed
    dependency is missing. Do not install, tune, retry, optimize, or change algorithms. A missing or
    failed tool is reported with its status/time; no substitution. A complete four-tool runtime
@@ -40,7 +45,19 @@ runtime-only assessment; it does not waive the exact-head GPT review gate.
    accuracy winner, discover motifs, start another sample, or optimize/port code. After exact-head
    review, run only the reviewed existing wrappers once under these limits. No merge is authorized.
 
-**Current status (2026-10-20).** Existing exact-sample observations are not a matched runtime
+**Current status (2026-10-19 22:30 EDT).** The read-only resource audit is recorded in the current
+handoff. Gate SHA-256 is `3776778b950be90cad124c04937eee422c81466154eccdadfe9e57d58224253c`.
+It sets `ulimit -Sv/-Hv 46137344` KB per process and `NSLOTS=1`; it does not limit aggregate
+process-tree memory or CPU. The visible SSH cgroup-v1 hierarchy reported CPU quota `-1`, memory
+limit `9223372036854771712` bytes (effectively unlimited), and memory usage `48031723520` bytes;
+the account cannot write the current cpu/memory/cpuset cgroup files, and no user systemd bus socket
+is present. `taskset`, `timeout`, and `systemd-run` binaries exist, but their presence does not
+establish a usable delegated task cgroup. Consequently, the ≤50-GB whole-task condition is **not
+verified or enforceable from this session** and no run is released. The wrapper source hashes and
+current paths are recorded in the dated handoff; prior commands are templates only and are not
+launchable under the current memory control.
+
+Existing exact-sample observations are not a matched runtime
 comparison: HINT used 32 chunks, TOBIAS used 16 cores, and PRINT failed after 36:19.75 due to a
 worker package error; the available TraceBIND record is reduced PRINT-bias mode. This proposal
 repeats one run per caller at 16 cores over the identical K562 sample and frozen windows. Exact-head

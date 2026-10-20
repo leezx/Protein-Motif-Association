@@ -1,3 +1,15 @@
+# CURRENT OPERATIVE FOOTPRINT TASK — 2026-10-20 00:28 EDT
+
+## 2026-10-20 00:28 EDT — V3 stopped in preflight; corrected V4 candidate awaits fixed-PMA review
+
+Footprinting only; do not touch ChIP BED6/PR #7. GitHub PR #8 is OPEN/unmerged at reviewed HEAD d790ce808caa49b5002f3bd360c42a3b3b08101c. The fixed PMA conversation approved exactly one V3 attempt. It was launched at 2026-10-20 00:26:54 EDT and the immutable gate recorded EXIT=2 at 00:26:55. The supervisor failed before caller launch because it expected the runner at /home/zz950/PMA_fetch/pma_print_fullpeak_rcapps3_20261020_v3/run_print.R, but the sync placed it under scripts/04b_footprint/run_print.R. The gate .meta records 44-GiB per-process RLIMIT_AS; no caller process was found, the output directory was not created, and no PRINT score/event/timing output exists. This consumed the one V3 approval. The separate fresh input/model/module checks passed, including the peak BED, fragments, 12.8-GB bias HDF5, both models, PRINT source modules and R dependencies; they did not run the analysis. Hashing the bias HDF5 took about 4.5 minutes on shared storage. No compute runtime or task memory result was obtained.
+
+Same-PR V4 candidate changes only the run ID and unique root/output paths, preserving V3 evidence. Before the gate, stage the reviewed runner at the exact path ROOT/run_print.R (flatten the file from local scripts/04b_footprint/run_print.R), and stage the supervisor at ROOT/run_print_fullpeak_supervised.py; verify both SHA256 values. V4 would remain PRINT-only on the 159,628 original K562 peaks, radii 10/20, 16 CPU workers, CPU-only. No accuracy ranking, motif discovery, other caller, installation, QSUB, GPU, PR #7 or merge. The fixed PMA conversation must review the new exact PR HEAD and explicitly authorize one V4 attempt. If not approved or any fresh preflight fails, stop.
+
+The latest rcapps3 snapshot before V3: x86_64, 72 CPUs, 957,819,340 kB MemAvailable (about 913 GiB), load 52.68/51.80/51.39; immutable gate SHA256 3776778b950be90cad124c04937eee422c81466154eccdadfe9e57d58224253c. VmRSS telemetry remains a sampled process-group soft-stop indicator, not a hard total-task or kernel-memory cap.
+
+---
+
 # CURRENT OPERATIVE FOOTPRINT TASK — 2026-10-20 00:11 EDT
 
 ## 2026-10-20 00:16 EDT — current PRINT V3 candidate; waiting exact-head gate

@@ -1,3 +1,13 @@
+
+
+## 2026-10-20 00:28 EDT — V3 preflight failure; corrected V4 staging candidate awaiting fixed-PMA review
+
+PR #8 live HEAD was d790ce808caa49b5002f3bd360c42a3b3b08101c, OPEN/unmerged. Fixed PMA approved exactly one V3 attempt. At 2026-10-20 00:26:54 EDT the immutable gate launched BG_K562_PRINT_FULLPEAK_20261020_V3; at 00:26:55 it recorded EXIT=2. watchdog.jsonl reports: required readable file missing: /home/zz950/PMA_fetch/pma_print_fullpeak_rcapps3_20261020_v3/run_print.R. The runner had been staged under ROOT/scripts/04b_footprint/run_print.R, while the supervisor expects ROOT/run_print.R. Failure occurred before result-directory creation or caller launch. No PRINT track, native-event BED, timing TSV, analysis runtime, or task memory measurement exists. The V3 one-attempt approval is consumed; its gate/status/logs remain preserved.
+
+Fresh preflight immediately before launch: rcapps3 x86_64, 72 CPUs, MemAvailable 957,819,340 kB (about 913 GiB), load 52.68/51.80/51.39. Input and model hashes matched the reviewed values; R 4.2.2 and required namespaces passed. Hashing the 12.8-GB bias HDF5 took about 4.5 minutes; this is validation I/O, not PRINT runtime. Gate SHA256: 3776778b950be90cad124c04937eee422c81466154eccdadfe9e57d58224253c.
+
+A same-PR V4 candidate changes only run ID/root/output to unique V4 paths. Correct staging requires copying the reviewed run_print.R to the root-level ROOT/run_print.R and the supervisor to ROOT/run_print_fullpeak_supervised.py, then verifying both hashes. V4 would keep scope: original 159,628 K562 peaks, PRINT radii 10/20, 16 CPU workers, CPU-only. It requires review of the new exact PR HEAD and explicit authorization for one attempt in the fixed PMA project conversation. No retry without that approval; any failure stops. PR #7/ChIP work remains excluded.
+
 # Step 4b PRINT 全峰集执行交接
 
 > **最新候选（2026-10-20 00:16 EDT）：**用户要求尽快用可直登节点完成 PRINT 全峰计算。查阅 `computingResource.md` 并做只读资源快照后，确认当前可用候选是 x86_64 的 `rcapps3`，GPU 标签为 K80（本 PRINT 任务 CPU-only）；`rcapps8` 是 aarch64，现成 x86 R 环境不兼容。快照：rcapps3 72 CPU、MemAvailable 913 GiB、load 49.78/50.28/50.97；rcapps8 128 CPU、MemAvailable 453 GiB、load 0.26/0.26/0.37。节点空闲量会变化，正式启动前需重查。V1/V2 一次尝试均已失败；PR #8 当前 HEAD `b1e7c54bb5b39b55cfcfb3e571cf56c5452e36db` 的固定 PMA 审核只批准文档记录，没有新运行授权。

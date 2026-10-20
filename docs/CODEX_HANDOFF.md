@@ -1,19 +1,33 @@
-# CURRENT OPERATIVE FOOTPRINT TASK — 2026-10-20 11:30 EDT
+# CURRENT OPERATIVE FOOTPRINT TASK — 2026-10-20 11:40 EDT
 
-## 64-peak PRINT speed candidate — review required, not authorized to run
+## 64-peak PRINT speed — V1 failed before analysis; V2 review required
 
-Footprinting only; Claude owns ChIP BED6/PR #7. PR #8 is OPEN and unmerged. Commit
-`58f62eefebdc3c6058843f0a47536604b198273e` contains the same-PR watchdog fix and is pushed to the
-PR branch; confirm the current live PR HEAD before review because a records-only follow-up may be
-added. Fixed PMA review of prior HEAD `6c500bf9afeff5e44eba153ddd2d91d2952f5c69` returned
-`REQUEST_CHANGES` on the missing independent timeout parent and misstated budget scope. No Argos
-run was approved. The fixed `PMA｜固定阶段审核` conversation confirmed
+Footprinting only; Claude owns ChIP BED6/PR #7, which is out of scope. PR #8 remains OPEN/unmerged.
+The fixed `PMA｜固定阶段审核` conversation approved exactly one V1 gate invocation after fresh
+preflight, then the six-file stage plus all hashes/resources/dependencies/absence checks. The gate
+was called once on rcGPUs and exited 2 before selector or R/caller work: Python raised
+`__init__() got an unexpected keyword argument 'text'` because the remote interpreter does not
+support `subprocess.run(text=True)`. `outer_supervisor_summary.json` shows 0.647 s, worker exit 2,
+no timeout, no leaked group and no cleanup survivors. Gate stdout/stderr/status and metadata remain
+under `/home/zz950/PMA_fetch/pma_bg_pr8_20261019/`; V1 evidence root is
+`/home/zz950/PMA_fetch/pma_print_peak_speed_rcapps3_20261020_v1/`. No peak subset, bias/count,
+footprint, or scientific output was produced; V1's run root contains only the outer summary and
+empty process-group registry, and its output directory was never created. This one-shot is consumed;
+do not re-run its ID or overwrite its evidence.
+The remote `/usr/bin/python3` is Python 3.5.2; its `subprocess.run` API does not accept the `text=` alias.
+
+Fresh preflight before that single invocation found rcGPUs x86_64, 72 CPUs, ~919 GiB MemAvailable,
+no SGE jobs or matching run process; frozen BED/fragments, all staged V1 code/gate/model hashes,
+PRINT clean commit, R 4.2.2 and required packages matched. V1 code stage was created exactly as
+approved at `/home/zz950/PMA_fetch/pma_print_peak_speed_code_20261020_v1/`; no system/R/conda/PRINT
+environment or input was changed. The earlier fixed-PMA review of `6c500bf` had found and the
+same-PR repair closed the independent-parent watchdog blocker. The fixed `PMA｜固定阶段审核` conversation confirmed
 that the active V3 record and code both use a sampled process-group `VmRSS` sum; the PSS wording
 appears only in a historical full-peak V2 snapshot. No monitor rewrite is needed for the V3-based
 candidate. `VmRSS` sampling can double-count shared pages and can miss short-lived or escaped
 processes; it is an approximate soft-stop signal, not a hard memory cap or guaranteed peak.
 
-Candidate: one runtime-only PRINT sample of 64 rows selected by midpoint quantiles of the exact
+V2 candidate: a new runtime-only PRINT sample of the same 64 rows selected by midpoint quantiles of the exact
 frozen K562 peak BED row order. The selector verifies source SHA-256
 `c0c1d0b5350a962b9d7a7f1d2edef1ca98005029c79f07979533f3a14cb40945` and exactly 159,628 source
 rows; it copies 64 original BED rows without filtering or coordinate edits, writes a row map and
@@ -39,12 +53,12 @@ not the previously completed BAM conversion; report the BAM-to-track elapsed as 
 separately measured new timeline. Preparation is a
 one-time shared input cost and should not be counted again when reusing the frozen fragment file.
 
-Pinned candidate artifacts:
+Pinned candidate artifacts (only the speed64 wrapper changes for this compatibility repair; all sibling pins remain):
 
 - selector `scripts/04b_footprint/select_print_speed64.py`, SHA-256
   `105be1be89c94d466e46dccdee98402d74ec7dfba1781f1c7a91740342932b46`
 - one-shot supervisor `scripts/04b_footprint/run_print_speed64_supervised.py`, SHA-256
-  `d741ba0234741de452f5d10682e76b5585d54b51b4496c3fb6653c013099ac6a`
+  `7a210086eb819b8481a62f079ea5f184174e53e36495e34a7701eb540d8b4c4a`
 - PRINT wrapper `scripts/04b_footprint/run_print.R`, SHA-256
   `0c7c26f303f079a18d5f1f110faa2e516d631c8826dbd5e5517fc26d4aff22bb`
 - variable-width helper `5f5da1b9cf3179f40850792d26ecce6862ed8c3a5dfd82ad39fa8ab07d51d4ca`
@@ -53,25 +67,27 @@ Pinned candidate artifacts:
   `1b4c574e71a8d63c34c92c26810c822e627c4cd25cd78eb7cbc85e8996ca68ad`
 - immutable gate `3776778b950be90cad124c04937eee422c81466154eccdadfe9e57d58224253c`
 
-Candidate run ID `BG_K562_PRINT_PEAK_SPEED64_20261020_V1`; staged code directory
-`/home/zz950/PMA_fetch/pma_print_peak_speed_code_20261020_v1`; run evidence root
-`/home/zz950/PMA_fetch/pma_print_peak_speed_rcapps3_20261020_v1`; scientific output directory
-`/home/zz950/DATA/2.PROJECTS/PMA/atac_footprint/processed/round1/runs_print_peak_speed_rcapps3_20261020_v1`.
-Proposed immutable-gate command:
+V1 run ID `BG_K562_PRINT_PEAK_SPEED64_20261020_V1` is consumed and failed. V2 candidate run ID
+`BG_K562_PRINT_PEAK_SPEED64_20261020_V2`; staged code directory
+`/home/zz950/PMA_fetch/pma_print_peak_speed_code_20261020_v2`; run evidence root
+`/home/zz950/PMA_fetch/pma_print_peak_speed_rcapps3_20261020_v2`; scientific output directory
+`/home/zz950/DATA/2.PROJECTS/PMA/atac_footprint/processed/round1/runs_print_peak_speed_rcapps3_20261020_v2`.
+Candidate immutable-gate command (not authorized until fresh exact-head review and a new one-shot release):
 
 ```sh
-PMA_PRINT_SPEED64_EXPECTED_SHA256=d741ba0234741de452f5d10682e76b5585d54b51b4496c3fb6653c013099ac6a \
+PMA_PRINT_SPEED64_EXPECTED_SHA256=7a210086eb819b8481a62f079ea5f184174e53e36495e34a7701eb540d8b4c4a \
   bash /home/zz950/PMA_fetch/pma_bg_gate_v2.sh \
-  BG_K562_PRINT_PEAK_SPEED64_20261020_V1 \
-  /home/zz950/PMA_fetch/pma_print_peak_speed_code_20261020_v1/run_print_speed64_supervised.py \
+  BG_K562_PRINT_PEAK_SPEED64_20261020_V2 \
+  /home/zz950/PMA_fetch/pma_print_peak_speed_code_20261020_v2/run_print_speed64_supervised.py \
   ctrl print
 ```
 
-This packet has passed local Python syntax, local R parse, and `git diff --check`; no Argos access,
-input read, staging, environment change, or caller run occurred. It is a review candidate only. It
-does not assess accuracy and cannot establish full 159,628-peak runtime by linear extrapolation.
-The exact live PR HEAD must receive a fresh review and explicit single-run approval before this
-command is run. Any failure consumes that attempt; do not retry automatically. Do not merge PR #8.
+The initial V1 packet and its six-file code stage are preserved. V2 is a review candidate only; its
+new code-stage/root/output paths must be absent, the code must be copied from its exact reviewed PR
+HEAD, and all hashes/dependencies/resources must be rechecked before any later run. This repair
+does not assess accuracy or establish full 159,628-peak runtime by linear extrapolation. V1's
+failure is retained and will not be retried. Any future V2 failure also consumes that attempt; no
+automatic retry, full-peak run, environment modification or PR merge is authorized.
 
 # PREVIOUS OPERATIVE FOOTPRINT TASK — V3 PRINT 8-peak smoke completed — 2026-10-20 11:10 EDT
 

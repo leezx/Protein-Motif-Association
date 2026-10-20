@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Regression coverage for the bounded 64-peak wrapper's independent parent."""
+import ast
 import importlib.util
 import os
 import subprocess
@@ -22,6 +23,24 @@ def load(name, path):
 SPEED = load("print_speed64", os.path.join(SCRIPTS, "run_print_speed64_supervised.py"))
 OUTER = load("print_outer_watchdog",
              os.path.join(SCRIPTS, "run_print_integration_smoke_supervised.py"))
+
+
+def test_selector_capture_uses_python36_compatible_subprocess_keyword():
+    path = os.path.join(SCRIPTS, "run_print_speed64_supervised.py")
+    with open(path, "r") as handle:
+        tree = ast.parse(handle.read(), filename=path)
+    calls = [node for node in ast.walk(tree)
+             if isinstance(node, ast.Call)
+             and isinstance(node.func, ast.Attribute)
+             and isinstance(node.func.value, ast.Name)
+             and node.func.value.id == "subprocess"
+             and node.func.attr == "run"]
+    assert len(calls) == 1
+    keywords = {keyword.arg: keyword.value for keyword in calls[0].keywords}
+    assert "text" not in keywords
+    assert "universal_newlines" in keywords
+    assert isinstance(keywords["universal_newlines"], ast.Constant)
+    assert keywords["universal_newlines"].value is True
 
 
 def test_parent_delegates_all_work_to_supervised_worker():
@@ -104,6 +123,7 @@ time.sleep(30)
 
 
 if __name__ == "__main__":
+    test_selector_capture_uses_python36_compatible_subprocess_keyword()
     test_parent_delegates_all_work_to_supervised_worker()
     test_blocked_worker_cleans_detached_registered_group()
     print("PRINT 64-peak parent/timeout cleanup checks passed")

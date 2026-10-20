@@ -14,10 +14,10 @@ import sys
 import time
 
 
-RUN_ID = "BG_K562_PRINT_PEAK_SPEED64_20261020_V1"
-CODE_DIR = "/home/zz950/PMA_fetch/pma_print_peak_speed_code_20261020_v1"
-ROOT = "/home/zz950/PMA_fetch/pma_print_peak_speed_rcapps3_20261020_v1"
-OUTPUT_DIR = "/home/zz950/DATA/2.PROJECTS/PMA/atac_footprint/processed/round1/runs_print_peak_speed_rcapps3_20261020_v1"
+RUN_ID = "BG_K562_PRINT_PEAK_SPEED64_20261020_V2"
+CODE_DIR = "/home/zz950/PMA_fetch/pma_print_peak_speed_code_20261020_v2"
+ROOT = "/home/zz950/PMA_fetch/pma_print_peak_speed_rcapps3_20261020_v2"
+OUTPUT_DIR = "/home/zz950/DATA/2.PROJECTS/PMA/atac_footprint/processed/round1/runs_print_peak_speed_rcapps3_20261020_v2"
 FROZEN_BED = "/home/zz950/DATA/2.PROJECTS/PMA/atac_footprint/raw/2026-10-19/encode_k562/ENCSR868FGK/ENCFF993BAP.bed.gz"
 SELECTOR_NAME = "select_print_speed64.py"
 RUNNER_NAME = "run_print.R"
@@ -83,7 +83,8 @@ def worker_main(deadline, registry_path):
     selection_started = time.monotonic()
     result = subprocess.run([sys.executable, selector, FROZEN_BED, bed, row_map],
                             check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                            text=True, timeout=max(1, deadline - time.monotonic()))
+                            universal_newlines=True,
+                            timeout=max(1, deadline - time.monotonic()))
     selection_seconds = time.monotonic() - selection_started
     selection = json.loads(result.stdout.strip().splitlines()[-1])
     if selection.get("selected_rows") != 64 or selection.get("source_rows") != 159628:

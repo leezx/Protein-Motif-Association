@@ -1,9 +1,10 @@
-# CURRENT OPERATIVE FOOTPRINT TASK — 2026-10-20 14:02 EDT
+# CURRENT OPERATIVE FOOTPRINT TASK — 2026-10-20 14:20 EDT
 
 ## PRINT pnorm diagnostic — local candidate only; review required before execution
 
-At PR #8 branch `task_20261019_hint_overlay_smoke`, the live reviewed baseline is HEAD
-`2026c22658d13e3698e71af4ba6cd8051fa5170b`. The user authorized local PRINT-source work. The fixed
+At PR #8 branch `task_20261019_hint_overlay_smoke`, the live reviewed baseline before this change was HEAD
+`2026c22658d13e3698e71af4ba6cd8051fa5170b`; the current unreviewed candidate implementation commit is
+`358328587c159f197d28022fb0ae681ef449a4d7`. The user authorized local PRINT-source work. The fixed
 `PMA｜固定阶段审核` conversation approved only the diagnostic proposal, not execution; V5's one-shot
 is consumed. No remote Argos access/staging/input read/gate call is authorized by that approval.
 
@@ -27,8 +28,11 @@ and `git diff --check` pass. This does not execute against V5 biological caches,
 are unavailable here. Candidate SHA-256: diagnostic `c5f7f6964de840408a1bcdb2e6ca1435c463411fb6287e7b28c59b46b72a5c2c`; regression
 `755a18f1d7427708cc821c5ab07b88c26ffdee9179de1861acabc72629c2ff5f`.
 
-Next gate: update/commit/push this code and audit on the same PR #8; request exact-head L1/L2 review
-in the existing fixed PMA project conversation. Only after that implementation review passes may
+The code/test/audit candidate was pushed to the same PR #8 in commit
+`358328587c159f197d28022fb0ae681ef449a4d7`; branch ref, fetched origin ref, and GitHub PR API were
+checked and agree at that commit. The PR body asks for code review only.
+
+Next gate: request exact-head L1/L2 review in the existing fixed PMA project conversation. Only after that implementation review passes may
 the exact read-only diagnostic command/resources be reviewed, and a separate one-time run release
 be obtained. Then fresh preflight is required. Do not access Argos, stage code, run this script on
 the V5 cache, expand peaks, claim biological accuracy, or merge before those gates.

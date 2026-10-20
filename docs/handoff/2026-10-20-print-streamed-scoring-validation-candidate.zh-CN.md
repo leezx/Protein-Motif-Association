@@ -28,6 +28,14 @@ BLOCKED，不能扩大到全峰或作准确度结论。
 实现审核通过，仍需单独审核精确命令/资源并取得一次性运行放行，随后重新预检；此记录不授权
 Argos 读取/暂存/执行、全峰扩展、环境修改、准确度排名或 PR 合并。
 
+## 2026-10-20 14:20 EDT — PR #8 candidate published
+
+上述诊断代码、合成回归和 audit 更新已作为 commit
+`358328587c159f197d28022fb0ae681ef449a4d7` 推送到既有 PR #8 分支。fetch 后的 origin ref、GitHub
+branch API 和 PR API 一致指向该提交，PR OPEN、未合并。PR body 已同步并请求仅实现审核。此更新没有
+连接/读取 Argos、暂存脚本或执行诊断；该操作仍需当前 exact-head 实现审查通过、对确切命令/资源的
+后续审查及单独的一次性运行放行。
+
 时间：2026-10-20 13:06 EDT
 
 范围：PMA Step 4b footprint，仅 PR #8。ChIP BED6/PR #7 由 Claude 负责。

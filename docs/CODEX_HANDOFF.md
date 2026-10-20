@@ -1,4 +1,18 @@
-# CURRENT OPERATIVE FOOTPRINT TASK — 2026-10-20 10:12 EDT
+# CURRENT OPERATIVE FOOTPRINT TASK — 2026-10-20 10:22 EDT
+
+## Live status — second exact-head review findings repaired locally
+
+Footprint-only; Claude owns ChIP BED6/PR #7. PR #8 is OPEN/unmerged on task_20261019_hint_overlay_smoke. The fixed PMA conversation reviewed exact HEAD 6ff52e0d78dec129f5b73e1fc73e0d2da80f7416: the independent bias oracle finding is closed; the L1 deadline finding remains REQUEST_CHANGES because cooperative checks cannot interrupt a blocked file read, subprocess timeout alone does not guarantee process-group cleanup, and the previous fixture tested only an ordinary sleeper. No Argos preflight or calculation is allowed yet.
+
+Same-PR local repair adds an independent outer worker supervisor. The parent starts the 30-minute clock before worker launch and performs no data reads or hashing; the worker keeps its internal monotonic checks. The worker registers separately sessioned preflight, PRINT caller, and RSS sampler groups in a small /tmp JSONL registry. On deadline, SIGINT/SIGTERM, or worker exit with leaked groups, the parent sends TERM to all registered groups and the worker group together, allows at most 60 seconds, then sends KILL and checks for live survivors for at most 5 seconds. Linux Argos checks /proc process-group membership and treats zombies as terminated; the local macOS fixture falls back to killpg existence. A survivor is reported; SIGKILL is not claimed to immediately clear uninterruptible kernel D-state tasks. The 8-peak-only input, two workers, radii 10/20, 44-GiB per-process RLIMIT_AS and 40-GiB sampled RSS soft-stop are unchanged.
+
+Local validation passed: python3 tests/test_print_smoke_deadline.py (including a new independent-session child that ignores TERM and is removed by bounded KILL), python3 tests/test_select_print_integration_smoke.py, Rscript tests/test_print_variable_width.R, R parse, Python py_compile, bash tests/test_step4b_runner_contract.sh, and git diff --check. The fixture exercises the process supervisor on this macOS host; Linux /proc membership/RSS behavior and the real Argos wrapper remain unverified. No HDF5, PRINT, Argos, or biological output was accessed in this repair.
+
+Candidate hashes: selector 7e2a67554e4d5c601cdb6c18a3758bb420520fa21d6324eff6f02d15c1dd5856; runner 44853e1a865bcdf86c87ca6fbabd0279d86d144b14953b1b0533c679eb5098f2; helper fa2aaba9248a9a67621fe269210b7afd81920aaa3bf85cac443f0a2371865174; base supervisor 5631f74b7fcad6b50776a237325234063f54ceeac781dfd9e0fa68fc75f6968f; outer smoke supervisor d68e50789f1a70e021b8a7b330ba46d0a4ad414477b66998e6fa1ef0748a6324. The smoke supervisor's staged base hash pin matches the candidate.
+
+Next: commit and push these code/test/audit updates to the same PR, update its body to the exact live HEAD, and request one more review in the fixed PMA project conversation. No Argos access before explicit exact-head approval. If approved, only the existing one-shot 8-peak smoke is in scope; failure means stop, retain evidence, no retry, no full-scale run, and no merge.
+
+## Previous snapshot — 2026-10-20 10:12 EDT
 
 ## Live status — review findings fixed and pushed; exact-head resubmission next
 

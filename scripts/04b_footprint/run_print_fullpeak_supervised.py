@@ -52,6 +52,7 @@ SAMPLE_BUDGET_SECONDS = 1.5
 MAX_SAMPLE_INTERVAL_OVERRUN_SECONDS = 0.25
 STOP_REQUESTED = []
 RUN_DEADLINE_MONOTONIC = None
+PROCESS_GROUP_REGISTRY = None
 REQUIRED_TIMING_STAGES = {"bias", "counts", "footprint_r10", "footprint_r20"}
 
 
@@ -70,16 +71,73 @@ def check_wall_deadline():
 
 def bounded_check_output(command, **kwargs):
     timeout = remaining_wall_seconds()
-    if timeout is not None:
-        kwargs["timeout"] = timeout
-    return subprocess.check_output(command, **kwargs)
+    kwargs.setdefault("stdout", subprocess.PIPE)
+    if kwargs.get("stderr") == subprocess.STDOUT:
+        kwargs["stderr"] = subprocess.STDOUT
+    else:
+        kwargs.setdefault("stderr", subprocess.PIPE)
+    kwargs.pop("timeout", None)
+    return run_registered_process(command, "preflight", timeout, **kwargs)[1]
 
 
 def bounded_check_call(command, **kwargs):
     timeout = remaining_wall_seconds()
-    if timeout is not None:
-        kwargs["timeout"] = timeout
-    return subprocess.check_call(command, **kwargs)
+    kwargs.pop("timeout", None)
+    returncode, _, _ = run_registered_process(command, "preflight", timeout, **kwargs)
+    if returncode:
+        raise subprocess.CalledProcessError(returncode, command)
+    return 0
+
+
+def registry_event(action, pgid, role):
+    if not PROCESS_GROUP_REGISTRY:
+        return
+    record = {"action": action, "pgid": int(pgid), "role": str(role),
+              "time_epoch": time.time()}
+    with open(PROCESS_GROUP_REGISTRY, "a") as handle:
+        handle.write(json.dumps(record, sort_keys=True) + "\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+
+
+def process_group_has_live_members(pgid):
+    members, failures = group_members(pgid)
+    live = [member for member in members if member[1] != "Z"]
+    return live, failures
+
+
+def run_registered_process(command, role, timeout=None, **kwargs):
+    process = subprocess.Popen(command, start_new_session=True, **kwargs)
+    pgid = process.pid
+    registry_event("register", pgid, role)
+    try:
+        stdout, stderr = process.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        cleaned = terminate_group(pgid, None, "%s_timeout" % role)
+        try:
+            stdout, stderr = process.communicate(timeout=5)
+        except subprocess.TimeoutExpired:
+            for stream in (process.stdout, process.stderr):
+                if stream is not None:
+                    stream.close()
+            raise RuntimeError("timed-out %s process could not be reaped; group_clean=%s" %
+                               (role, cleaned))
+        if not cleaned:
+            raise RuntimeError("timed-out %s process group cleanup incomplete" % role)
+        registry_event("unregister", pgid, role)
+        raise
+    live, scan_failures = process_group_has_live_members(pgid)
+    if live or scan_failures:
+        cleaned = terminate_group(pgid, None, "%s_orphaned_process_group" % role)
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            cleaned = False
+        if not cleaned:
+            raise RuntimeError("%s process group cleanup incomplete" % role)
+        raise RuntimeError("%s command left a child process behind" % role)
+    registry_event("unregister", pgid, role)
+    return process.returncode, stdout, stderr
 
 
 def sha256(path):
@@ -269,6 +327,7 @@ def timed_group_vmrss(pgid, timeout_seconds):
     try:
         sampler = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                    universal_newlines=True, start_new_session=True)
+        registry_event("register", sampler.pid, "rss_sampler")
         try:
             stdout, stderr = sampler.communicate(timeout=timeout_seconds)
             communicate_completed = True
@@ -311,6 +370,10 @@ def timed_group_vmrss(pgid, timeout_seconds):
                         except Exception as error:
                             cleanup_failed = True
                             cleanup_error_type = type(error).__name__
+        if sampler is not None and sampler.poll() is not None:
+            live, scan_failures = process_group_has_live_members(sampler.pid)
+            if not live and not scan_failures:
+                registry_event("unregister", sampler.pid, "rss_sampler")
     return result + (sampler, cleanup_failed, cleanup_error_type,
                      sampler.returncode if sampler is not None else None,
                      communicate_completed)
@@ -326,23 +389,41 @@ def terminate_group(pgid, log, reason):
         pass
     try:
         os.killpg(pgid, signal.SIGTERM)
+    except ProcessLookupError:
+        return True
     except OSError:
-        return
-    deadline = time.time() + 60
-    while time.time() < deadline:
+        return False
+    deadline = time.monotonic() + 60
+    while time.monotonic() < deadline:
         try:
             members, scan_failures = group_members(pgid)
         except Exception:
-            # Even a failed membership poll must not prevent the final KILL.
+            # Keep the final KILL deadline even when /proc enumeration fails.
             time.sleep(1)
             continue
         if not scan_failures and (not members or all(state == "Z" for _, state, _ in members)):
-            return
+            registry_event("unregister", pgid, reason)
+            return True
         time.sleep(1)
     try:
         os.killpg(pgid, signal.SIGKILL)
+    except ProcessLookupError:
+        registry_event("unregister", pgid, reason)
+        return True
     except OSError:
-        pass
+        return False
+    reap_deadline = time.monotonic() + 5
+    while time.monotonic() < reap_deadline:
+        try:
+            members, scan_failures = group_members(pgid)
+        except Exception:
+            time.sleep(0.1)
+            continue
+        if not scan_failures and (not members or all(state == "Z" for _, state, _ in members)):
+            registry_event("unregister", pgid, reason)
+            return True
+        time.sleep(0.1)
+    return False
 
 
 def request_stop(signum, frame):
@@ -504,6 +585,7 @@ def main():
                                            env=environment, start_new_session=True)
                 caller_started_monotonic = time.monotonic()
                 pgid = process.pid
+                registry_event("register", pgid, "print_caller")
                 cleanup_needed = True
                 peak_rss = 0
                 failures_in_row = 0
@@ -604,6 +686,9 @@ def main():
                         time.sleep(sleep_seconds)
                 return_code = process.wait()
                 cleanup_needed = False
+                members, scan_failures = group_members(pgid)
+                if not scan_failures and (not members or all(state == "Z" for _, state, _ in members)):
+                    registry_event("unregister", pgid, "print_caller")
                 caller_elapsed = time.monotonic() - caller_started_monotonic
             summary = {"run_id": RUN_ID, "host": socket.gethostname(),
                        "architecture": os.uname()[4], "cpus": cpus, "workers": len(cpus),

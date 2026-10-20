@@ -42,4 +42,4 @@ launcher 固定使用 16 个当前允许 CPU、`nCores=16`、radii `10,20`，并
 
 ## 审核后状态
 
-截至本交接写入时，PR #8 当前 HEAD 包含 watchdog 的实际实现，exact-head GPT 审核尚待完成；没有 PRINT 全峰集 caller 已启动。下一动作是推送当前完整文件和同步修正的 PR body，在固定 PMA 审核对话提交 exact-head review，然后按审核决定执行。
+PR #8 body 已更新为 direct-login standalone 方案，包含实际 launcher/hash、节点/R 环境、数据/模型哈希、输出目录及 sampled PSS 限制。代码与文档 tip 已同步，接下来在固定 PMA 审核对话请求该完整 tip 的 exact-head review；此前不复制 launcher 到 Argos、不启动 PRINT。没有 PRINT 全峰集 caller 已启动。

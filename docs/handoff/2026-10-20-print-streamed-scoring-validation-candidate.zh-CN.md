@@ -1,5 +1,33 @@
 # PRINT 持久评分调度与 8-peak 验收结果
 
+## 2026-10-20 14:16 EDT — pnorm warning 定位候选（仅本地实现）
+
+用户授权修改本地 PRINT 工作流源码。固定 `PMA｜固定阶段审核` 对 PR #8 HEAD
+`2026c22658d13e3698e71af4ba6cd8051fa5170b` 的决定仅批准诊断方案，不批准 Argos 执行。V5
+单次运行授权已消耗。
+
+新候选 `scripts/04b_footprint/diagnose_print_pnorm.R` 只读取现有 V5 8 峰 count chunk、bias
+group RDS、10/20-bp dispersion models、validated score tracks/event BED、V5 summary/completion
+和固定 PRINT 源模块。它在隔离环境中包裹原生 `pnorm`，记录 q、预测均值/SD、p 值、警告、peak
+行/坐标、半径、flank、PRINT 内部 pseudobulk/cell-type 两条路径，以及异常位置是否被原生
+`(leftTotal < 1) | (rightTotal < 1)` mask 排除。计数、bias、模型不重建；不写回任何缓存、轨道或
+事件文件；不钳制 SD、不屏蔽警告。输入、PRINT 源、summary/completion 和原结果均要求运行前后
+SHA 不变，且轨道与事件哈希必须等于 V5 的固定值。所有 16 个既有 peak-radius 对照及 14/17
+事件数均需保持；若警告数与 V5 记录的 28 不同，或任何异常不被 mask 排除，报告仍为
+BLOCKED，不能扩大到全峰或作准确度结论。
+
+本地 regression 使用合成 pnorm 向量，覆盖正 SD、负 SD 和 NaN 输入；验证原生 pnorm 返回值
+逐元素一致、警告仍出现、两条内部评分路径均被捕获，并将一个异常映射到未排除位置、另一个映射
+到零覆盖 mask。命令 `Rscript tests/test_print_pnorm_diagnostic.R` 通过；R 解析和
+`git diff --check` 通过。候选 SHA-256：脚本
+`c5f7f6964de840408a1bcdb2e6ca1435c463411fb6287e7b28c59b46b72a5c2c`；回归
+`755a18f1d7427708cc821c5ab07b88c26ffdee9179de1861acabc72629c2ff5f`。没有本地 V5 生物数据缓存，
+因此尚未对真实 V5 输入运行诊断。
+
+下一步仅在 PR #8 同一分支发布该实现和审计，并在固定 PMA 对话请求 exact-head 实现审核。即使
+实现审核通过，仍需单独审核精确命令/资源并取得一次性运行放行，随后重新预检；此记录不授权
+Argos 读取/暂存/执行、全峰扩展、环境修改、准确度排名或 PR 合并。
+
 时间：2026-10-20 13:06 EDT
 
 范围：PMA Step 4b footprint，仅 PR #8。ChIP BED6/PR #7 由 Claude 负责。

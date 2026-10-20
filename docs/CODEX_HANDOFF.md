@@ -1,5 +1,38 @@
 # CURRENT OPERATIVE FOOTPRINT TASK — 2026-10-20 14:02 EDT
 
+## PRINT pnorm diagnostic — local candidate only; review required before execution
+
+At PR #8 branch `task_20261019_hint_overlay_smoke`, the live reviewed baseline is HEAD
+`2026c22658d13e3698e71af4ba6cd8051fa5170b`. The user authorized local PRINT-source work. The fixed
+`PMA｜固定阶段审核` conversation approved only the diagnostic proposal, not execution; V5's one-shot
+is consumed. No remote Argos access/staging/input read/gate call is authorized by that approval.
+
+New `scripts/04b_footprint/diagnose_print_pnorm.R` is an observation-only candidate against the
+existing V5 8-peak count chunks, bias-group RDS files, dispersion models, and validated r10/r20
+tracks/native-event BEDs. It sources the official pinned PRINT commit in an isolated environment,
+clones the native scoring closures, and wraps only `pnorm` to record q/mean/sd/p values, warning
+text, peak/radius/flank, the two PRINT internal scoring paths, genomic coordinate, left/right
+insertion totals, and whether PRINT's final zero-coverage mask excludes each anomalous position.
+Native `pnorm` values/warnings are retained; SDs are not clamped, warnings are not muffled, and no
+score/event/cache file is rewritten. Before/after SHA-256 checks cover every read source/cache,
+baseline output, and V5 summary/completion artifact. The script verifies the 16 original comparison
+rows and 14/17 event counts and refuses any non-V5 source, non-eight-peak input, pre-existing output
+directory, altered pinned tracks/events, or changed input hashes. It reports an unmasked anomaly or
+warning-count mismatch as a scale-up BLOCK, not a pass.
+
+Local regression: `Rscript tests/test_print_pnorm_diagnostic.R` passes on synthetic pnorm inputs,
+confirms the native pnorm return values are identical, both internal scorer paths are captured,
+warnings remain visible, and genomic positions map correctly to masked and unmasked cases. R parser
+and `git diff --check` pass. This does not execute against V5 biological caches, and local V5 caches
+are unavailable here. Candidate SHA-256: diagnostic `c5f7f6964de840408a1bcdb2e6ca1435c463411fb6287e7b28c59b46b72a5c2c`; regression
+`755a18f1d7427708cc821c5ab07b88c26ffdee9179de1861acabc72629c2ff5f`.
+
+Next gate: update/commit/push this code and audit on the same PR #8; request exact-head L1/L2 review
+in the existing fixed PMA project conversation. Only after that implementation review passes may
+the exact read-only diagnostic command/resources be reviewed, and a separate one-time run release
+be obtained. Then fresh preflight is required. Do not access Argos, stage code, run this script on
+the V5 cache, expand peaks, claim biological accuracy, or merge before those gates.
+
 ## PRINT V5 8-peak integration validation — PASS; one-shot consumed
 
 Footprinting only; Claude owns ChIP BED6/PR #7. PR #8 is OPEN and unmerged. At exact HEAD `dce3d4e610644dce7545837d1af9add41cf39df2`, the fixed `PMA｜固定阶段审核` conversation explicitly approved one V5 8-peak validation after fresh preflight. The gate ran once on `rcGPUs` and exited 0 at `2026-10-20T14:01:53-04:00`; V5 is consumed and must not be repeated.

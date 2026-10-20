@@ -40,6 +40,15 @@ Review checkpoint: L1 = FAIL for the requested complete 64-peak track (deadline 
 
 The V1 Python 3.5.2 compatibility failure and its separate evidence remain documented in the prior dated handoff. V1 was EXIT=2 before caller analysis and is not to be retried.
 
+## Fixed PMA review of V2 timeout — next measurement is a fresh 60-minute 64-peak run proposal
+
+The fixed `PMA｜固定阶段审核` conversation reviewed the V2 result at the live PR #8 HEAD
+`1503811a09308f7a699774ca75137bbdaea84bda` and returned: L1 complete-track delivery FAIL but timeout supervision/cleanup PASS; L2 accuracy and full-scale runtime BLOCKED; L3 ON TRACK with PARTIAL progress. The review classifies the timeout and sampled RSS as real observations, the width-group overhead explanation as a moderate-confidence interpretation, and any completed runtime/full-cancer projection as low-confidence. It confirms 105 completed scoring calls are calls, not peaks or a completion percentage.
+
+Its single recommended next measurement is to keep the same 64 frozen peaks, two workers, radii 10/20 and current implementation, but propose a fresh 60-minute total execution budget under a new run ID and unique paths. Before a new exact-head review request, summarize the existing 64-row mapping's actual chromosome × exact-width group count, group sizes/width distribution, and observed start/finish calls by group and radius. A group is processed separately for each radius, so 64 peaks imply at most 64 groups and 128 group-radius invocations; this is an upper bound, not an observed group count. Do not infer remaining time from 105 completed calls without those group-level timings. Keep the current per-process memory limit and sampled process-group RSS soft stop. The review says 60 minutes may allow completion but does not guarantee it.
+
+This is a proposed measurement only. It does not authorize remote reads/staging, a gate invocation, a rerun, accuracy assessment, full-peak execution, optimization, environment changes, or PR merge. Any new compute needs a fresh exact-head review and explicit one-run authorization. The 64-peak timeout did not produce final tracks, event BEDs, or timing TSVs; accuracy remains unranked.
+
 Fresh preflight before that single invocation found rcGPUs x86_64, 72 CPUs, ~919 GiB MemAvailable,
 no SGE jobs or matching run process; frozen BED/fragments, all staged V1 code/gate/model hashes,
 PRINT clean commit, R 4.2.2 and required packages matched. V1 code stage was created exactly as

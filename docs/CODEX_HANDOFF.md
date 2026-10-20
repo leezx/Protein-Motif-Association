@@ -1,4 +1,10 @@
-# CURRENT OPERATIVE FOOTPRINT TASK — 2026-10-20 00:41 EDT
+# CURRENT OPERATIVE FOOTPRINT TASK — 2026-10-20 07:43 EDT
+
+## Current PRINT candidate — V5 resource-reduced, awaiting fixed-PMA exact-head review
+
+User asked to reduce resource use and continue. The new same-PR candidate preserves all 159,628 original K562 peaks, PRINT radii 10/20, the same frozen inputs and CPU-only mode, while reducing workers 16→4 and the sampled process-group RSS soft-stop threshold 100→64 GiB. Unique V5 paths are `/home/zz950/PMA_fetch/pma_print_fullpeak_rcapps3_20261020_v5/` and `/home/zz950/DATA/2.PROJECTS/PMA/atac_footprint/processed/round1/runs_print_fullpeak_rcapps3_20261020_v5/`. This is a lower-resource trial configuration, not evidence that peak RSS will stay under 64 GiB and not a hard task memory cap. Prior V4 sampled RSS sum jumped from 97.91 to 146.86 GiB across two seconds; the sampler may miss transient peaks and RSS can double-count shared pages. Each process still has the immutable gate's 44-GiB RLIMIT_AS, not a process-group cap. Keep all prior attempts/evidence.
+
+The candidate has not run. PR #8 must receive a fresh exact-head L1/L2 `APPROVE` and explicit authorization for exactly one V5 run in the user's fixed `PMA｜固定阶段审核` conversation. After approval only: verify exact reviewed HEAD, fresh node/input/model/source/gate hashes, clean pinned PRINT checkout, no matching active process, unique V5 paths absent and required R dependencies; then launch once on `rcapps3` through the immutable gate. If preflight or the run fails, preserve evidence and stop; no retry. User's resource reduction is the only authorized parameter change. No accuracy ranking, motif analysis, other caller, ChIP/PR #7 work, or merge.
 
 ## Latest PRINT full-peak attempt — V4 stopped by sampled-RSS soft threshold
 

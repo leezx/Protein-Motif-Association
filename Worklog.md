@@ -1423,3 +1423,15 @@ Pushed the required audit update as `a36a2d82bffd928ea9f8498ecaf75503c5534f32`; 
 - Added the exact V5 run ID, unique code/evidence/output paths, five staged-file SHA-256 values, and single candidate gate command to `docs/CODEX_HANDOFF.md` and the dated PRINT handoff. V5 remains a candidate only; V4 remains consumed.
 - No source/test change in this documentation-only addition; the complete local suite was already rerun and passed at 13:43 EDT. `git diff --check` passes.
 - Next action: publish this audit update to the same PR, verify local/origin/GitHub exact head and body, then ask for fixed-PMA exact-head review. No remote staging/input/gate action is authorized by this worklog update.
+
+### 2026-10-20 13:47 EDT — corrected V5 wrapper hash after fixed-PMA REQUEST_CHANGES
+
+- Fixed-PMA exact-head review of `52d9c325ba648ed7d36afffeb70c6bfadaa4282f` returned `REQUEST_CHANGES` for one execution-package blocker: the wrapper SHA in the command/handoff was mistyped, so its self-hash check would fail. The reviewer verified the same file bytes through GitHub reads. All other four staged hashes matched; no source-code blocker was found in the lexical-owner fix or its S4 fixture.
+- Independently recomputed local worktree and committed-blob hashes. Correct V5 wrapper SHA is `8ed17c3ad8e01be0c08b59c3f1749a5e756b4832e95bbdb46c992bd835a1763c`; corrected the current handoff hash and candidate command. No R/Python source changed; no Argos staging, input access, gate call, or run occurred.
+- L1 repair review: source fix PASS, package REQUEST_CHANGES solely for hash typo. L2 remains BLOCKED/UNVERIFIED-critical until real HDF5/S4/PSOCK equivalence; accuracy cannot be ranked. V5 evidence NONE. Next: push the handoff correction to PR #8 and request exact-head review in the same fixed PMA conversation. No V5 execution until fresh approval and preflight.
+
+### 2026-10-20 13:48 EDT — verified corrected V5 package locally
+
+- Re-ran `python3 tests/test_print_smoke_deadline.py` (including the V5 path and self-hash contract), `Rscript tests/test_print_variable_width.R`, R parse for helper/runner, Python compilation for the three PRINT supervisors, `python3 tests/test_print_speed64_supervisor.py`, `python3 tests/test_select_print_integration_smoke.py`, `bash tests/test_step4b_runner_contract.sh`, and `git diff --check`; all PASS. Contract fixture `BAM_CONVERSION_FAIL`/`BAM_PREP_FAIL` messages are expected negative cases; it ends with PASS.
+- Recomputed outer wrapper SHA from both worktree and committed blob: `8ed17c3ad8e01be0c08b59c3f1749a5e756b4832e95bbdb46c992bd835a1763c`; current CODEX and dated handoff now match it in both staged-file table and candidate command.
+- Next: publish this correction to the same PR #8 and request exact-head review in the fixed PMA conversation. No Argos access/staging/input/gate or V5 attempt has occurred.

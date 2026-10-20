@@ -29,17 +29,22 @@ Do not score accuracy, discover motifs, optimize/port code, change samples, or w
    intervals and preserve native output/count/hash evidence. Any derived input must retain all
    records and may not silently substitute the old 77,668 1-kb speed windows.
 
-3. **Resources and exact gate.** Target one Argos QSUB job using 16 CPU workers and 80–100 GB
-   task-wide memory as requested by the user, CPU-only/no GPU. The current `normal.q` is QERROR
-   (`rcGPUs` instance E due jobs 85/86); the latest read-only `qstat -g c` reports 0/32 available,
-   and `qconf -spl` reports no parallel environment. Earlier read-only configuration found
-   `h_vmem`/`h_rss` unbounded and `h_vmem` non-consumable; no reliable job-total memory reservation
-   or enforcement has been shown. Therefore **no valid exact QSUB command exists yet** and no job
-   has been submitted. Do not use the standalone gate. A launch remains blocked until Argos
-   administrators restore queue health, provide a working one-node PE with clear slot semantics,
-   and document a job-total memory reservation plus hard limit covering the parent and all workers.
-   Then write the exact qsub resources, 16-worker command, wall limit, log/result paths and fail-closed
-   preflight into this PR and obtain exact-head PMA review before submission.
+3. **Resources and exact gate.** The user has now directed direct use of the documented standalone
+   nodes if SGE is unavailable; this supersedes the earlier “do not use standalone” preference for
+   this bounded run. `computingResource.md` identifies `rcapps3` (x86_64, 72 CPU cores, 1 TB RAM)
+   and `rcapps8` (aarch64, 128 cores, 1 TB RAM). A live read-only check at 2026-10-19 22:59 EDT
+   found `rcapps8` had 453 GiB available, but the shared R4.3.2 `Rscript` binary is x86-64 and
+   fails there with `Exec format error`; system R 4.1.2 lacks `cladoRcpp` and `rhdf5`. It is not a
+   launch candidate without unapproved environment work. `rcapps3` is x86_64-compatible and had
+   917 GiB available, 72 CPUs, and load average 51.7; choose it only after a fresh preflight confirms
+   sufficient available CPU/memory. Its cgroup/job-wide memory enforcement has not been established.
+   Run PRINT at 16 workers, CPU-only, with a fail-closed 100-GiB aggregate-PSS process-tree watchdog;
+   keep GNU-time and watchdog samples separate, and stop if the watchdog cannot measure/attach to the
+   whole process tree. Preserve the existing per-process 44-GiB `RLIMIT_AS` gate without describing
+   it as a task-wide cap. Maximum wall time is 24 h. No administrator contact, package install,
+   environment change, optimization, accuracy scoring, motif discovery, or other caller is in scope.
+   Exact sync path, output directory, command, and fail-closed preflight are in the dated handoff;
+   obtain exact-head review in the fixed PMA conversation before executing the caller.
 
 4. **Timing record and stop rule.** After those resource and review gates, run PRINT once. Record
    QSUB job ID/exit state; wall, user/system CPU, scheduler memory and `/usr/bin/time -v` maximum RSS
@@ -49,7 +54,7 @@ Do not score accuracy, discover motifs, optimize/port code, change samples, or w
    This run reports computation time/resources and native output statistics only. No accuracy claim,
    cross-tool rank, motif finding, retry, algorithm change, C/C++ optimization, or merge.
 
-**Current status (2026-10-19 22:43 EDT; PR #8 HEAD `60a56d3974d92dd2301756d26acc4e10736b454e`).** The fixed PMA conversation approved the PRINT-on-all-original-peaks task definition, read-only peak count/hash/size, and aggregate interval/union coverage computation. It did not approve computation or QSUB submission. Peak metadata/aggregates are recorded above. A fresh read-only queue check still finds QERROR and no PE. No PRINT caller or QSUB task has run. The previous 77,668-window multi-tool proposal is superseded for the immediate task.
+**Current status (2026-10-19 23:00 EDT; PR #8 HEAD to refresh after this update).** The fixed PMA conversation approved the PRINT-on-all-original-peaks task definition, read-only peak count/hash/size, and aggregate interval/union coverage computation. The user then explicitly selected direct-login standalone compute if SGE is unavailable. `rcapps8` is unsuitable because its CPU architecture cannot run the shared x86 R environment. `rcapps3` is the candidate, pending a fresh resource preflight and approved process-tree PSS watchdog. No PRINT caller has run. The prior 77,668-window proposal remains superseded.
 
 **Status.** The earlier benchmark design was approved by ChatGPT on 2026-10-17 with revisions.
 That approval does not cover material Section 4 revisions. The current read-only qualification is

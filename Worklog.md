@@ -1523,6 +1523,8 @@ Pushed the required audit update as `a36a2d82bffd928ea9f8498ecaf75503c5534f32`; 
 - Script SHA-256: `d37bf53e489e4845efcbcf864b082c9ee6207f4bbc3c4d4fd586875de0fdb78e`. `git diff --check` passed. No R parser or test was run; this built-in synthetic test is not yet execution-verified. No Argos access/staging/cache read/preflight/run occurred. Scores, warnings, pnorm inputs, and historical outputs were not changed.
 - Next: update this same PR/handoff and submit the exact candidate to the fixed PMA conversation. Keep remote execution blocked pending a separate exact-command review and one-time authorization; do not interpret this code repair as resolving the negative-SD scientific blocker.
 
+- Publication record: committed the four-file repair to PR #8 as `84c9de62a4288d75922c9340107b994aa08638ea` and synchronized the PR body. Review is pending in the same fixed PMA conversation. No test or remote run was started.
+
 ### 2026-10-20 15:04 EDT — fixed-PMA rejected forward-audit candidate; repaired locally
 
 - Fixed `PMA｜固定阶段审核` reviewed exact PR #8 HEAD `f5b1b64100340fce84b37e7d1f9fe976c63778d2`: `REQUEST_CHANGES`. Reviewer confirmed the wrapped native predictor capture and affine/ReLU/de-standardization order, then identified three blockers: closed-connection cleanup in `sha256_object()`, incomplete fail-closed coverage for anomaly/comparator pairs, and inverse-scaled rather than independently derived raw features.

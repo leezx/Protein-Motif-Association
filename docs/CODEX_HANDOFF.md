@@ -32,6 +32,10 @@ has not explicitly asked to run local tests. No Argos access/staging/cache read/
 occurred, and no scoring output changed. This candidate requires exact-head fixed-PMA review; no
 remote operation is authorized by this implementation change.
 
+The candidate was pushed to PR #8 as exact HEAD
+`84c9de62a4288d75922c9340107b994aa08638ea` and the PR body was updated to identify this version.
+Review is pending in the same fixed PMA conversation. No test or remote run was started.
+
 ## PRINT pnorm diagnostic — completed; scientific gate BLOCKED
 
 ### Fixed-PMA result review (2026-10-20 14:52 EDT)

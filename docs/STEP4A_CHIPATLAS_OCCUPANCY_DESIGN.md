@@ -303,3 +303,45 @@ produce a new metadata version.
 - Memory: a few GB (metadata dictionary plus blacklist).
 - Disk: the archive is 21.4 GB gzip.
 - bedtools and bedToBigBed are not installed; a bigBed output is deferred.
+
+## 10. Light per-target BED for browsing (user request 2026-10-20)
+
+**Why.** The experiment-level Output A (443 M rows) and the coordinate-unique BED6 (1.02 G rows with histone)
+are too large to open in IGV. Exact-coordinate dedup removes only ~4 % of rows, because peak boundaries
+from different experiments almost never coincide. Measured on v1 chr21: 6.15 M rows → 5.87 M coordinate-unique
+→ 0.99 M per-target merged → 36 k all-target clusters. The user chose per-target merging, with histone marks in
+a separate file.
+
+**Rule.** For each target, overlapping or book-ended peaks (start ≤ open end) are chained across all experiments
+of that target, as `bedtools merge` per name.
+- Target: the HGNC symbol (Output A column 9); otherwise the curated ChIP-Atlas antigen (column 8) with
+  whitespace replaced by `_`.
+- Histone marks use the antigen (e.g. `H3K27ac`).
+- No peak is filtered. Blacklist overlap is counted per region, not removed.
+
+**Inputs.**
+- Proteins: the verified v1 Output A and its experiment table.
+- Histone: the same Step 4a pipeline (§3–§6 rules, blacklist flag) run with `PMA_OCC_CLASSES=Histone`
+  (`01_experiments.py` + `02_peaks.py`), giving a histone BED6+18 and `experiments_stage1.tsv.gz`.
+
+**Outputs** (`04_light_bed.py`, one release directory per file set):
+
+| File | Content |
+|---|---|
+| `<prefix>.bb`, `<prefix>.bed.gz` (+ `.tbi`) | BED6: chrom, start, end, target, score = min(1000, n experiments), `.` |
+| `<prefix>.detail.tsv.gz` (+ `.tbi`) | chrom, start, end, target, n_experiments, n_peaks, max_qscore, n_peaks_blacklist, experiments |
+| `<prefix>.experiments.tsv.gz` | experiment context (cell type, tissue, antibody, GSM, QC flags) |
+| `<prefix>.targets.tsv`, `<prefix>.qc.json`, `MANIFEST.json` | per-target counts, QC, hashes |
+
+Join key: BED row → detail row by (chrom, start, end, target), unique by construction; detail → context by
+experiment ID.
+
+**Acceptance.**
+- Every input peak lies in exactly one region (Σ n_peaks = rows in).
+- No duplicate keys; regions of one target are disjoint.
+- score = min(1000, n_experiments).
+- Width distribution and maximum width are reported, because chaining can join long stretches for broad targets.
+
+**Limits.** Merged regions lose individual peak boundaries; they come back through the detail table and Output A.
+Chained regions of broad or high-coverage targets (Pol II, histone marks) can be wide. This file is for browsing
+and region lookup, not for motif-level analysis.

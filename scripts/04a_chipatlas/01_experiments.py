@@ -5,19 +5,21 @@ usage: 01_experiments.py <raw_release_dir> <out_dir>
      <out_dir>/scope_ids.txt               in-scope experiment IDs (for the peak filter)
      <out_dir>/annotation_suffix.tsv       experiment_id + Output A columns 8-24 (minus per-peak flags)
      <out_dir>/metadata_reconciliation.json  counts by genome/class, duplicate keys, mapping summaries
-Scope (§2): genome hg38 and antigen class 'TFs and others' or 'RNA polymerase'.
+Scope (§2): genome hg38 and antigen class 'TFs and others' or 'RNA polymerase'. PMA_OCC_CLASSES (| separated)
+overrides the classes, e.g. PMA_OCC_CLASSES=Histone for the §10 histone build.
 """
 import collections
 import csv
 import gzip
 import json
+import os
 import re
 import sys
 from pathlib import Path
 
 import chipatlas_rules as cr
 
-SCOPE = ("TFs and others", "RNA polymerase")
+SCOPE = tuple(os.environ.get("PMA_OCC_CLASSES", "TFs and others|RNA polymerase").split("|"))
 ID_RE = re.compile(r"^[SED]RX\d+$")
 A_COLS = ["antigen_raw", "antigen_hgnc_symbol", "antigen_hgnc_id", "antigen_map_status", "antigen_class",
           "cell_type_class", "cell_type", "tissue", "biosample_type", "disease", "treatment_status", "antibody_id",

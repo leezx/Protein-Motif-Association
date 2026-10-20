@@ -37,6 +37,6 @@ V6 在 `getPrecomputedBias()` 阶段失败，未进入 counts 或 footprint 计�
 
 ## 状态与门禁
 
-PR #8 仍为 OPEN、未合并。起点 HEAD 为 `0dbe92173eeddc4bcf2c3e5ac7e45ac929ee1d18`；本 handoff 描述的候选改动尚未提交或推送。固定 PMA 对话给出的是设计建议，不是对本实现的审核或 Argos 运行授权。下一步在同一 PR 完成记录、推送后请求 exact-head L1/L2 审查。若获批，仍需单独的人类单次运行许可和 fresh Argos preflight 才能考虑 V7。
+PR #8 仍为 OPEN、未合并。实现提交 `e757e7c282a5b83f7456b3394f6b8f09988a1a17` 已推到原分支；PR body 已更新。固定 PMA 对话给出的是设计建议，不是对本实现的审核或 Argos 运行授权；当前 exact-head L1/L2 审查待回复。若获批，仍需单独的人类单次运行许可和 fresh Argos preflight 才能考虑 V7。
 
 未访问 Argos、未读实验数据、未安装依赖、未运行 caller、未启动准确度或 motif 分析、未合并 PR。

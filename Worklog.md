@@ -1372,3 +1372,9 @@ The fixed `PMA｜固定阶段审核` conversation reviewed exact PR #8 HEAD `3fa
 - Read-only GitHub check confirms PR #8 remains OPEN/unmerged on `task_20261019_hint_overlay_smoke`, exact head `5d18a837c77be03ecef6e216fbb86ba475795ef3`. Candidate hashes and one-shot command are recorded in the handoff.
 - No remote Argos code stage, preflight, gate command, environment change, or analysis was performed. The V4 one-shot is still awaiting fixed-PMA exact-head review and explicit run release.
 - Next: commit/push this audit reconciliation, refresh the PR description to the new exact head, then request review in the existing fixed PMA project conversation only.
+
+### 2026-10-20 13:11 EDT — publish the corrected audit state
+
+- Completed the audit reconciliation on the same PR branch; `docs/CODEX_HANDOFF.md` and the dated handoff now identify `b067c925f613a6757693fb4388ef78b2e790817b` as the live candidate head and no longer say an audit commit is pending.
+- The PR body was synchronized to `b067c925f613a6757693fb4388ef78b2e790817b`; GitHub API, origin branch, and local HEAD matched when checked. This follow-up records publication only; it did not modify source/scripts or run Argos.
+- Next: request fixed-PMA Quick L1/L2 review of the resulting exact HEAD plus the single V4 8-peak gate invocation. Do not stage remote code or invoke the gate before explicit approval.

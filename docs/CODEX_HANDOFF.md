@@ -1,20 +1,44 @@
-# CURRENT OPERATIVE FOOTPRINT TASK — 2026-10-20 11:40 EDT
+# CURRENT OPERATIVE FOOTPRINT TASK — 2026-10-20 12:20 EDT
 
-## 64-peak PRINT speed — V1 failed before analysis; V2 review required
+## PRINT 64-peak speed sample — capped at 30 minutes; no complete track
 
-Footprinting only; Claude owns ChIP BED6/PR #7, which is out of scope. PR #8 remains OPEN/unmerged.
-The fixed `PMA｜固定阶段审核` conversation approved exactly one V1 gate invocation after fresh
-preflight, then the six-file stage plus all hashes/resources/dependencies/absence checks. The gate
-was called once on rcGPUs and exited 2 before selector or R/caller work: Python raised
-`__init__() got an unexpected keyword argument 'text'` because the remote interpreter does not
-support `subprocess.run(text=True)`. `outer_supervisor_summary.json` shows 0.647 s, worker exit 2,
-no timeout, no leaked group and no cleanup survivors. Gate stdout/stderr/status and metadata remain
-under `/home/zz950/PMA_fetch/pma_bg_pr8_20261019/`; V1 evidence root is
-`/home/zz950/PMA_fetch/pma_print_peak_speed_rcapps3_20261020_v1/`. No peak subset, bias/count,
-footprint, or scientific output was produced; V1's run root contains only the outer summary and
-empty process-group registry, and its output directory was never created. This one-shot is consumed;
-do not re-run its ID or overwrite its evidence.
-The remote `/usr/bin/python3` is Python 3.5.2; its `subprocess.run` API does not accept the `text=` alias.
+Footprinting only; Claude owns ChIP BED6/PR #7. PR #8 is OPEN and unmerged. The fixed PMA project
+conversation approved one exact V2 gate invocation after fresh preflight; that one-shot is now
+consumed and must not be rerun.
+
+`BG_K562_PRINT_PEAK_SPEED64_20261020_V2` started on `rcGPUs` at 11:47:51 EDT and the outer
+supervisor ended at 12:17:53 EDT with `EXIT=124` after its 1,800-second end-to-end deadline. The
+worker was sent TERM at the deadline (`caller_exit=-15`); cleanup completed with no surviving
+registered process groups and `ps` showed no remaining matching PRINT worker. The caller had spent
+1,710.18 seconds (~28:30) running after the 89.77-second preflight, with selector time 0.84 seconds.
+The deterministic sample was 64 of 159,628 frozen K562 IDR peaks, selected by midpoint quantiles;
+selected intervals total 62,211 bp (width min/median/max 242/954/2,184 bp). The caller had two CPU
+workers, radii 10 and 20, production chromosome-wise bias, CPU-only execution, and per-process
+44-GiB `RLIMIT_AS`.
+
+The process-group sampled `VmRSS` peak was 17,918,696 KiB (~17.09 GiB), below the configured
+40-GiB sampled soft-stop. This is an approximate sampled soft-stop, not a hard aggregate memory cap.
+GNU-time CPU and max-RSS summaries were not emitted because the caller was terminated before GNU
+time exited; do not infer those values. The R log recorded 105 completed scoring invocations and
+106 starts, so one invocation was active at termination. This is partial execution evidence only:
+the runner writes final tracks/events/timing after all region-width groups finish. No `print.r10` or
+`print.r20` track, native-event BED, or timing TSV was produced; final output validation failed
+closed as designed. Do not call the 105 intermediate calls a complete footprint sample.
+
+Evidence is retained outside the repository:
+
+- Gate status/meta: `/home/zz950/PMA_fetch/pma_bg_pr8_20261019/BG_K562_PRINT_PEAK_SPEED64_20261020_V2.{status,meta}`
+- Summary: `/home/zz950/PMA_fetch/pma_print_peak_speed_rcapps3_20261020_v2/summary.json`
+- Outer supervisor: `/home/zz950/PMA_fetch/pma_print_peak_speed_rcapps3_20261020_v2/outer_supervisor_summary.json`
+- Selection, caller log, GNU-time log and RSS samples are in the same V2 evidence root.
+- Output directory: `/home/zz950/DATA/2.PROJECTS/PMA/atac_footprint/processed/round1/runs_print_peak_speed_rcapps3_20261020_v2/`; it contains only the intermediate count tensor, not a complete footprint result.
+- SHA-256: summary `54761e2c7a0c3345d5d7c5d5501a54cd665606ab6c803f59a81416aebc54ceb6`; outer summary `a1269cf84913fa8dbb9e4a903435028a6f293cc30045893726b0feee2f0ec92d`; selected BED `5544df4ff88d483f0aa875a0ac805e7123404ff82f59cd21947b76e7e59de325`; caller stdout `78d151b3e449390c9275511b1eb5bab3f13739f27fe17ddcae2ddbda785b83b2`; GNU-time stderr `f954490da1ee122bf1a78a245a97bcb2e95a064b46ea0a73275decc5a53efe61`; watchdog `8c0919db154a03ad759584619b9e9ae6c85127b74f63382fa0d8b1ebfd2e86d8`.
+
+The separate one-time BAM-to-fragments cost remains 28:18.88 wall, 1.01 average core, and ~4.00 GiB max RSS (see the prior handoff entry); it is not included in this V2 runtime because the frozen fragments were reused. This sample does not provide a completed PRINT track or a reliable full-peak runtime estimate. The prior 8-peak successful smoke is the only complete PRINT result so far: 424.117-second end-to-end wall, 17.09-GiB sampled group peak; do not extrapolate it linearly to 159,628 peaks.
+
+Review checkpoint: L1 = FAIL for the requested complete 64-peak track (deadline stopped the caller and required outputs are absent), while timeout supervision and cleanup behaved as designed. L2 = BLOCKED for accuracy and full-scale runtime. Direction is ON TRACK only as a bounded diagnostic: the run shows the current grouped-width PRINT path did not finish 64 peaks within 30 minutes on two workers, but does not establish per-peak elapsed time or accuracy. Recommendation is HOLD on selecting PRINT or claiming full-cancer output. The next technical decision should be reviewed in the fixed PMA project conversation before another compute attempt; any future run needs a new PR exact-head review and explicit one-run approval. No environment change, C/C++ optimization, accuracy claim, or PR merge is authorized by this result.
+
+The V1 Python 3.5.2 compatibility failure and its separate evidence remain documented in the prior dated handoff. V1 was EXIT=2 before caller analysis and is not to be retried.
 
 Fresh preflight before that single invocation found rcGPUs x86_64, 72 CPUs, ~919 GiB MemAvailable,
 no SGE jobs or matching run process; frozen BED/fragments, all staged V1 code/gate/model hashes,
@@ -72,7 +96,7 @@ V1 run ID `BG_K562_PRINT_PEAK_SPEED64_20261020_V1` is consumed and failed. V2 ca
 `/home/zz950/PMA_fetch/pma_print_peak_speed_code_20261020_v2`; run evidence root
 `/home/zz950/PMA_fetch/pma_print_peak_speed_rcapps3_20261020_v2`; scientific output directory
 `/home/zz950/DATA/2.PROJECTS/PMA/atac_footprint/processed/round1/runs_print_peak_speed_rcapps3_20261020_v2`.
-Candidate immutable-gate command (not authorized until fresh exact-head review and a new one-shot release):
+The fixed PMA conversation approved this exact invocation once; V2 is now consumed and must never be rerun:
 
 ```sh
 PMA_PRINT_SPEED64_EXPECTED_SHA256=7a210086eb819b8481a62f079ea5f184174e53e36495e34a7701eb540d8b4c4a \
@@ -82,12 +106,13 @@ PMA_PRINT_SPEED64_EXPECTED_SHA256=7a210086eb819b8481a62f079ea5f184174e53e36495e3
   ctrl print
 ```
 
-The initial V1 packet and its six-file code stage are preserved. V2 is a review candidate only; its
-new code-stage/root/output paths must be absent, the code must be copied from its exact reviewed PR
-HEAD, and all hashes/dependencies/resources must be rechecked before any later run. This repair
-does not assess accuracy or establish full 159,628-peak runtime by linear extrapolation. V1's
-failure is retained and will not be retried. Any future V2 failure also consumes that attempt; no
-automatic retry, full-peak run, environment modification or PR merge is authorized.
+V1's Python compatibility failure and six-file stage are preserved separately. V2 passed its fresh
+checks, began PRINT on the deterministic 64-peak sample, and was stopped by the independent outer
+supervisor at the 30-minute budget. The process-group sampled peak was ~17.09 GiB; 105 scoring calls
+completed, but a final call was active when TERM arrived. No complete track/event/timing output was
+written, and all registered groups were cleaned with no survivors. V2's exact evidence and hashes
+are in the live section above and the dated handoff. No retry, full-peak run, accuracy claim,
+environment modification, C/C++ work, or PR merge is authorized by this completed measurement.
 
 # PREVIOUS OPERATIVE FOOTPRINT TASK — V3 PRINT 8-peak smoke completed — 2026-10-20 11:10 EDT
 

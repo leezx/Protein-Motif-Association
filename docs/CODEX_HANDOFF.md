@@ -1,12 +1,12 @@
-# CURRENT OPERATIVE FOOTPRINT TASK — 2026-10-20 14:20 EDT
+# CURRENT OPERATIVE FOOTPRINT TASK — 2026-10-20 14:29 EDT
 
-## PRINT pnorm diagnostic — local candidate only; review required before execution
+## PRINT pnorm diagnostic — implementation approved; execution packet under review
 
-At PR #8 branch `task_20261019_hint_overlay_smoke`, the live reviewed baseline before this change was HEAD
-`2026c22658d13e3698e71af4ba6cd8051fa5170b`; the current unreviewed candidate implementation commit is
-`358328587c159f197d28022fb0ae681ef449a4d7`. The user authorized local PRINT-source work. The fixed
-`PMA｜固定阶段审核` conversation approved only the diagnostic proposal, not execution; V5's one-shot
-is consumed. No remote Argos access/staging/input read/gate call is authorized by that approval.
+At PR #8 branch `task_20261019_hint_overlay_smoke`, the current exact HEAD is
+`6cf2b6b9a55555c1be13a927978066bbddfca23c`, OPEN and unmerged. The user authorized local PRINT-source
+work. The fixed `PMA｜固定阶段审核` conversation approved the diagnostic implementation at that
+exact HEAD, but explicitly did not authorize execution. V5's one-shot is consumed. No Argos
+access/staging/input read/gate call is authorized yet.
 
 New `scripts/04b_footprint/diagnose_print_pnorm.R` is an observation-only candidate against the
 existing V5 8-peak count chunks, bias-group RDS files, dispersion models, and validated r10/r20
@@ -28,14 +28,13 @@ and `git diff --check` pass. This does not execute against V5 biological caches,
 are unavailable here. Candidate SHA-256: diagnostic `c5f7f6964de840408a1bcdb2e6ca1435c463411fb6287e7b28c59b46b72a5c2c`; regression
 `755a18f1d7427708cc821c5ab07b88c26ffdee9179de1861acabc72629c2ff5f`.
 
-The code/test/audit candidate was pushed to the same PR #8 in commit
-`358328587c159f197d28022fb0ae681ef449a4d7`; branch ref, fetched origin ref, and GitHub PR API were
-checked and agree at that commit. The PR body asks for code review only.
+The current implementation and its fixes are pushed to the same PR #8.
 
-Next gate: request exact-head L1/L2 review in the existing fixed PMA project conversation. Only after that implementation review passes may
-the exact read-only diagnostic command/resources be reviewed, and a separate one-time run release
-be obtained. Then fresh preflight is required. Do not access Argos, stage code, run this script on
-the V5 cache, expand peaks, claim biological accuracy, or merge before those gates.
+The next gate is review of the exact command/resource packet in the existing fixed PMA project
+conversation, plus an explicit one-time execution release. Only then may a fresh preflight be
+performed. Until both conditions are met, do not access Argos, stage code, read the V5 cache, run the
+diagnostic, expand peaks, claim biological accuracy, or merge. The packet will be recorded in
+`docs/handoff/2026-10-20-print-pnorm-diagnostic-run-review.zh-CN.md`.
 
 ## PRINT V5 8-peak integration validation — PASS; one-shot consumed
 

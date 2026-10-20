@@ -119,3 +119,11 @@ L1 PASS；L2 仍 BLOCKED（真实负 SD 根因、历史 warning 上下文及准�
 本地合成验证为 REAL，整体诊断证据仍 PARTIAL；修复信任度高，但不外推为真实缓存或科学有效性。
 复核者发现交接页把 `309dc...` parent SHA 称作当前 HEAD，现改为历史 parent 的准确表述。
 本次批准不授权 Argos、缓存读取、运行、扩峰、准确度排名或合并。
+
+### 记录同步 exact-head 复核
+
+固定 PMA 对 PR #8 exact HEAD `b04f601b5fad1c48fb4a29246643b040cf3fa045` 返回
+`APPROVE`（仅本次记录同步），确认 PR OPEN、未合并且 body 已同步；本次相对 `fef329d...`
+只改动 Worklog、`docs/CODEX_HANDOFF.md` 与此 handoff，脚本及测试未变。L1 PASS，L2 仍 BLOCKED，
+L3 人工验收待定；本地合成证据 REAL，整体诊断 PARTIAL，本轮没有新增分析证据。无 blocker，
+也没有授权 Argos、缓存读取、运行、扩峰、准确度结论或合并。

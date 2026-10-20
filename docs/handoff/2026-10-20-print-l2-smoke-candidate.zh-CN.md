@@ -34,3 +34,16 @@ PR #8 的 variable-width 修复已获固定 PMA 对话对代码提交 `4d6bc6718
 - 代码路径：L1 binding 修复已经批准；新加的 direct-vs-grouped真实输入验证候选尚未审核。
 - 真实 footprint 结果：仍为 0；当前任务是修复并验证 caller 集成，尚未产生任何新的 tracks/events。
 - 时间/资源：V6 失败前观察到 caller wall `19:14.53`、最大 GNU-time RSS 约 `25.74 GiB`、采样进程组 VmRSS 约 `25.73 GiB`；这是 bias 前处理失败尝试，不是全峰完成时间。新 smoke 尚未运行，无成功时间或内存值。
+
+## 2026-10-20 10:08 EDT — exact-head review findings and same-PR fixes
+
+固定 PMA 对话审查了 PR #8 exact HEAD `657cd3ffb24f3cc1e9d2230d99c3d1526ecebd18`，给出 `REQUEST_CHANGES`，只列两个 blocker：
+
+1. 30 分钟计时先前只覆盖 caller 采样循环；selector 与预检里的哈希、依赖检查可能阻塞，且可能在预算耗尽后才启动 caller。修复为共享一个 monotonic deadline，selector/preflight 子进程使用剩余时间作为 timeout；supervisor 的哈希和依赖预检也检查同一 deadline；截止后不启动 caller。caller 超时时，已有 process-group 清理发送 TERM，最多等待 60 秒后 KILL；30 分钟是计算预算，60 秒是单独的清理宽限。输出校验也运行在同一 deadline 内。
+2. direct scorer 原先复用了已分组 bias 矩阵行，不能独立发现偏好提取或行映射错误。修复后重新打开冻结 bias HDF5，按每个原始 BED 行的染色体和 1-based 区间坐标直接提取向量；先与分组矩阵行做逐元素精确比较，再将独立向量交给原生逐区域 scorer。只在 8-row smoke mode 中，分组 bias 构建改为读取目标 interval slices，避免把整条染色体 bias 数组装入内存；full-run 模式保留原有 chromosome-wise 读取，避免对未来全峰运行引入 159k 次随机 HDF5 读取。
+
+本地验证通过：`python3 tests/test_print_smoke_deadline.py`、`python3 tests/test_select_print_integration_smoke.py`、`Rscript tests/test_print_variable_width.R`、R parse、Python `py_compile`、`bash tests/test_step4b_runner_contract.sh`、`git diff --check`。新 deadline fixture 覆盖有效/过期 monotonic 截止；HDF5 helper fixture 覆盖 1-based inclusive slice 的长度和值。它不替代真实 HDF5/PRINT/S4/parallel 集成。
+
+当前候选代码 SHA-256：selector `7e2a67554e4d5c601cdb6c18a3758bb420520fa21d6324eff6f02d15c1dd5856`；PRINT runner `44853e1a865bcdf86c87ca6fbabd0279d86d144b14953b1b0533c679eb5098f2`；helper `fa2aaba9248a9a67621fe269210b7afd81920aaa3bf85cac443f0a2371865174`；base supervisor `34330aa103d9f15168fbacb4fbab5d278a6336a79ce0476a0c3ed2aa27606b33`；smoke supervisor `35a33b3ca779af5fb70ebcf960f26a7640bd2d33153bd4c1a68d6da24870808d`。
+
+没有 Argos 预检、远端计算、环境变更或数据读取；此前只读查询没有发现队列作业或 smoke 进程。本次改动提交并推送到同一 PR 后，在固定 PMA 对话请求新 exact-head L1/L2 review。当前 L2 仍 BLOCKED；本轮审核没有放行 smoke。若新 HEAD 获批准，仍只执行一轮 8-region smoke；失败保留日志且不重试，不自动扩展至全峰 V7。

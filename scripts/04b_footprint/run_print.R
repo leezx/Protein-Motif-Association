@@ -53,13 +53,14 @@ available_chromosomes <- names(h5file)
 if (!all(unique(chromosomes) %in% available_chromosomes)) stop("input BED chromosome missing from bias HDF5")
 bias_groups <- vector("list", length(width_groups))
 names(bias_groups) <- sprintf("group_%06d", seq_along(width_groups))
-for (chr in unique(chromosomes)) {
-  chr_handle <- h5file[[chr]]
-  chr_bias <- chr_handle[1:chr_handle$dims]
+if (direct_compare) {
+  # The 8-row smoke uses bounded coordinate slices to keep memory low.
   for (g in seq_along(width_groups)) {
     item <- width_groups[[g]]
-    if (!identical(item$chromosome, chr)) next
-    vectors <- lapply(item$index, function(i) chr_bias[start(regions)[i]:end(regions)[i]])
+    chr_handle <- h5file[[item$chromosome]]
+    vectors <- lapply(item$index, function(i) {
+      read_bias_slice(chr_handle, start(regions)[i], end(regions)[i])
+    })
     matrix <- build_bias_matrix(vectors, seq_along(vectors), item$width,
                                 global_index = item$index)
     group_path <- file.path(bias_dir, paste0(names(bias_groups)[g], ".rds"))
@@ -67,8 +68,26 @@ for (chr in unique(chromosomes)) {
     bias_groups[[g]] <- list(index = item$index, width = item$width,
                              chromosome = item$chromosome, bias_path = group_path)
   }
-  rm(chr_bias, chr_handle)
-  gc()
+} else {
+  # Preserve the full-run chromosome-wise read strategy; avoid 159k random
+  # HDF5 reads when this runner is eventually used at full peak scale.
+  for (chr in unique(chromosomes)) {
+    chr_handle <- h5file[[chr]]
+    chr_bias <- chr_handle[1:chr_handle$dims]
+    for (g in seq_along(width_groups)) {
+      item <- width_groups[[g]]
+      if (!identical(item$chromosome, chr)) next
+      vectors <- lapply(item$index, function(i) chr_bias[start(regions)[i]:end(regions)[i]])
+      matrix <- build_bias_matrix(vectors, seq_along(vectors), item$width,
+                                  global_index = item$index)
+      group_path <- file.path(bias_dir, paste0(names(bias_groups)[g], ".rds"))
+      saveRDS(matrix, group_path, version = 2)
+      bias_groups[[g]] <- list(index = item$index, width = item$width,
+                               chromosome = item$chromosome, bias_path = group_path)
+    }
+    rm(chr_bias, chr_handle)
+    gc()
+  }
 }
 h5file$close_all()
 rm(h5file)
@@ -155,6 +174,7 @@ if (direct_compare) {
   direct_reference <- lapply(radii, function(rad) vector("list", length(regions)))
   names(direct_reference) <- as.character(radii)
   direct_rows <- list()
+  direct_h5 <- hdf5r::H5File$new(filename = bias_path, mode = "r")
   for (g in seq_along(bias_groups)) {
     item <- bias_groups[[g]]
     idx <- item$index
@@ -163,11 +183,17 @@ if (direct_compare) {
     group_ids <- gtools::mixedsort(full_group_labels)
     group_bias <- readRDS(item$bias_path)
     for (j in seq_along(idx)) {
+      global_row <- idx[[j]]
+      direct_bias <- read_bias_slice(direct_h5[[as.character(seqnames(regions)[global_row])]],
+                                     start(regions)[global_row], end(regions)[global_row])
+      if (!identical(direct_bias, as.numeric(group_bias[j, ]))) {
+        stop("independent HDF5 bias slice differs from grouped bias row for region ", global_row)
+      }
       region_atac <- direct_region_atac(group_count, j, group_ids, item$width)
       for (rad in radii) {
         expected <- regionFootprintScoring(
           regionATAC = region_atac,
-          Tn5Bias = as.numeric(group_bias[j, ]),
+          Tn5Bias = direct_bias,
           dispersionModel = dispersion_models[[as.character(rad)]],
           footprintRadius = rad, flankRadius = rad,
           regionID = as.character(regions[idx[[j]]]),
@@ -178,12 +204,13 @@ if (direct_compare) {
                                   sprintf("direct comparison region %d radius %d", idx[[j]], rad))
         direct_reference[[as.character(rad)]][[idx[[j]]]] <- expected
         direct_rows[[length(direct_rows) + 1L]] <- data.table(
-          radius = rad, global_row = idx[[j]], group_id = g,
+          radius = rad, global_row = global_row, group_id = g, bias_exact_match = TRUE,
           width = item$width, compared_fields = paste(names(expected), collapse = ","),
           event_count = if (is.null(expected$footprintRanges)) 0L else length(expected$footprintRanges))
       }
     }
   }
+  direct_h5$close_all()
   fwrite(rbindlist(direct_rows), paste0(out, ".direct-comparison.tsv"), sep = "\t")
   timing$direct_compare <- tic() - direct_started
 }

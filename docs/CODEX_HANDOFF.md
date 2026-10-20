@@ -1,4 +1,16 @@
-# CURRENT OPERATIVE FOOTPRINT TASK — 2026-10-20 10:06 EDT
+# CURRENT OPERATIVE FOOTPRINT TASK — 2026-10-20 10:10 EDT
+
+## Live status — two exact-head review findings fixed locally, resubmission pending
+
+Footprint only; ChIP BED6/PR #7 remains assigned to Claude and out of scope. PR #8 is OPEN/unmerged on `task_20261019_hint_overlay_smoke`. Fixed-PMA reviewed exact HEAD `657cd3ffb24f3cc1e9d2230d99c3d1526ecebd18` and returned `REQUEST_CHANGES` with two findings: the 30-minute deadline did not cover selector/preflight/export and could launch the caller after expiring; the direct scorer reused the grouped bias row and could reproduce the same extraction/mapping error.
+
+Same-PR local fixes: the smoke now uses one monotonic end-to-end deadline, bounds the frozen-BED selector and preflight subprocesses by remaining time, checks that deadline during full input hashing and before caller launch, and lets the existing supervised caller stop at the same deadline. The existing group stop sends TERM and has a separate maximum 60-second cleanup grace before KILL; the 30-minute figure is execution budget, cleanup is bounded separately. The independent comparison now reopens the real bias HDF5, extracts each original row's bias directly by chromosome and 1-based coordinates, requires exact element-wise equality to the grouped matrix row, and scores against that independent vector. Initial resource use is reduced by reading only selected intervals from HDF5 rather than materializing whole chromosome bias arrays.
+
+Targeted local validation passed: `python3 tests/test_print_smoke_deadline.py`, `python3 tests/test_select_print_integration_smoke.py`, `Rscript tests/test_print_variable_width.R`, R parse, Python `py_compile`, `bash tests/test_step4b_runner_contract.sh`, and `git diff --check`. These tests establish only synthetic/helper and static contracts. Real HDF5/PRINT/S4/parallel integration remains unverified; no Argos preflight or run has happened. After committing these corrections, request fixed-PMA exact-head review on the new PR tip. Only if approved, the user's active instruction allows the single 8-region smoke; failure is terminal for that attempt, with no retry/full-scale V7.
+
+Current changed script hashes: selector `7e2a67554e4d5c601cdb6c18a3758bb420520fa21d6324eff6f02d15c1dd5856`; PRINT runner `44853e1a865bcdf86c87ca6fbabd0279d86d144b14953b1b0533c679eb5098f2`; helper `fa2aaba9248a9a67621fe269210b7afd81920aaa3bf85cac443f0a2371865174`; base supervisor `34330aa103d9f15168fbacb4fbab5d278a6336a79ce0476a0c3ed2aa27606b33`; smoke supervisor `35a33b3ca779af5fb70ebcf960f26a7640bd2d33153bd4c1a68d6da24870808d`. Bias slices are changed only in the 8-row direct-comparison mode; the full-run chromosome-wise path is unchanged.
+
+## Previous snapshot — 2026-10-20 10:06 EDT
 
 ## Live status — PRINT 8-region smoke exact-head review pending
 

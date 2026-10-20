@@ -51,13 +51,42 @@ SAMPLE_SECONDS = 2
 SAMPLE_BUDGET_SECONDS = 1.5
 MAX_SAMPLE_INTERVAL_OVERRUN_SECONDS = 0.25
 STOP_REQUESTED = []
+RUN_DEADLINE_MONOTONIC = None
 REQUIRED_TIMING_STAGES = {"bias", "counts", "footprint_r10", "footprint_r20"}
+
+
+def remaining_wall_seconds():
+    if RUN_DEADLINE_MONOTONIC is None:
+        return None
+    remaining = RUN_DEADLINE_MONOTONIC - time.monotonic()
+    if remaining <= 0:
+        raise TimeoutError("end-to-end wall deadline expired")
+    return remaining
+
+
+def check_wall_deadline():
+    remaining_wall_seconds()
+
+
+def bounded_check_output(command, **kwargs):
+    timeout = remaining_wall_seconds()
+    if timeout is not None:
+        kwargs["timeout"] = timeout
+    return subprocess.check_output(command, **kwargs)
+
+
+def bounded_check_call(command, **kwargs):
+    timeout = remaining_wall_seconds()
+    if timeout is not None:
+        kwargs["timeout"] = timeout
+    return subprocess.check_call(command, **kwargs)
 
 
 def sha256(path):
     digest = hashlib.sha256()
     with open(path, "rb") as handle:
         while True:
+            check_wall_deadline()
             if STOP_REQUESTED:
                 raise RuntimeError("stop requested during input hashing")
             block = handle.read(8 * 1024 * 1024)
@@ -68,6 +97,7 @@ def sha256(path):
 
 
 def require_file(path):
+    check_wall_deadline()
     if not os.path.isfile(path) or not os.access(path, os.R_OK):
         raise RuntimeError("required readable file missing: " + path)
 
@@ -77,6 +107,7 @@ def line_count(path):
     count = 0
     with opener(path, "rb") as handle:
         for _ in handle:
+            check_wall_deadline()
             count += 1
     return count
 
@@ -84,10 +115,12 @@ def line_count(path):
 def validate_track(path):
     data_rows = 0
     with gzip.open(path, "rt") as handle:
+        check_wall_deadline()
         header = handle.readline().rstrip("\r\n").split("\t")
         if header != ["chrom", "pos", "score"]:
             raise RuntimeError("invalid PRINT score-track header: " + path)
         for line in handle:
+            check_wall_deadline()
             if not line.strip():
                 continue
             fields = line.rstrip("\r\n").split("\t")
@@ -105,6 +138,7 @@ def validate_event_bed(path):
     rows = 0
     with open(path, "r") as handle:
         for line_number, line in enumerate(handle, 1):
+            check_wall_deadline()
             fields = line.rstrip("\r\n").split("\t")
             if len(fields) != 4:
                 raise RuntimeError("malformed native-event BED row %d: %s" % (line_number, path))
@@ -318,11 +352,13 @@ def request_stop(signum, frame):
 def read_timing_stages(path):
     opener = gzip.open if path.endswith(".gz") else open
     with opener(path, "rt") as handle:
+        check_wall_deadline()
         header = handle.readline().rstrip("\r\n").split("\t")
         if header != ["stage", "seconds"]:
             raise RuntimeError("timing TSV header is invalid")
         stages = []
         for line in handle:
+            check_wall_deadline()
             if not line.strip():
                 continue
             fields = line.rstrip("\r\n").split("\t")
@@ -370,10 +406,10 @@ def preflight():
         raise RuntimeError("reviewed run_print.R SHA-256 mismatch")
     if sha256(RUNNER_HELPER) != RUNNER_HELPER_SHA256:
         raise RuntimeError("reviewed PRINT variable-width helper SHA-256 mismatch")
-    commit = subprocess.check_output(["git", "-C", PRINT_REPO, "rev-parse", "HEAD"],
-                                     universal_newlines=True).strip()
-    dirty = subprocess.check_output(["git", "-C", PRINT_REPO, "status", "--porcelain"],
-                                    universal_newlines=True)
+    commit = bounded_check_output(["git", "-C", PRINT_REPO, "rev-parse", "HEAD"],
+                                  universal_newlines=True).strip()
+    dirty = bounded_check_output(["git", "-C", PRINT_REPO, "status", "--porcelain"],
+                                 universal_newlines=True)
     if commit != PRINT_REPO_COMMIT or dirty.strip():
         raise RuntimeError("PRINT source checkout is not the reviewed clean commit")
     module_hashes = {}
@@ -403,7 +439,7 @@ def preflight():
     env = os.environ.copy()
     env["R_LIBS"] = RLIBS
     probe = [RSCRIPT, "-e", "stopifnot(requireNamespace('cladoRcpp',quietly=TRUE),requireNamespace('GenomicRanges',quietly=TRUE),requireNamespace('data.table',quietly=TRUE),requireNamespace('rhdf5',quietly=TRUE))"]
-    subprocess.check_call(probe, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    bounded_check_call(probe, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     preflight_facts = {"mem_available_kb": int(mem_available[0].split()[1]),
                        "load_average": list(os.getloadavg()),
                        "allowed_cpu_ids": allowed,
@@ -411,7 +447,7 @@ def preflight():
                        "rss_is_approximate_soft_stop_not_hard_limit": True,
                        "rss_sample_interval_seconds": SAMPLE_SECONDS,
                        "rss_sample_deadline_seconds": SAMPLE_BUDGET_SECONDS}
-    preflight_facts["r_version"] = subprocess.check_output(
+    preflight_facts["r_version"] = bounded_check_output(
         [RSCRIPT, "--version"], stderr=subprocess.STDOUT,
         universal_newlines=True).strip()
     preflight_facts["supervisor_sha256"] = sha256(os.path.abspath(__file__))
@@ -430,7 +466,11 @@ def main():
     os.makedirs(ROOT, mode=0o700, exist_ok=True)
     log_path = os.path.join(ROOT, "watchdog.jsonl")
     with open(log_path, "a") as log:
-        started = time.time()
+        started_monotonic = time.monotonic()
+        if RUN_DEADLINE_MONOTONIC is None:
+            deadline = started_monotonic + MAX_WALL_SECONDS
+        else:
+            deadline = RUN_DEADLINE_MONOTONIC
         process = None
         pgid = None
         cleanup_needed = False
@@ -439,8 +479,10 @@ def main():
         try:
             if STOP_REQUESTED:
                 raise RuntimeError("stop requested before preflight")
+            check_wall_deadline()
             cpus, frozen_hashes, preflight_facts = preflight()
-            preflight_seconds = time.time() - started
+            check_wall_deadline()
+            preflight_seconds = time.monotonic() - started_monotonic
             os.makedirs(OUTPUT_DIR, mode=0o700, exist_ok=False)
             prefix = os.path.join(OUTPUT_DIR, "print")
             environment = os.environ.copy()
@@ -457,9 +499,10 @@ def main():
             with open(stdout_path, "wb") as stdout, open(time_path, "wb") as stderr:
                 if STOP_REQUESTED:
                     raise RuntimeError("stop requested before caller launch")
+                check_wall_deadline()
                 process = subprocess.Popen(command, stdout=stdout, stderr=stderr,
                                            env=environment, start_new_session=True)
-                caller_started = time.time()
+                caller_started_monotonic = time.monotonic()
                 pgid = process.pid
                 cleanup_needed = True
                 peak_rss = 0
@@ -538,7 +581,7 @@ def main():
                         reason = "three_consecutive_rss_sampling_failures"
                         terminate_group(pgid, log, reason)
                         break
-                    if time.time() - started >= MAX_WALL_SECONDS:
+                    if time.monotonic() >= deadline:
                         reason = "wall_timeout_%d_seconds" % MAX_WALL_SECONDS
                         terminate_group(pgid, log, reason)
                         break
@@ -561,7 +604,7 @@ def main():
                         time.sleep(sleep_seconds)
                 return_code = process.wait()
                 cleanup_needed = False
-                caller_elapsed = time.time() - caller_started
+                caller_elapsed = time.monotonic() - caller_started_monotonic
             summary = {"run_id": RUN_ID, "host": socket.gethostname(),
                        "architecture": os.uname()[4], "cpus": cpus, "workers": len(cpus),
                        "radii_bp": [10, 20], "caller_exit": return_code,

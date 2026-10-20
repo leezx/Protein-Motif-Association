@@ -27,9 +27,9 @@ GATE_SHA256 = "3776778b950be90cad124c04937eee422c81466154eccdadfe9e57d58224253c"
 MAX_TOTAL_WALL_SECONDS = 30 * 60
 RSS_SOFT_STOP_KB = 40 * 1024 * 1024
 SELECTOR_SHA256 = "7e2a67554e4d5c601cdb6c18a3758bb420520fa21d6324eff6f02d15c1dd5856"
-BASE_SUPERVISOR_SHA256 = "3c6ede01d5836dcdccbb1b579376557d0ea4934bb4cac36dc4e5532b0d220997"
-RUNNER_SHA256 = "b3602e3ca4660a5feed4c8100f5bcbf6b024a9df8571b80d7e09acc1598b97cb"
-HELPER_SHA256 = "664d8ff626f903ae107759c4112aa7692061244795f374c1d562d0ce8e4453c6"
+BASE_SUPERVISOR_SHA256 = "34330aa103d9f15168fbacb4fbab5d278a6336a79ce0476a0c3ed2aa27606b33"
+RUNNER_SHA256 = "44853e1a865bcdf86c87ca6fbabd0279d86d144b14953b1b0533c679eb5098f2"
+HELPER_SHA256 = "fa2aaba9248a9a67621fe269210b7afd81920aaa3bf85cac443f0a2371865174"
 
 
 def sha256(path):
@@ -40,6 +40,13 @@ def sha256(path):
     return digest.hexdigest()
 
 
+def remaining_seconds(deadline_monotonic):
+    remaining = deadline_monotonic - time.monotonic()
+    if remaining <= 0:
+        raise TimeoutError("end-to-end PRINT smoke wall budget expired")
+    return remaining
+
+
 def load_supervisor(path):
     spec = importlib.util.spec_from_file_location("print_fullpeak_supervisor", path)
     module = importlib.util.module_from_spec(spec)
@@ -48,6 +55,8 @@ def load_supervisor(path):
 
 
 def main():
+    started = time.monotonic()
+    deadline = started + MAX_TOTAL_WALL_SECONDS
     if socket.gethostname().split(".")[0] not in ("rcGPUs", "rcapps3"):
         raise RuntimeError("must run only on the rcapps3/rcGPUs x86_64 host")
     if os.uname()[4] != "x86_64":
@@ -62,6 +71,7 @@ def main():
         raise RuntimeError("reviewed smoke-supervisor SHA-256 was not supplied or did not match")
     if os.path.exists(ROOT) or os.path.exists(OUTPUT_DIR):
         raise RuntimeError("smoke output/evidence path already exists; refusing reuse")
+    remaining_seconds(deadline)
     os.makedirs(ROOT, mode=0o700, exist_ok=False)
     selector = os.path.join(SCRIPT_DIR, SELECTOR_NAME)
     runner = os.path.join(SCRIPT_DIR, RUNNER_NAME)
@@ -77,12 +87,12 @@ def main():
         raise RuntimeError("immutable Argos gate SHA-256 mismatch")
     smoke_bed = os.path.join(ROOT, "eight_frozen_peaks.bed")
     smoke_map = os.path.join(ROOT, "eight_frozen_peaks.map.tsv")
-    started = time.time()
-    selection = subprocess.check_output([sys.executable, selector, FROZEN_BED,
-                                         smoke_bed, smoke_map],
+    selector_command = [sys.executable, selector, FROZEN_BED, smoke_bed, smoke_map]
+    selection = subprocess.check_output(selector_command,
                                         stderr=subprocess.STDOUT,
-                                        universal_newlines=True)
-    selection_seconds = time.time() - started
+                                        universal_newlines=True,
+                                        timeout=remaining_seconds(deadline))
+    selection_seconds = time.monotonic() - started
     selection_facts = json.loads(selection.strip().splitlines()[-1])
     if selection_facts.get("selected_rows") != 8 or selection_facts.get("source_bed_sha256") is None:
         raise RuntimeError("smoke selector did not produce the reviewed 8-row set")
@@ -91,8 +101,7 @@ def main():
                    "selector_sha256": sha256(selector), **selection_facts},
                   handle, indent=2, sort_keys=True)
         handle.write("\n")
-    if selection_seconds >= MAX_TOTAL_WALL_SECONDS:
-        raise RuntimeError("peak selection exceeded total smoke wall cap")
+    remaining_seconds(deadline)
 
     module = load_supervisor(base_supervisor)
     module.RUN_ID = RUN_ID
@@ -108,10 +117,9 @@ def main():
     if len(module.CPUS) != 2:
         raise RuntimeError("two CPU workers are not available")
     module.RSS_SOFT_STOP_KB = RSS_SOFT_STOP_KB
-    preparation_seconds = time.time() - started
-    if preparation_seconds >= MAX_TOTAL_WALL_SECONDS:
-        raise RuntimeError("smoke setup exceeded total wall cap")
-    module.MAX_WALL_SECONDS = MAX_TOTAL_WALL_SECONDS - int(preparation_seconds)
+    preparation_seconds = time.monotonic() - started
+    module.RUN_DEADLINE_MONOTONIC = deadline
+    module.MAX_WALL_SECONDS = MAX_TOTAL_WALL_SECONDS
     original_preflight = module.preflight
 
     def smoke_preflight():
@@ -124,13 +132,16 @@ def main():
                       "rlimit_as_hard_bytes": as_hard,
                       "selection_seconds": selection_seconds,
                       "setup_seconds_before_analysis": preparation_seconds,
+                      "overall_deadline_monotonic_seconds_remaining": remaining_seconds(deadline),
                       "smoke_mode": "direct-per-region comparison; 8 frozen peak rows"})
         return cpus, hashes, facts
 
     module.preflight = smoke_preflight
     os.environ["PRINT_DIRECT_COMPARE"] = "1"
     sys.argv = [os.path.abspath(__file__)]
+    remaining_seconds(deadline)
     status = module.main()
+    remaining_seconds(deadline)
     prefix = os.path.join(OUTPUT_DIR, "print")
     report = prefix + ".direct-comparison.tsv"
     if status == 0:
@@ -143,9 +154,8 @@ def main():
             sys.stderr.write("FAIL_CLOSED: expected header plus 16 direct comparisons\n")
             return 3
         with open(os.path.join(ROOT, "smoke_completion.json"), "x") as handle:
-            total_wall = time.time() - started
-            if total_wall > MAX_TOTAL_WALL_SECONDS:
-                raise RuntimeError("smoke exceeded the 30-minute total wall cap")
+            total_wall = time.monotonic() - started
+            remaining_seconds(deadline)
             json.dump({"status": "PASS", "direct_comparisons": 16,
                        "radii": [10, 20], "regions": 8,
                        "workers": 2, "total_wall_cap_seconds": MAX_TOTAL_WALL_SECONDS,

@@ -57,6 +57,18 @@ build_bias_matrix <- function(bias_vectors, index, expected_width, global_index 
          dimnames = list(as.character(global_index), NULL))
 }
 
+read_bias_slice <- function(chromosome_dataset, start1, end1) {
+  if (length(start1) != 1L || length(end1) != 1L || anyNA(c(start1, end1)) ||
+      start1 < 1L || end1 < start1) {
+    stop("invalid 1-based HDF5 bias slice")
+  }
+  values <- as.numeric(chromosome_dataset[as.integer(start1):as.integer(end1)])
+  if (length(values) != end1 - start1 + 1L || any(!is.finite(values))) {
+    stop("HDF5 bias slice has incorrect length or non-finite values")
+  }
+  values
+}
+
 validate_count_group <- function(count_tensor, index, widths) {
   if (length(count_tensor) != length(widths) || length(index) == 0L ||
       anyNA(index) || any(index < 1L) || any(index > length(widths))) {

@@ -1,5 +1,13 @@
 source(file.path("scripts", "04b_footprint", "print_variable_width.R"))
 
+# Direct HDF5 slice helper contract: one-based inclusive coordinates, exact
+# length and exact source values must be preserved for the independent oracle.
+mock_chromosome_bias <- as.numeric(seq_len(100L)) / 10
+stopifnot(identical(read_bias_slice(mock_chromosome_bias, 13L, 17L),
+                    mock_chromosome_bias[13:17]),
+          inherits(try(read_bias_slice(mock_chromosome_bias, 0L, 2L), silent = TRUE),
+                   "try-error"))
+
 for (n in c(1L, 99L, 100L, 101L, 128L)) {
   groups <- group_peak_indices(rep("chr1", n), rep(37L, n))
   stopifnot(length(groups) == 1L, length(groups[[1L]]$index) == n)

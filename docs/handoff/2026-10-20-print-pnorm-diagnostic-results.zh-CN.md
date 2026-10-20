@@ -109,3 +109,13 @@ role coverage 单独失败。`pnorm` 断言现在精确核对 NaN 位置，并�
 均 PASS；自测及 gate/hash/output-guard 测试通过，显示四条预期合成 `NaNs produced` 警告。
 没有访问 Argos、缓存或分析数据，也没有修改 PRINT 打分语义或输出。源代码修订已推送 PR #8
 提交 `bc39d1c`；本验证记录将在审计同步提交中纳入，之后请求固定 PMA exact-head 复审。
+
+### 固定 PMA 对 `fef329d` 的实现复审
+
+固定对话已核实 PR #8 exact HEAD `fef329d0ff157c3b0a911887f605b458ffe8c98c`，返回
+`APPROVE`（仅实现）。两项 finding 已关闭：完整 negative/comparator 配对先通过，再仅删除
+comparator 验证 role coverage 单独失败；有限 pnorm 值以 `1e-14` 容差比较，NaN mask 精确比较。
+L1 PASS；L2 仍 BLOCKED（真实负 SD 根因、历史 warning 上下文及准确度未解决）；L3 人工接受待定。
+本地合成验证为 REAL，整体诊断证据仍 PARTIAL；修复信任度高，但不外推为真实缓存或科学有效性。
+复核者发现交接页把 `309dc...` parent SHA 称作当前 HEAD，现改为历史 parent 的准确表述。
+本次批准不授权 Argos、缓存读取、运行、扩峰、准确度排名或合并。

@@ -2,8 +2,8 @@
 
 ## PRINT forward-audit candidate — second exact-head review finding repaired locally
 
-GitHub PR #8 currently points to parent HEAD
-`309dc690a927a349254baaa24202de5e5f2d1e72` (OPEN, unmerged). Fixed-PMA exact-head review
+The parent HEAD immediately before this repair was
+`309dc690a927a349254baaa24202de5e5f2d1e72` (PR #8 OPEN, unmerged). Fixed-PMA exact-head review
 requested two minimal changes: make the no-comparator fixture use one genuinely affected left
 context with a valid negative/comparator pair before removing the comparator, and avoid exact
 floating-point equality for independently recomputed `pnorm` values while checking NaN positions
@@ -15,8 +15,13 @@ Candidate script SHA-256:
 `352eee934b00ad8317a1cb3d5aac83776e0bfbae4ba7b7e4eb8b55af5a3e622b`. The user authorized and both
 requested local checks passed: R parsing and `Rscript tests/test_print_pnorm_diagnostic.R` (self-test
 and gate/hash/output-guard tests PASS; four expected synthetic `NaNs produced` warnings). No Argos
-access or analysis occurred, and PRINT scoring behavior remains unchanged. The results are being
-recorded on PR #8 before exact-head review in the fixed PMA conversation.
+access or analysis occurred, and PRINT scoring behavior remains unchanged. The fixed PMA conversation
+approved exact HEAD `fef329d0ff157c3b0a911887f605b458ffe8c98c` for the implementation repair only
+(L1 PASS; no remaining implementation blocker). It classified local synthetic validation as REAL
+and overall diagnostic evidence as PARTIAL; L2 remains BLOCKED for the real negative-SD cause and
+historical warning-context mapping. L3 human acceptance remains pending. No Argos permission was
+granted. The reviewer noted that this handoff called the prior parent SHA current; that wording is
+corrected above.
 
 ## PRINT forward-pass audit candidate — fixed-PMA REQUEST_CHANGES; synthetic self-test repaired locally
 

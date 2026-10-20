@@ -346,3 +346,53 @@ experiment ID.
 **Limits.** Merged regions lose individual peak boundaries; they come back through the detail table and Output A.
 Chained regions of broad or high-coverage targets (Pol II, histone marks) can be wide. This file is for browsing
 and region lookup, not for motif-level analysis.
+
+## 11. ChIP-Atlas Protein Occupancy Evidence Tracks (v1 scope, frozen 2026-10-20)
+
+These are peak-derived evidence summaries across experiments. They are not read coverage, binding affinity or
+co-binding in one cell. "Binding intensity" is not used as a name.
+
+**Definitions.** Per base x, using the experiment-level peaks of v1 Output A (TF + Pol, q < 1e-5, no filtering).
+p is a target label: the HGNC symbol, otherwise the ChIP-Atlas antigen. class(p) comes from
+`PMA_chipatlas_hg38_protein_class_annotation.v1_1.csv`; labels without an HGNC symbol get class `Non-gene label`.
+
+| Track | Definition |
+|---|---|
+| `experiments.bw` | E(x) = \|{e : x ∈ peaks(e)}\| |
+| `proteins.bw` | P(x) = \|{p : x ∈ peaks(p)}\| (includes non-gene labels such as Epitope_tags, Pol II) |
+| `tf.bw` | TF(x) = \|{p : class(p) = Sequence-specific TF, x ∈ peaks(p)}\| |
+| `cap.bw` | CAP(x) = \|{p : class(p) ∈ {Histone writer/eraser, Histone reader, Chromatin remodeler, Architectural/cohesin}, x ∈ peaks(p)}\| |
+
+Further rules:
+- No binning or smoothing: exact base-pair step functions.
+- An experiment or label counts once per base, whatever the number of overlapping peaks.
+- Transcription machinery and Other/ambiguous count in E and P only.
+- CTCF has primary class Architectural/cohesin, so it counts in CAP, not TF.
+
+**Class annotation v1.1.** The user's file is kept unchanged; v1.1 is a separate file.
+- 168 genes were `Other/ambiguous` with basis `conservative_unresolved` and are in the Lambert 2018 human TF list.
+  v1.1 sets them to Sequence-specific TF (basis `lambert2018_TF_list`).
+- Lambert TFs with a more specific primary class keep it and get the tag `lambert2018_TF` (60 genes, e.g. CTCF,
+  KMT2A, TBP).
+- 9 TF-classed genes outside Lambert are flagged for manual review: ZFP36, NR0B2, BCL3, SMAD2 and others.
+- `functional_tags` holds non-exclusive tags; `Class` is the single primary class.
+
+**QC (automated, release-blocking).**
+- Identities on every breakpoint of every chromosome:
+  - P = Σ_k P_k over the mutually exclusive classes;
+  - TF ≤ P and CAP ≤ P;
+  - P ≤ E;
+  - P > 0 ⇔ E > 0.
+- Independent recount at 300 random covered positions directly from Output A with tabix (separate code path).
+
+**Provenance.** `07_region_query.py chr:start-end` answers region → protein → experiment → cell context from the
+Output A records. It reports per-protein experiment counts, cell types and tissues, and the share of experiments
+contributed by the top 5 proteins, which flags hotspots dominated by a few proteins. Example:
+chr4:16,001,000–16,002,000 has 3,336 experiments and 248 proteins, but CTCF alone has 1,815 experiments and the
+top 5 proteins (CTCF and cohesin) have 73.5 %.
+
+**Deferred (not v1):**
+- protein-normalized peak support S(x) = Σ_p R_p(x);
+- context-specific tracks;
+- hotspot clustering;
+- a comparison with ChIP-Atlas and ReMap functions (P1, desk review).

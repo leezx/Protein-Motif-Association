@@ -1227,3 +1227,10 @@ The fixed `PMA｜固定阶段审核` conversation reviewed exact PR #8 HEAD `3fa
 - Fixed-PMA technical review confirmed the 10:38:51 `EXIT=126` occurred before supervisor/worker execution, most consistent with staged script launch permissions; reviewer notes parent traversal/ACL/mount may also matter absent full checks. The one approved attempt is consumed; no automatic retry.
 - Confirmed local Git tracks `scripts/04b_footprint/run_print_integration_smoke_supervised.py` as `100644` even though the immutable gate executes its pathname directly. Minimal same-PR change: set the tracked file mode to executable (`100755`). Updated handoff with required pre-gate checks: remote target readable/executable, parent directories traversable, valid executable Python shebang, and pinned hashes.
 - No remote chmod, staging, or new gate invocation. Next: commit/push this same-PR repair and failure record, request fixed-PMA exact-head review; a further attempt requires a new APPROVE plus explicit one-run release.
+
+
+### 2026-10-20 10:44 EDT — satisfy fixed-PMA V2 isolation finding
+
+- Fixed-PMA exact-head review confirmed the `100644 → 100755` mode-only repair, but returned `REQUEST_CHANGES`: the supervisor still hard-coded V1 run ID/root/output path. It also required downgrading “root cause confirmed” because local Git mode alone cannot prove remote permissions/ACL/mount state. No Argos access occurred in that review.
+- Same-PR minimal repair: internal run ID now `BG_K562_PRINT_INTEGRATION_SMOKE_20261020_V2`; staged code directory, ROOT, and scientific output directory all use distinct `_v2` paths. V1 failure evidence remains immutable in the record. Wording now says the failure is consistent with missing execute permission, not definitively proven.
+- No remote chmod/staging or gate launch. Next: commit/push and request another exact-head review; only an explicit new release can authorize a new run.

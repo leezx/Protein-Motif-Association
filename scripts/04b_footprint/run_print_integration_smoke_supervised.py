@@ -16,10 +16,10 @@ import tempfile
 import time
 
 
-RUN_ID = "BG_K562_PRINT_INTEGRATION_SMOKE_20261020_V1"
-SCRIPT_DIR = "/home/zz950/PMA_fetch/pma_print_integration_smoke_code_20261020_v1"
-ROOT = "/home/zz950/PMA_fetch/pma_print_integration_smoke_rcapps3_20261020_v1"
-OUTPUT_DIR = "/home/zz950/DATA/2.PROJECTS/PMA/atac_footprint/processed/round1/runs_print_integration_smoke_rcapps3_20261020_v1"
+RUN_ID = "BG_K562_PRINT_INTEGRATION_SMOKE_20261020_V2"
+SCRIPT_DIR = "/home/zz950/PMA_fetch/pma_print_integration_smoke_code_20261020_v2"
+ROOT = "/home/zz950/PMA_fetch/pma_print_integration_smoke_rcapps3_20261020_v2"
+OUTPUT_DIR = "/home/zz950/DATA/2.PROJECTS/PMA/atac_footprint/processed/round1/runs_print_integration_smoke_rcapps3_20261020_v2"
 FROZEN_BED = "/home/zz950/DATA/2.PROJECTS/PMA/atac_footprint/raw/2026-10-19/encode_k562/ENCSR868FGK/ENCFF993BAP.bed.gz"
 SELECTOR_NAME = "select_print_integration_smoke.py"
 RUNNER_NAME = "run_print.R"

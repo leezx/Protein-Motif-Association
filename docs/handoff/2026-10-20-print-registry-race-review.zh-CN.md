@@ -38,11 +38,18 @@
 - 按固定 PMA 对话对 PR #8 精确 HEAD `7133b1cc7d34c57da5f12f07542ab01319a04328` 的 APPROVE，尝试通过不可变 gate 启动唯一一次 8 峰 PRINT smoke。远端状态文件记录 `BG_K562_PRINT_INTEGRATION_SMOKE_20261020_V1 EXIT=126 END=2026-10-20T10:38:51-04:00`。gate stderr 明确为 staged worker `run_print_integration_smoke_supervised.py: Permission denied`。
 - 核验 gate 本身 mode 为 700、SHA-256 仍为 `3776778b950be90cad124c04937eee422c81466154eccdadfe9e57d58224253c`；worker ROOT、科学输出目录均不存在，且无匹配 caller 进程。由此可确认 caller/PRINT 计算没有启动。
 - 因 caller 未启动，没有可报告的分析耗时、CPU、RSS、track/event 文件或 footprint 统计量。EXIT 126 是启动权限失败，不能当作算法运行时间。
-- 本次是审核放行的唯一尝试，授权已消耗。停止后续运行；任何后续尝试需在固定 PMA 对话中对修正后的当前 PR HEAD 重新审核并明确放行。未做权限改动、重跑、全峰 V7、环境更新或合并。
+- 本次是审核放行的唯一尝试，授权已消耗。固定 PMA 对话复审 mode-only 修复后另指出 supervisor 内部 ID/路径仍是 V1，拒绝新运行；已按 finding 改为 V2 独立 run ID、ROOT 与 output path，并将根因措辞改为“与缺少执行权限一致”。待新 HEAD 复审及明确放行后，才可能有新尝试。未做权限改动、重跑、全峰 V7、环境更新或合并。
 
 
 ## 10:43 EDT — 同 PR 修复 worker 可执行模式（待 exact-head 复审）
 
-- 根因由本地 Git index 确认：gate 直接执行 staged worker 路径，而该 worker 在仓库中 tracked 为 `100644`；远端启动 stderr 与此一致。不可变 gate 的本身权限和 hash 正常。
+- 失败与缺少 execute 权限一致：gate 直接执行 staged worker 路径，而仓库把该 worker tracked 为 `100644`；但本地 Git mode 不能单独证明远端完整 mode/ACL/mount 状态。不可变 gate 的本身权限和 hash 正常。
 - 最小修复：将 `scripts/04b_footprint/run_print_integration_smoke_supervised.py` 的 Git mode 改为 `100755`，使受控 staging 保留可执行意图。未来 staging 完成后、调用 gate 之前必须只读验证目标文件可读/可执行、各父目录可穿越、shebang 指向可执行的 Python 解释器，并核验文件 hash。当前没有改远端权限，也没有再次调用 gate。
 - 失败记录已保留：唯一获批 smoke 的 gate 状态为 `EXIT=126`，caller 未启动、无科学输出。根据固定 PMA 审核，本次单次授权已消耗；任何后续运行必须先提交同一 PR、对修正后 exact HEAD 获取新 `APPROVE` 和新的单次运行放行。
+
+
+## 10:44 EDT — fixed-PMA REQUEST_CHANGES：V2 路径隔离
+
+- 固定 PMA 对话核验 live HEAD `8ee1ae28cfe8539434a848eb1044f517daab43ab`，确认 Git mode `100644 → 100755` 且 blob 不变；但发现 supervisor 内部仍硬编码 V1 run ID/root/output，与新的 attempt 不隔离，故不放行。
+- 同 PR 最小修正：候选 run ID 改为 `BG_K562_PRINT_INTEGRATION_SMOKE_20261020_V2`；staged code directory、ROOT 和科学输出目录均改用独立 `_v2` 路径；新 worker SHA-256 为 `afffcdf49d74b85e21fd47913276e109b3cae34d383c15c51073251926b70a78`。V1 的 EXIT=126 记录和空目录证据保留原样。
+- 按 reviewer 要求把“根因已确认”降为“失败与缺少执行权限一致”；本地 Git mode 不证明当时远端 ACL/mount。当前无远程访问、无新运行授权。

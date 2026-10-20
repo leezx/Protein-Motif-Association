@@ -1039,3 +1039,12 @@ PR #8 is still OPEN/unmerged at `b1e7c54bb5b39b55cfcfb3e571cf56c5452e36db`; the 
 - Fresh preflight: rcapps3 x86_64, 72 CPUs, 957,819,340 kB MemAvailable, load 52.68/51.80/51.39. BED, fragments, bias HDF5, radius-10/20 models, PRINT module hashes and R dependencies passed. Hashing the 12.8-GB bias file took about 4.5 minutes (validation I/O, not analysis runtime). Gate SHA256 3776778b950be90cad124c04937eee422c81466154eccdadfe9e57d58224253c.
 - Prepared a same-PR V4 candidate with unique run/root/output paths. Correct staging is root-level run_print.R plus root-level supervisor, each SHA256-verified. Before any V4 launch, push this same PR and get exact-head review plus explicit one-attempt approval in the fixed PMA conversation. No launch until then.
 - Memory caveat unchanged: the 44-GiB RLIMIT_AS is per process; sampled process-group VmRSS is only an approximate soft-stop metric, not an aggregate hard cap or kernel-memory accounting.
+
+
+## 2026-10-20 00:32 EDT — historical V3 wording corrected in same PR
+
+Applied the fixed-PMA findings to the same PR: CODEX_HANDOFF's 00:11/00:16 blocks and dated handoff's 00:11/00:16 blocks now explicitly identify themselves as historical snapshots. They state V3 later launched at 00:26:54 EDT, failed before caller at 00:26:55 with EXIT=2, and its one-attempt authorization is consumed; V4 is the only current candidate. Next update PR body with the same correction, run diff checks, push, and request exact-head review in PMA｜固定阶段审核. No remote work or compute.
+
+## 2026-10-20 00:34 EDT — PR #8 V3 history corrected after fixed-PMA REQUEST_CHANGES
+
+Updated the PR body and current handoff status so V3 is unambiguously historical: its only approved launch failed at gate preflight before caller start because `run_print.R` was staged at the wrong path; that authorization is consumed. V4 is the sole current candidate. Corrected older V3 “current/no run started” text to explicitly historical wording in `docs/CODEX_HANDOFF.md` and the dated handoff. No remote command or computation was run. Next: commit/push only these audit files, update the PR body to the resulting exact HEAD, and request another exact-head review in the fixed PMA conversation. A fresh explicit one-attempt V4 approval is required before launch.

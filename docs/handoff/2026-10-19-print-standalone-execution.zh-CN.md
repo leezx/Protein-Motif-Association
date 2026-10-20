@@ -10,11 +10,11 @@ A same-PR V4 candidate changes only run ID/root/output to unique V4 paths. Corre
 
 # Step 4b PRINT 全峰集执行交接
 
-> **最新候选（2026-10-20 00:16 EDT）：**用户要求尽快用可直登节点完成 PRINT 全峰计算。查阅 `computingResource.md` 并做只读资源快照后，确认当前可用候选是 x86_64 的 `rcapps3`，GPU 标签为 K80（本 PRINT 任务 CPU-only）；`rcapps8` 是 aarch64，现成 x86 R 环境不兼容。快照：rcapps3 72 CPU、MemAvailable 913 GiB、load 49.78/50.28/50.97；rcapps8 128 CPU、MemAvailable 453 GiB、load 0.26/0.26/0.37。节点空闲量会变化，正式启动前需重查。V1/V2 一次尝试均已失败；PR #8 当前 HEAD `b1e7c54bb5b39b55cfcfb3e571cf56c5452e36db` 的固定 PMA 审核只批准文档记录，没有新运行授权。
+> **历史快照（2026-10-20 00:16 EDT；已由本文开头当前状态取代）：**用户要求尽快用可直登节点完成 PRINT 全峰计算。查阅 `computingResource.md` 并做只读资源快照后，确认当前可用候选是 x86_64 的 `rcapps3`，GPU 标签为 K80（本 PRINT 任务 CPU-only）；`rcapps8` 是 aarch64，现成 x86 R 环境不兼容。快照：rcapps3 72 CPU、MemAvailable 913 GiB、load 49.78/50.28/50.97；rcapps8 128 CPU、MemAvailable 453 GiB、load 0.26/0.26/0.37。节点空闲量会变化，正式启动前需重查。V1/V2 一次尝试均已失败；PR #8 当前 HEAD `b1e7c54bb5b39b55cfcfb3e571cf56c5452e36db` 的固定 PMA 审核只批准文档记录，没有新运行授权。
 
-为修复 V2 的高开销 `smaps` 采样，本地正在准备 V3 候选：以 `/proc/<pid>/status` `VmRSS` 求和，PID+启动时间识别成员，并在采样前后核对进程组成员；保留 2 秒采样周期、1.5 秒采样预算、连续 3 次失败即停止、100 GiB **采样软停止阈值**。该指标不是硬限制、不保证保守上界、不覆盖内核内存或逃逸/短命进程。每进程 44 GiB `RLIMIT_AS` 也不是任务总内存上限。新候选不得运行，直到同一 PR 提交、固定 PMA 对话 exact-head L1/L2 审查明确 `APPROVE` 并明确批准一次 V3 尝试；这条审核还未发出。没有新批准前不得同步脚本或执行 PRINT。
+（仅记录当时状态）为修复 V2 的高开销 `smaps` 采样，当时正在准备 V3 候选：以 `/proc/<pid>/status` `VmRSS` 求和，PID+启动时间识别成员，并在采样前后核对进程组成员；保留 2 秒采样周期、1.5 秒采样预算、连续 3 次失败即停止、100 GiB **采样软停止阈值**。该指标不是硬限制、不保证保守上界、不覆盖内核内存或逃逸/短命进程。每进程 44 GiB `RLIMIT_AS` 也不是任务总内存上限。新候选不得运行，直到同一 PR 提交、固定 PMA 对话 exact-head L1/L2 审查明确 `APPROVE` 并明确批准一次 V3 尝试；以上为 00:16 EDT 历史计划。V3 后于 00:26:54 EDT 实际启动，并在 00:26:55 EDT caller 前 EXIT=2；单次批准已耗尽且不可重跑。当前唯一候选是本文开头记录的 V4，须先获固定 PMA 对话对新 exact HEAD 的 APPROVE 及一次性 V4 批准。
 
-> **最新状态（2026-10-20 00:11 EDT）：V1、V2 各一次尝试均已停止，均未生成 PRINT 结果。V2 在 caller 113.8018 秒后因 `smaps` PSS sampler 连续超时/未能在 0.5 秒内回收而按 fail-closed 规则退出；最后一个有效样本约 24.2 GiB，但不是全程峰值。没有完整运行时或有效 track/event/timing 文件，不能给 PRINT 全峰计算时间。两次单次授权均已消耗；不得重跑。固定 PMA 对话认为采样链路延迟超预算是最有证据支持的解释，不能据此单独断言由进程映射增长造成。依用户既有 direct-login 指示做了只读 cgroup 核验：rcapps3 是 cgroup v1；当前 SSH shell 位于共享 `/system.slice/ssh.service`，memory hierarchy 开启，但该 cgroup limit 实际无限且 root-owned、`zz950` 不可写，因此不能按单个 PRINT 任务隔离、限制或统计。**
+> **历史状态快照（2026-10-20 00:11 EDT；已由本文开头当前状态取代）：V1、V2 各一次尝试均已停止，均未生成 PRINT 结果。V2 在 caller 113.8018 秒后因 `smaps` PSS sampler 连续超时/未能在 0.5 秒内回收而按 fail-closed 规则退出；最后一个有效样本约 24.2 GiB，但不是全程峰值。没有完整运行时或有效 track/event/timing 文件，不能给 PRINT 全峰计算时间。两次单次授权均已消耗；不得重跑。固定 PMA 对话认为采样链路延迟超预算是最有证据支持的解释，不能据此单独断言由进程映射增长造成。依用户既有 direct-login 指示做了只读 cgroup 核验：rcapps3 是 cgroup v1；当前 SSH shell 位于共享 `/system.slice/ssh.service`，memory hierarchy 开启，但该 cgroup limit 实际无限且 root-owned、`zz950` 不可写，因此不能按单个 PRINT 任务隔离、限制或统计。**
 
 ## 当前结论与决策门（2026-10-20 00:04 EDT）
 

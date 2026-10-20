@@ -18,10 +18,13 @@ if (!file.exists(paste0(main, "data/shared/precomputedTn5Bias")))
 for (f in c("utils.R", "getCounts.R", "getBias.R", "getFootprints.R")) source(paste0(repo, "/code/", f))
 script_arg <- sub("^--file=", "", grep("^--file=", commandArgs(FALSE), value = TRUE)[1])
 source(file.path(dirname(normalizePath(script_arg)), "print_variable_width.R"))
-# Bulk PRINT has one pseudobulk. Preserve the native scorer formulas while
-# repairing base::sapply()'s singleton dimension drop (position x 1 group).
-regionFootprintScoring <- make_bulk_safe_region_scorer(regionFootprintScoring)
+# Keep the exact sourced scorer for the grouped legacy oracle. The streamed
+# worker uses a wrapper that only repairs base::sapply()'s singleton dimension
+# drop (position x 1 group); the oracle must never inherit that wrapper.
+native_regionFootprintScoring <- regionFootprintScoring
+regionFootprintScoring <- make_bulk_safe_region_scorer(native_regionFootprintScoring)
 timing <- list(); tic <- function() proc.time()[["elapsed"]]
+caller_started <- tic()
 t0 <- tic()
 r <- fread(bed, header = FALSE)
 if (ncol(r) < 3L || anyNA(r$V1) || anyNA(r$V2) || anyNA(r$V3) || any(r$V2 < 0) || any(r$V3 <= r$V2))
@@ -146,9 +149,11 @@ if (direct_compare) {
       bind_active_print_project(project_group)
       assert_active_print_project(project_group)
       footprint_started <- tic()
-      project_group <- getFootprints(project_group, mode = as.character(rad),
-                                     footprintRadius = rad, flankRadius = rad,
-                                     nCores = nCores)
+      project_group <- with_print_region_scorer(
+        native_regionFootprintScoring,
+        getFootprints(project_group, mode = as.character(rad),
+                      footprintRadius = rad, flankRadius = rad, nCores = nCores),
+        envir = environment(getFootprints))
       footprint_seconds[[as.character(rad)]] <- footprint_seconds[[as.character(rad)]] + tic() - footprint_started
       group_footprints[[as.character(rad)]][[g]] <- footprints(project_group, as.character(rad))
       bind_active_print_project(project_group)
@@ -271,7 +276,11 @@ stream_result <- run_streamed_print_scoring(
   direct_chunk_peaks = 3L
 )
 timing$bias <- timing$bias + stream_result$bias_seconds
-for (rad in radii) timing[[paste0("footprint_r", rad)]] <- stream_result$timing_by_radius[[as.character(rad)]]
+timing$score_dispatch_r10_r20 <- stream_result$score_dispatch_seconds
+for (rad in radii) {
+  timing[[paste0("output_materialization_r", rad)]] <-
+    stream_result$output_materialization_by_radius[[as.character(rad)]]
+}
 t0 <- tic()
 publish_streamed_print_outputs(stream_result, out, radii)
 timing$output_publish <- tic() - t0
@@ -285,5 +294,10 @@ if (direct_compare) {
   }
   timing$direct_export_validation <- tic() - t0
 }
+timing[[if (direct_compare) {
+  "pipeline_wall_through_validation_including_legacy_oracle"
+} else {
+  "pipeline_wall_through_validation"
+}]] <- tic() - caller_started
 fwrite(data.table(stage = names(timing), seconds = unlist(timing)), paste0(out, ".timing.tsv"), sep = "\t")
 cat("done\n")

@@ -70,6 +70,29 @@ multi_native <- native_sapply_fixture(multi_group, c("a", "b"))
 multi_safe <- safe_sapply_fixture(multi_group, c("a", "b"))
 stopifnot(identical(multi_safe, multi_native))
 
+# The legacy grouped oracle must be able to use the untouched native scorer,
+# then restore the worker-safe binding even if the native call errors.
+oracle_env <- new.env(parent = .GlobalEnv)
+oracle_env$regionFootprintScoring <- function(x) paste0("safe:", x)
+oracle_env$native_regionFootprintScoring <- function(x) paste0("native:", x)
+oracle_env$getFootprints <- function(x) regionFootprintScoring(x)
+environment(oracle_env$getFootprints) <- oracle_env
+oracle_call <- function() with_print_region_scorer(
+  oracle_env$native_regionFootprintScoring,
+  oracle_env$getFootprints("oracle"), envir = environment(oracle_env$getFootprints))
+stopifnot(identical(oracle_call(), "native:oracle"),
+          identical(oracle_env$getFootprints("after"), "safe:after"))
+oracle_env$getFootprints <- function(x) {
+  if (identical(x, "error")) stop("expected native oracle error")
+  regionFootprintScoring(x)
+}
+environment(oracle_env$getFootprints) <- oracle_env
+stopifnot(inherits(try(with_print_region_scorer(
+  oracle_env$native_regionFootprintScoring,
+  oracle_env$getFootprints("error"), envir = environment(oracle_env$getFootprints)),
+  silent = TRUE), "try-error"),
+  identical(oracle_env$getFootprints("restored"), "safe:restored"))
+
 # Mixed widths, repeated width groups, interleaved chromosomes, and repeated
 # coordinates represented by separate input rows must preserve each global ID.
 chrom <- c("chr2", "chr1", "chr2", "chr1", "chr1", "chr2", "chr1")

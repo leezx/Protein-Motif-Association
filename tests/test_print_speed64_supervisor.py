@@ -23,6 +23,18 @@ def load(name, path):
 SPEED = load("print_speed64", os.path.join(SCRIPTS, "run_print_speed64_supervised.py"))
 OUTER = load("print_outer_watchdog",
              os.path.join(SCRIPTS, "run_print_integration_smoke_supervised.py"))
+FULLPEAK = load("print_fullpeak_supervisor",
+                os.path.join(SCRIPTS, "run_print_fullpeak_supervised.py"))
+
+
+def test_timing_contract_accepts_runner_wall_with_or_without_validation_oracle():
+    common = {"bias", "counts", "score_dispatch_r10_r20",
+              "output_materialization_r10", "output_materialization_r20", "output_publish"}
+    assert FULLPEAK.timing_stage_gaps(common | {"pipeline_wall_through_validation"}) == []
+    assert FULLPEAK.timing_stage_gaps(
+        common | {"pipeline_wall_through_validation_including_legacy_oracle"}) == []
+    assert "score_dispatch_r10_r20" in FULLPEAK.timing_stage_gaps(
+        common - {"score_dispatch_r10_r20"})
 
 
 def test_selector_capture_uses_python36_compatible_subprocess_keyword():
@@ -126,6 +138,7 @@ time.sleep(30)
 
 
 if __name__ == "__main__":
+    test_timing_contract_accepts_runner_wall_with_or_without_validation_oracle()
     test_selector_capture_uses_python36_compatible_subprocess_keyword()
     test_parent_delegates_all_work_to_supervised_worker()
     test_blocked_worker_cleans_detached_registered_group()

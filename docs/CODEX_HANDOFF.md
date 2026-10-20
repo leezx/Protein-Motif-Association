@@ -2,6 +2,34 @@
 
 ## PRINT streamed scorer candidate — local checks passed; one 8-peak Argos validation still gated
 
+### Fixed-PMA review findings — repair pending exact-head review
+
+The fixed `PMA｜固定阶段审核` conversation reviewed exact HEAD
+`8b60f31c480736046ec62c9cc85de81a819d9d63` and returned `REQUEST_CHANGES` for two issues:
+the streamed timing fields measured output assembly rather than scoring dispatch, and the grouped
+legacy oracle inherited the bulk-safe scorer wrapper. Both have been repaired on the same PR.
+`run_streamed_print_scoring()` now times the combined `r10+r20` `parLapplyLB()` dispatch and names
+the separate per-radius table/part work `output_materialization_r10/r20`. Runner pipeline wall is
+explicitly labeled as including the legacy oracle in 8-row validation mode; the immutable outer
+supervisor remains the source of total process/caller wall. The legacy `getFootprints()` comparison
+temporarily binds the untouched sourced scorer in its lexical environment and restores the worker
+wrapper on both normal return and error. A regression fixture verifies the independent binding and
+restoration behavior. This has not been exercised against real PRINT/HDF5/PSOCK data.
+
+Local checks passed after the repair: `Rscript tests/test_print_variable_width.R`, R parser for both
+R files, Python compile for the two supervisors, `python3 tests/test_print_speed64_supervisor.py`,
+`python3 tests/test_select_print_integration_smoke.py`, `python3 tests/test_print_smoke_deadline.py`,
+`bash tests/test_step4b_runner_contract.sh`, and `git diff --check`. The contract test's
+`BAM_CONVERSION_FAIL` / `BAM_PREP_FAIL` lines are expected fixtures; it finishes PASS. Repaired file
+SHA-256: runner `f388b705d021862ff99e45cda576c43194b3234fc457b2afc79308f49f135c31`, helper
+`6657838e9e1d95ff08124b95fc78da9aae266ddce5b83e255c59d4d5ad8069b0`, base supervisor
+`af29005f2ec0101100303be50227fe0f94a13d9cb25cb5a07a8a6159efaa44c0`, smoke wrapper
+`34f3d550da0ca74e2f1d4f5c0b03d81dcd3a2000e0ce904b54caeb9e3d5a0ea5`, selector
+`7e2a67554e4d5c601cdb6c18a3758bb420520fa21d6324eff6f02d15c1dd5856`. If newly approved after
+fresh exact-head review, V4 must pin smoke wrapper SHA
+`34f3d550da0ca74e2f1d4f5c0b03d81dcd3a2000e0ce904b54caeb9e3d5a0ea5`. No Argos access, staging,
+or execution has occurred. The V4 one-shot remains unapproved.
+
 Footprinting only; Claude owns ChIP BED6/PR #7. PR #8 remains the sole workstream. The user
 authorized local PRINT-source changes. The fixed `PMA｜固定阶段审核` conversation recommended
 implementing a persistent scorer scheduler, then one 8-original-peak validation before full-peak
@@ -35,12 +63,13 @@ and row counts); Python compile; `python3 tests/test_print_speed64_supervisor.py
 PRINT S4, PSOCK, or Argos caller run. Local R lacks `hdf5r` and `survcomp`; no local biological
 input was processed.
 
-Current candidate hashes (recompute after any source edit):
+Current repaired candidate hashes (recompute after any source edit):
 
-- `run_print.R`: `e3be118cda14f028b458a111e38be0b260ef1f54b368e5d7890a11bb31ec3caa`
-- `print_variable_width.R`: `d2f6a30b9c712bc22d8fd70d945bd84c85eb5ed0643386050930f21af21fdaab`
-- base supervisor: `f5fcee3a1d768758042b5edae0e1265fb5be4a518cf622cf5b297415819ac710`
-- one-shot outer validation wrapper: `5982c5a30c27ba7f22a30cbf1f63661b1018505d9d9656b0c570ba70d8d5dffb`
+- `run_print.R`: `f388b705d021862ff99e45cda576c43194b3234fc457b2afc79308f49f135c31`
+- `print_variable_width.R`: `6657838e9e1d95ff08124b95fc78da9aae266ddce5b83e255c59d4d5ad8069b0`
+- base supervisor: `af29005f2ec0101100303be50227fe0f94a13d9cb25cb5a07a8a6159efaa44c0`
+- one-shot outer validation wrapper: `34f3d550da0ca74e2f1d4f5c0b03d81dcd3a2000e0ce904b54caeb9e3d5a0ea5`
+- selector: `7e2a67554e4d5c601cdb6c18a3758bb420520fa21d6324eff6f02d15c1dd5856`
 
 The V4 candidate and its audit updates are committed and pushed on the existing branch (implementation commit `d60ca250d53318c2b2232ddeb01b330687d6499d`; audit commits `5d18a837c77be03ecef6e216fbb86ba475795ef3`, `b067c925f613a6757693fb4388ef78b2e790817b`, and `9907a7c512c6ecd12f9da844fad4b251c41c0197`). PR #8 is OPEN/unmerged. Re-read the live GitHub head before any review or remote action. The pending V4
 proposal uses the same frozen 8 original K562 peak rows; 16 workers; radii 10/20;

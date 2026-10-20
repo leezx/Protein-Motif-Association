@@ -287,6 +287,19 @@ make_bulk_safe_region_scorer <- function(native_scorer) {
   patched
 }
 
+# Temporarily bind the pinned native scorer in the lexical environment used by
+# PRINT's grouped caller. This keeps the equivalence oracle independent from
+# the singleton-matrix compatibility wrapper used by streamed workers.
+with_print_region_scorer <- function(scorer, expression, envir = .GlobalEnv) {
+  if (!is.function(scorer) || !is.environment(envir)) {
+    stop("PRINT scorer override requires a function and environment")
+  }
+  previous <- get("regionFootprintScoring", envir = envir, inherits = FALSE)
+  assign("regionFootprintScoring", scorer, envir = envir)
+  on.exit(assign("regionFootprintScoring", previous, envir = envir), add = TRUE)
+  eval(substitute(expression), envir = parent.frame())
+}
+
 count_text_lines <- function(path) {
   result <- system2("wc", c("-l", shQuote(path)), stdout = TRUE, stderr = TRUE)
   status <- attr(result, "status")
@@ -451,7 +464,9 @@ run_streamed_print_scoring <- function(regions, widths, radii, dispersion_models
   manifest_rows <- list()
   region_manifest_rows <- list()
   comparison_rows <- list()
-  timing_by_radius <- setNames(as.list(rep(0, length(radii))), as.character(radii))
+  output_materialization_by_radius <-
+    setNames(as.list(rep(0, length(radii))), as.character(radii))
+  score_dispatch_seconds <- 0
   indices_all <- seq_along(regions)
   chunks <- if (direct_compare) {
     make_bounded_region_chunks(indices_all, widths, max_peaks = direct_chunk_peaks,
@@ -540,7 +555,10 @@ run_streamed_print_scoring <- function(regions, widths, radii, dispersion_models
       list(global_index = ids[[j]], count = count_rows[[j]], bias = bias_vectors[[j]],
            width = widths[[ids[[j]]]], region_id = as.character(regions[ids[[j]]]))
     })
+    dispatch_started <- proc.time()[["elapsed"]]
     results <- parallel::parLapplyLB(cl, jobs, score_print_region_job)
+    score_dispatch_seconds <- score_dispatch_seconds +
+      (proc.time()[["elapsed"]] - dispatch_started)
     result_by_radius <- lapply(as.character(radii), function(rad) {
       lapply(results, `[[`, rad)
     })
@@ -572,7 +590,7 @@ run_streamed_print_scoring <- function(regions, widths, radii, dispersion_models
                               c("chrom", "pos", "score"))
       atomic_write_print_part(tables$events, event_path,
                               c("chrom", "start", "end", "score"))
-      timing_by_radius[[rad]] <- timing_by_radius[[rad]] +
+      output_materialization_by_radius[[rad]] <- output_materialization_by_radius[[rad]] +
         (proc.time()[["elapsed"]] - stage_start)
       chunk_record[[paste0("r", rad, "_track_rows")]] <- nrow(tables$track)
       chunk_record[[paste0("r", rad, "_event_rows")]] <- if (is.null(tables$events)) 0L else nrow(tables$events)
@@ -629,7 +647,8 @@ run_streamed_print_scoring <- function(regions, widths, radii, dispersion_models
     }
   }
   list(parts_dir = parts_dir, manifest = manifest,
-       timing_by_radius = timing_by_radius,
+       score_dispatch_seconds = score_dispatch_seconds,
+       output_materialization_by_radius = output_materialization_by_radius,
        bias_seconds = bias_seconds,
        chunk_count = length(chunks), expected_track_rows = expected_track_rows)
 }

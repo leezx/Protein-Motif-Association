@@ -40,14 +40,15 @@ contract test 中的 `BAM_CONVERSION_FAIL` / `BAM_PREP_FAIL` 是预期失败分�
 
 | 文件 | SHA-256 |
 |---|---|
-| `scripts/04b_footprint/run_print.R` | `e3be118cda14f028b458a111e38be0b260ef1f54b368e5d7890a11bb31ec3caa` |
-| `scripts/04b_footprint/print_variable_width.R` | `d2f6a30b9c712bc22d8fd70d945bd84c85eb5ed0643386050930f21af21fdaab` |
-| `scripts/04b_footprint/run_print_fullpeak_supervised.py` | `f5fcee3a1d768758042b5edae0e1265fb5be4a518cf622cf5b297415819ac710` |
-| `scripts/04b_footprint/run_print_integration_smoke_supervised.py` | `5982c5a30c27ba7f22a30cbf1f63661b1018505d9d9656b0c570ba70d8d5dffb` |
+| `scripts/04b_footprint/run_print.R` | `f388b705d021862ff99e45cda576c43194b3234fc457b2afc79308f49f135c31` |
+| `scripts/04b_footprint/print_variable_width.R` | `6657838e9e1d95ff08124b95fc78da9aae266ddce5b83e255c59d4d5ad8069b0` |
+| `scripts/04b_footprint/run_print_fullpeak_supervised.py` | `af29005f2ec0101100303be50227fe0f94a13d9cb25cb5a07a8a6159efaa44c0` |
+| `scripts/04b_footprint/run_print_integration_smoke_supervised.py` | `34f3d550da0ca74e2f1d4f5c0b03d81dcd3a2000e0ce904b54caeb9e3d5a0ea5` |
+| `scripts/04b_footprint/select_print_integration_smoke.py` | `7e2a67554e4d5c601cdb6c18a3758bb420520fa21d6324eff6f02d15c1dd5856` |
 
 ## 唯一下一步与边界
 
-代码提交 `d60ca250d53318c2b2232ddeb01b330687d6499d` 与后续审计提交 `5d18a837c77be03ecef6e216fbb86ba475795ef3`、`b067c925f613a6757693fb4388ef78b2e790817b`、`9907a7c512c6ecd12f9da844fad4b251c41c0197` 已推送到同一分支；PR #8 OPEN、未合并。之后又修正文档中的 HEAD 记录。请求审核前必须重新核对 GitHub live exact HEAD，并将该 SHA 写入请求和 PR 描述。下一步只在唯一固定 PMA 项目对话请求 Quick L1/L2 exact-head review，并只请求一次 V4 8-peak Argos gate 调用放行。不得在审核前建远程 code-stage、发 gate、安装/更新依赖或运行分析。批准后仍必须 fresh-check 主机、CPU/RAM、输入/模型/immutable gate 哈希、依赖、路径权限、无残留；复制五个精确审查文件并核验 SHA。任何一项不符即停止。调用 V4 后无论成功/失败都不重试。
+代码提交 `d60ca250d53318c2b2232ddeb01b330687d6499d` 与后续审计提交已推送到同一分支；PR #8 OPEN、未合并。V4 候选经过后续 review repair，具体情况见下方。
 
 V4 固定：16 workers；r10/r20；30 分钟端到端执行预算；每进程 44 GiB `RLIMIT_AS`；采样进程组 40 GiB RSS soft-stop（不是硬 aggregate cap）；CPU-only；复用既有 fragment file。运行只提供实现/计时/资源证据，不测准确度，不授权全峰、不改环境、不合并。
 
@@ -57,3 +58,29 @@ V4 固定：16 workers；r10/r20；30 分钟端到端执行预算；每进程 44
 - L2：bulk singleton 维度修复和 native scorer 语义需 8-peak 实测，当前 UNVERIFIED-critical；准确度不在此步骤测。
 - L3：用户方向仍是从 bulk ATAC peak 内调用 motif-free PRINT footprint；当前没有新 footprint 输出，进展是候选实现准备完毕。
 - Trust：本地验证高；真实运行正确性和全峰资源推断目前低/未建立。
+
+## 2026-10-20 13:19 EDT — 修复固定 PMA 对 V4 候选的两项 review finding
+
+固定 `PMA｜固定阶段审核` 对 exact HEAD `8b60f31c480736046ec62c9cc85de81a819d9d63` 给出
+`REQUEST_CHANGES`。第一项指出原 `footprint_r10/r20` 实际计的是 scorer 已完成后的轨道/事件整理与分块写出；第二项指出旧分组
+`getFootprints()` oracle 在执行前已被全局替换为 bulk-safe scorer，因而不独立。
+
+同 PR 最小修订：
+
+- 在 `parLapplyLB()` 周围单独累计联合 `r10+r20` 评分派发墙钟，字段为
+  `score_dispatch_r10_r20`；各尺度分块表构造、part 写出/哈希字段改为
+  `output_materialization_r10/r20`。`pipeline_wall_through_validation_including_legacy_oracle`
+  明确包含旧路径对照成本；外层 watchdog 的 caller wall 是独立总运行时间。
+- 保存源自 pinned PRINT 的未包装 scorer。旧 `getFootprints()` 路径临时在其词法环境绑定原 scorer，
+  并通过 `on.exit` 在成功和异常时恢复 bulk-safe worker scorer。新 worker 继续使用包装版。
+- 回归 fixture 断言 oracle 使用 native scorer，并在正常及错误返回后恢复包装器。监督器计时门槛改成
+  要求新的联合评分派发与输出物化/发布字段。
+
+本地重新运行：R 测试/解析、两个监督器 Python 编译、PRINT speed supervisor 测试、8-peak selector
+测试、deadline 测试、runner contract fixtures 与 `git diff --check` 均通过。contract fixture 输出的
+`BAM_CONVERSION_FAIL` / `BAM_PREP_FAIL` 是其预期负向分支，最终 PASS。真实 HDF5/S4/PSOCK 路径仍未验证。
+未访问 Argos、未 staging、未调用 gate。本修订后仍需推送，并在同一固定 PMA 对话复审新 exact HEAD；
+旧的 V4 单次提议不视作批准，需新的明确放行才可运行。
+
+计时监督器现在接受两种明确的 runner pipeline wall 字段（常规路径和包含 oracle 的验证路径），并强制
+检查联合评分派发字段及两个尺度的输出物化/发布字段；对应单元测试验证两种合法形式和缺失评分字段。

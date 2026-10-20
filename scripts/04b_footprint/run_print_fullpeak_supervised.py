@@ -16,8 +16,8 @@ import time
 
 
 RUN_ID = "BG_K562_PRINT_FULLPEAK_20261020_V7"
-RUNNER_SHA256 = "e3be118cda14f028b458a111e38be0b260ef1f54b368e5d7890a11bb31ec3caa"
-RUNNER_HELPER_SHA256 = "d2f6a30b9c712bc22d8fd70d945bd84c85eb5ed0643386050930f21af21fdaab"
+RUNNER_SHA256 = "f388b705d021862ff99e45cda576c43194b3234fc457b2afc79308f49f135c31"
+RUNNER_HELPER_SHA256 = "6657838e9e1d95ff08124b95fc78da9aae266ddce5b83e255c59d4d5ad8069b0"
 BED_SHA256 = "c0c1d0b5350a962b9d7a7f1d2edef1ca98005029c79f07979533f3a14cb40945"
 FRAGS_SHA256 = "238367780a1b7a2a24595a4259bdbe91cb8be439c2e5fda210831ad60d77544f"
 BIAS_H5_SHA256 = "574140487a0a829c7a59735e0e7a64a3f3a227a7e5ceb8ea5f355f7cc3289402"
@@ -53,7 +53,21 @@ MAX_SAMPLE_INTERVAL_OVERRUN_SECONDS = 0.25
 STOP_REQUESTED = []
 RUN_DEADLINE_MONOTONIC = None
 PROCESS_GROUP_REGISTRY = None
-REQUIRED_TIMING_STAGES = {"bias", "counts", "footprint_r10", "footprint_r20"}
+REQUIRED_TIMING_STAGES = {
+    "bias", "counts", "score_dispatch_r10_r20",
+    "output_materialization_r10", "output_materialization_r20", "output_publish",
+}
+REQUIRED_PIPELINE_WALL_STAGES = {
+    "pipeline_wall_through_validation",
+    "pipeline_wall_through_validation_including_legacy_oracle",
+}
+
+
+def timing_stage_gaps(stages):
+    missing = sorted(REQUIRED_TIMING_STAGES.difference(stages))
+    if not REQUIRED_PIPELINE_WALL_STAGES.intersection(stages):
+        missing.append("pipeline_wall_through_validation[_including_legacy_oracle]")
+    return missing
 
 
 def remaining_wall_seconds():
@@ -795,7 +809,7 @@ def main():
                             and track_validation.get(prefix + ".r%d.track.tsv.gz" % radius, {}).get("data_rows", 0) < 1]
             timing_rows = summary.get(timing_path, {}).get("rows", 0)
             timing_stages = read_timing_stages(timing_path) if os.path.isfile(timing_path) else []
-            missing_timing_stages = sorted(REQUIRED_TIMING_STAGES.difference(timing_stages))
+            missing_timing_stages = timing_stage_gaps(timing_stages)
             summary["required_output_files_valid"] = (not missing_outputs and not empty_tracks
                                                        and timing_rows >= 2
                                                        and not missing_timing_stages

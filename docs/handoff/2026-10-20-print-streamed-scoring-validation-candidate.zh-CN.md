@@ -1,8 +1,22 @@
-# PRINT 持久评分调度与 8-peak 验收候选
+# PRINT 持久评分调度与 8-peak 验收结果
 
 时间：2026-10-20 13:06 EDT
 
 范围：PMA Step 4b footprint，仅 PR #8。ChIP BED6/PR #7 由 Claude 负责。
+
+## V5 实际运行结果（2026-10-20 14:01 EDT）
+
+固定 PMA 项目对话对 PR #8 exact HEAD `dce3d4e610644dce7545837d1af9add41cf39df2` 明确批准一次 V5 8-peak gate。远端只读预检、输入/模型/PRINT/gate 哈希、依赖、资源与唯一目录检查通过；五个 staged 文件的 SHA 与 Git mode 全部一致。V5 gate 于 `2026-10-20T14:01:53-04:00` EXIT=0。V5 单次授权已消耗，不能重跑。
+
+结果：8个原始冻结 K562 peak（来自159,628行peak BED；2条染色体；宽度1,042–1,977 bp），16 workers，强制3/3/2 chunks，r10/r20。streamed结果与 legacy 路径16/16 peak-radius一致；direct comparison 16/16 bias exact-match。r10和r20各有12,795个通过验证的有限分数行；native event BED 分别14和17行。缺失输出、计时阶段和验证错误均为0。该结果证明8个peak上的代码/调用集成和与legacy评分对象等价；不测独立准确度，不证明全峰调用可完成，也不能据此选工具。
+
+资源：gate至完成452.432秒（7分32秒），其中监督器预检66.596秒；PRINT caller wall 384.589秒（GNU time 6分24秒），172.04秒user CPU + 25.79秒system CPU，51% CPU利用率（约8.2个平均CPU核；16为worker和affinity上限）。GNU time最大子进程RSS 17,921,552 KiB；采样进程组VmRSS峰值17,922,204 KiB（约17.09 GiB）。单进程 `RLIMIT_AS` 为44 GiB。40-GiB VmRSS采样软停止未触发；该采样不是硬聚合内存上限。总预算30分钟。
+
+调用日志有28条 `pnorm(...): NaNs produced` 警告。监督器对轨道有限分数、tracks、event BED、16组比较、required timing stages和completion marker均验证通过，但警告来源/科学影响仍未查清。不得屏蔽警告，也不得据当前smoke作准确度结论。
+
+外部证据仍保存在 Argos/DATA，不复制进仓库：证据目录 `/home/zz950/PMA_fetch/pma_print_stream_validation_rcapps3_20261020_v5/`；gate状态 `/home/zz950/PMA_fetch/pma_bg_pr8_20261019/BG_K562_PRINT_STREAM_VALIDATION_20261020_V5.status`；结果 `/home/zz950/DATA/2.PROJECTS/PMA/atac_footprint/processed/round1/runs_print_stream_validation_rcapps3_20261020_v5/`。`summary.json` SHA-256 `51e7d2292b4baa7d2e4851d14b7acddb3ab0974f73ca4e88d11e1d79c51d71b5`；`smoke_completion.json` `f6789a5d1f5ebc5c65467bf6d3287cbcac5172ce020eedfda2414d91035b7a0a`；watchdog `ea1caf0b3c297c2cbb5888e0965d2cbe534c3d299e09894e5af055202e6b95bc`；caller stdout `83866e658a02332e28049275bee38ca645c4e3e41aa904402165a90a266d3e8f`；GNU time `0379b81eea46f43b9fd94ebd058ff72c24c924860725595b897f3bc6985882dd`；gate status `2d5fef2cde71051b672a6804ba17e0698afca83beaad192ab5f90463e1bff856`。r10/r20 track SHA `4ee07f188d4c0b43ea813fa2930b3da9ea41e2e2b2f83cf0d1aa70ff2bfda72b` / `b54254670978d006781af4fb228ff744c9fbac2b09afb2fc07e915801778c447`；native events SHA `30aedcd7843e947164290335cdfaff61b33338f7b44e7c6ebb887394d4fa66c8` / `b18d8916b5df3ade276e1f6f50628a9b82bf34b6b4741acb6ae552dbf4b8ad72`。
+
+Quick stage review: L1 PASS for this 8-row implementation-validation deliverable; L2 BLOCKED for biological accuracy/full-peak suitability; direction ON TRACK; real progress for live Argos PRINT integration and exact equivalence at this sample size; trust usable with limits. Next: submit this result on the same PR and obtain a fixed-PMA milestone review before any further dependent Argos run. This V5 one-shot approval does not authorize V6, a 64/full-peak run, accuracy testing, environment changes, or merge.
 
 ## V4 实际运行结果（2026-10-20 13:37 EDT）
 

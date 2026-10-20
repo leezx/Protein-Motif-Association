@@ -1,6 +1,8 @@
 """Step 4a §11: IGV session for the occupancy evidence tracks (paths relative to the session file).
 
-usage: 09_igv_session.py <out_session.xml> [locus]
+usage: 09_igv_session.py <out_session.xml> [locus] [variant]
+variant: '' (raw tracks), '_noBlacklist' or '_blacklistOnly' (ENCODE v2 split; directories tracks<variant>/ and
+tracks_histone<variant>/).
 Order: protein evidence (TF, CAP, all proteins, experiments), histone evidence (modification diversity,
 experiments, then the six core marks by functional group). Each track autoscales on its own y-axis; heights
 across tracks are not comparable.
@@ -24,12 +26,14 @@ TRACKS = [
 ]
 
 
-def main(out, locus="chr4:15966228-16085729"):
-    res = "\n".join(f"        <Resource path={quoteattr(p)}/>" for p, _, _ in TRACKS)
+def main(out, locus="chr4:15966228-16085729", variant=""):
+    tracks = [(p.replace("tracks/", f"tracks{variant}/").replace("tracks_histone/", f"tracks_histone{variant}/"),
+               n + (f" [{variant.strip('_')}]" if variant else ""), c) for p, n, c in TRACKS]
+    res = "\n".join(f"        <Resource path={quoteattr(p)}/>" for p, _, _ in tracks)
     trk = "\n".join(
         f"        <Track attributeKey={quoteattr(p.split('/')[-1])} autoScale=\"true\" clazz=\"org.broad.igv.track.DataSourceTrack\" "
         f"color=\"{c}\" fontSize=\"10\" height=\"50\" id={quoteattr(p)} name={quoteattr(n)} renderer=\"BAR_CHART\" "
-        f"visible=\"true\" windowFunction=\"max\"/>" for p, n, c in TRACKS)
+        f"visible=\"true\" windowFunction=\"max\"/>" for p, n, c in tracks)
     xml = f"""<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <Session genome="hg38" hasGeneTrack="true" hasSequenceTrack="true" locus="{locus}" relativePaths="true" version="8">
     <Resources>
@@ -44,4 +48,4 @@ def main(out, locus="chr4:15966228-16085729"):
 
 
 if __name__ == "__main__":
-    main(*sys.argv[1:3])
+    main(*sys.argv[1:4])

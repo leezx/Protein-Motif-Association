@@ -2,7 +2,7 @@
 # Step 4a §11: genome-wide occupancy evidence tracks.
 # Env: PMA_OCC_RAW, PMA_OCC_PROCESSED; python, tabix, bgzip, bedGraphToBigWig, bedToBigBed on PATH.
 # usage: run_tracks.sh [workers] [protein|histone|mask_protein|mask_histone]
-#   mask_*: blacklist-masked copies (ENCODE hg38 v2, base-wise) in tracks{,_histone}_noBlacklist
+#   mask_*: split at the ENCODE hg38 v2 blacklist (base-wise) into tracks{,_histone}_{noBlacklist,blacklistOnly}
 #   protein: proteins/TF/CAP/experiments bigWigs (v1 Output A) + class-split light protein BED
 #   histone: histone experiments/marks + core-mark bigWigs (histone_v1 BED6+18)
 set -euo pipefail
@@ -19,7 +19,7 @@ histone)
     ${PMA_HISTONE_ANN:-$P/light_v1/PMA_chipatlas_hg38_histone_label_annotation.tsv} $SIZES $P/light_v1/tracks_histone $N ;;
 mask_protein|mask_histone)
   T=$P/light_v1/tracks; [ $MODE = mask_histone ] && T=$P/light_v1/tracks_histone
-  python $HERE/10_mask_blacklist.py $PMA_OCC_RAW/2026-10-17/reference/hg38-blacklist.v2.bed.gz $SIZES $T ${T}_noBlacklist ;;
+  python $HERE/10_mask_blacklist.py $PMA_OCC_RAW/2026-10-17/reference/hg38-blacklist.v2.bed.gz $SIZES $T ${T}_noBlacklist ${T}_blacklistOnly ;;
 *) echo "usage: run_tracks.sh [workers] [protein|histone|mask_protein|mask_histone]" >&2; exit 2 ;;
 esac
 echo TRACKS_DONE $MODE

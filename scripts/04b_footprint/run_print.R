@@ -5,6 +5,8 @@
 # Output: <out_prefix>.r<radius>.track.tsv.gz  chrom, pos (0-based), score = PRINT -log10(p) smoothed track
 #         <out_prefix>.timing.tsv              stage, seconds
 suppressPackageStartupMessages({ library(GenomicRanges); library(data.table) })
+# Preserve each warning at the point it is raised so the supervised run can be triaged.
+options(warn = 1)
 a <- commandArgs(trailingOnly = TRUE)
 repo <- normalizePath(a[1]); shared <- normalizePath(a[2]); bed <- a[3]; frags <- a[4]; out <- a[5]
 nCores <- as.integer(a[6]); radii <- as.integer(strsplit(a[7], ",")[[1]])

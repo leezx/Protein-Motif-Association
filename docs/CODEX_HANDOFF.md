@@ -1,4 +1,67 @@
-# CURRENT OPERATIVE FOOTPRINT TASK — 2026-10-20 11:10 EDT
+# CURRENT OPERATIVE FOOTPRINT TASK — 2026-10-20 11:22 EDT
+
+## 64-peak PRINT speed candidate — review required, not authorized to run
+
+Footprinting only; Claude owns ChIP BED6/PR #7. PR #8 is OPEN and unmerged at live HEAD
+`d2474134f31bf6c288922964dbaed4b5fbdfee59`. The fixed `PMA｜固定阶段审核` conversation confirmed
+that the active V3 record and code both use a sampled process-group `VmRSS` sum; the PSS wording
+appears only in a historical full-peak V2 snapshot. No monitor rewrite is needed for the V3-based
+candidate. `VmRSS` sampling can double-count shared pages and can miss short-lived or escaped
+processes; it is an approximate soft-stop signal, not a hard memory cap or guaranteed peak.
+
+Candidate: one runtime-only PRINT sample of 64 rows selected by midpoint quantiles of the exact
+frozen K562 peak BED row order. The selector verifies source SHA-256
+`c0c1d0b5350a962b9d7a7f1d2edef1ca98005029c79f07979533f3a14cb40945` and exactly 159,628 source
+rows; it copies 64 original BED rows without filtering or coordinate edits, writes a row map and
+hash summary, and requires at least two chromosomes. PRINT uses the production chromosome-wise
+bias path (`PRINT_DIRECT_COMPARE=0`), two workers, radii 10/20, CPU-only, a 30-minute end-to-end
+budget, per-process 44-GiB `RLIMIT_AS`, and 40-GiB sampled process-group `VmRSS` soft stop. R
+warnings are emitted as they occur (`options(warn=1)`). The runner reports selection time,
+supervisor preflight time, caller wall/CPU time, stage timings, GNU-time max RSS and sampled-group
+RSS separately. Gate metadata labels must be explicit (`ctrl print`).
+
+The same BAM's already completed fragment preparation is `BG_K562_FRAG_PREP_V1` (`EXIT=0`):
+110,891,807 fragments; input BAM SHA-256 `1ed9d63b38d2430bc037493187fc3c0f73478d204dc55d6f1ed7c329f17105df`;
+output fragment SHA-256 `238367780a1b7a2a24595a4259bdbe91cb8be439c2e5fda210831ad60d77544f`. GNU time:
+28:18.88 wall, 1,701.40 user + 26.29 system seconds, 101% CPU (~1.01 average core), maximum RSS
+4,196,976 KiB (~4.00 GiB); gate `RLIMIT_KB=46137344` (44 GiB). The separate 64-peak run reuses
+these fragments, so its 30-minute cap is caller-stage budget; report the BAM-to-track elapsed as
+28:18.88 plus its separately measured selection/preflight/caller timeline. Preparation is a
+one-time shared input cost and should not be counted again when reusing the frozen fragment file.
+
+Pinned candidate artifacts:
+
+- selector `scripts/04b_footprint/select_print_speed64.py`, SHA-256
+  `105be1be89c94d466e46dccdee98402d74ec7dfba1781f1c7a91740342932b46`
+- one-shot supervisor `scripts/04b_footprint/run_print_speed64_supervised.py`, SHA-256
+  `8b0579e9bcde9d8b72c3cd57f901c7da91cfce3f2ca5a898ca09e078d39bda70`
+- PRINT wrapper `scripts/04b_footprint/run_print.R`, SHA-256
+  `0c7c26f303f079a18d5f1f110faa2e516d631c8826dbd5e5517fc26d4aff22bb`
+- variable-width helper `5f5da1b9cf3179f40850792d26ecce6862ed8c3a5dfd82ad39fa8ab07d51d4ca`
+- base supervisor `7d594c58de85c012cc3ff08d93c8c67252be65f9cd860497243bc9295ef0a234`
+- immutable gate `3776778b950be90cad124c04937eee422c81466154eccdadfe9e57d58224253c`
+
+Candidate run ID `BG_K562_PRINT_PEAK_SPEED64_20261020_V1`; staged code directory
+`/home/zz950/PMA_fetch/pma_print_peak_speed_code_20261020_v1`; run evidence root
+`/home/zz950/PMA_fetch/pma_print_peak_speed_rcapps3_20261020_v1`; scientific output directory
+`/home/zz950/DATA/2.PROJECTS/PMA/atac_footprint/processed/round1/runs_print_peak_speed_rcapps3_20261020_v1`.
+Proposed immutable-gate command:
+
+```sh
+PMA_PRINT_SPEED64_EXPECTED_SHA256=8b0579e9bcde9d8b72c3cd57f901c7da91cfce3f2ca5a898ca09e078d39bda70 \
+  bash /home/zz950/PMA_fetch/pma_bg_gate_v2.sh \
+  BG_K562_PRINT_PEAK_SPEED64_20261020_V1 \
+  /home/zz950/PMA_fetch/pma_print_peak_speed_code_20261020_v1/run_print_speed64_supervised.py \
+  ctrl print
+```
+
+This packet has passed local Python syntax, local R parse, and `git diff --check`; no Argos access,
+input read, staging, environment change, or caller run occurred. It is a review candidate only. It
+does not assess accuracy and cannot establish full 159,628-peak runtime by linear extrapolation.
+The exact live PR HEAD must receive a fresh review and explicit single-run approval before this
+command is run. Any failure consumes that attempt; do not retry automatically. Do not merge PR #8.
+
+# PREVIOUS OPERATIVE FOOTPRINT TASK — V3 PRINT 8-peak smoke completed — 2026-10-20 11:10 EDT
 
 ## V3 PRINT 8-peak smoke completed
 

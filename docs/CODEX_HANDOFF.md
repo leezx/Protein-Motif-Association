@@ -1,10 +1,18 @@
-# CURRENT OPERATIVE FOOTPRINT TASK — 2026-10-20 08:18 EDT
+# CURRENT OPERATIVE FOOTPRINT TASK — 2026-10-20 08:34 EDT
 
-## Current run — V6 single-worker PRINT is active
+## Current status — V6 failed in PRINT bias preparation; no footprint output
 
-The fixed PMA conversation approved exact PR #8 HEAD `f54d31c6f7dc39e52eda3f21aaf099b03928e303` and explicitly authorized one V6 attempt. It confirmed that the SSH alias `rcapps3.dfci.harvard.edu` landing on `rcGPUs.dfci.harvard.edu` is within the reviewed target. Fresh preflight passed: x86_64; affinity 0–71; 969,416,036 kB MemAvailable; R 4.2.2 and required namespaces; 159,628 peak rows; frozen BED, fragment, bias/model, PRINT source and runner hashes match; PRINT checkout is clean; V6 output/status paths are absent and no matching process was present. The immutable gate hash matched. The reviewed runner and `run_print.R` were staged at unique V6 paths and launched once at 08:08:06 EDT as `BG_K562_PRINT_FULLPEAK_20261020_V6`.
+PR #8 remains OPEN/unmerged on `task_20261019_hint_overlay_smoke`. The fixed PMA conversation approved exact code HEAD `f54d31c6f7dc39e52eda3f21aaf099b03928e303` and exactly one V6 run. Fresh preflight passed and the run launched once at 08:08:06 EDT on `rcGPUs.dfci.harvard.edu` as `BG_K562_PRINT_FULLPEAK_20261020_V6`, one CPU worker, CPU-only, all 159,628 K562 peak intervals, radii 10/20, sampled process-group VmRSS 40-GiB soft-stop.
 
-At 08:18 EDT the PRINT R caller remained active on one CPU; latest sampled process-group VmRSS was about 26.3 GiB and stable, below the 40-GiB sampled soft-stop. No output/track/timing files had appeared yet. This is early progress only, not a completed run, peak-memory measurement or speed result. The 40-GiB threshold is a sampled soft stop, not a hard task cap; the immutable gate's 44-GiB RLIMIT_AS is per process. Continue monitoring the gate status, watchdog, output validation, native events and final GNU-time summary. Preserve the single approved attempt; do not restart after any failure. No accuracy, motif, other caller, ChIP/PR #7 or merge.
+The gate ended `EXIT=1` at 08:29:05 EDT (`stop_reason=normal_exit`), not by memory stop. PRINT `getPrecomputedBias()` failed before counts or footprint calculation: `Item 1597 has 28 columns, inconsistent with item 1 which has 100 columns`. The pinned `getBias.R` implementation applies `sapply()` to genomic slices whose lengths equal peak widths, then combines the result into a matrix. The source peak set is variable-width, so this batch cannot be represented by that matrix operation as written. This is an input-width contract/engineering failure; it provides no footprint calls, accuracy comparison, or completed caller benchmark.
+
+GNU time reports 19:14.53 elapsed, 1096.86 s user CPU, 31.86 s system CPU, 97% CPU, and maximum RSS 26,989,772 kB (~25.74 GiB). The watchdog's maximum valid sampled process-group VmRSS was 26,988,120 kB (~25.73 GiB); the 40-GiB soft-stop did not fire. These are observed resources for the failed caller attempt, not a successful full-peak runtime or a hard task memory bound. Preflight took 102.225 s and is separate. All five required track/event/timing outputs and all four timing stages are missing; output directory is empty; a fresh process check found no remaining V6 caller/gate process.
+
+External evidence is preserved under `/home/zz950/PMA_fetch/pma_print_fullpeak_rcapps3_20261020_v6/` and gate records under `/home/zz950/PMA_fetch/pma_bg_pr8_20261019/`; no biological outputs were written. The V6 one-run authorization is consumed. Do not retry, patch the bias transformation, pad variable-width intervals, or substitute fixed-width summit windows under this authorization. The fixed PMA conversation is being asked for an audit/technical diagnosis only; it is not authorization for V7. Any next run requires a reviewed same-PR correction and a new explicit one-run authorization.
+
+Scope remains PRINT-only full-peak execution evidence; no accuracy ranking, motif analysis, other caller, C/C++ optimization, ChIP/PR #7 work, or merge.
+
+Historical interim snapshot: at 08:18 EDT the caller was active and sampled RSS was about 26.3 GiB. V6 later exited 1 at 08:29:05 EDT as recorded above; the interim snapshot is not the final result. Its one-run approval is consumed.
 
 ## Latest PRINT attempt — V5 resource-reduced run stopped; no valid footprint output
 

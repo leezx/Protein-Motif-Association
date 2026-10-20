@@ -47,7 +47,7 @@ contract test 中的 `BAM_CONVERSION_FAIL` / `BAM_PREP_FAIL` 是预期失败分�
 
 ## 唯一下一步与边界
 
-代码提交 `d60ca250d53318c2b2232ddeb01b330687d6499d` 与最终审计提交 `5d18a837c77be03ecef6e216fbb86ba475795ef3` 已在现有分支推送；GitHub PR #8 OPEN，live exact HEAD 为 `5d18a837c77be03ecef6e216fbb86ba475795ef3`。PR 描述已同步候选范围。下一步只在唯一固定 PMA 项目对话请求 Quick L1/L2 exact-head review，并只请求一次 V4 8-peak Argos gate 调用放行。不得在审核前建远程 code-stage、发 gate、安装/更新依赖或运行分析。批准后仍必须 fresh-check 主机、CPU/RAM、输入/模型/immutable gate 哈希、依赖、路径权限、无残留；复制五个精确审查文件并核验 SHA。任何一项不符即停止。调用 V4 后无论成功/失败都不重试。
+代码提交 `d60ca250d53318c2b2232ddeb01b330687d6499d` 与后续审计提交 `5d18a837c77be03ecef6e216fbb86ba475795ef3`、`b067c925f613a6757693fb4388ef78b2e790817b`、`9907a7c512c6ecd12f9da844fad4b251c41c0197` 已推送到同一分支；PR #8 OPEN、未合并。之后又修正文档中的 HEAD 记录。请求审核前必须重新核对 GitHub live exact HEAD，并将该 SHA 写入请求和 PR 描述。下一步只在唯一固定 PMA 项目对话请求 Quick L1/L2 exact-head review，并只请求一次 V4 8-peak Argos gate 调用放行。不得在审核前建远程 code-stage、发 gate、安装/更新依赖或运行分析。批准后仍必须 fresh-check 主机、CPU/RAM、输入/模型/immutable gate 哈希、依赖、路径权限、无残留；复制五个精确审查文件并核验 SHA。任何一项不符即停止。调用 V4 后无论成功/失败都不重试。
 
 V4 固定：16 workers；r10/r20；30 分钟端到端执行预算；每进程 44 GiB `RLIMIT_AS`；采样进程组 40 GiB RSS soft-stop（不是硬 aggregate cap）；CPU-only；复用既有 fragment file。运行只提供实现/计时/资源证据，不测准确度，不授权全峰、不改环境、不合并。
 

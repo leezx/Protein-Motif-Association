@@ -42,7 +42,7 @@ Current candidate hashes (recompute after any source edit):
 - base supervisor: `f5fcee3a1d768758042b5edae0e1265fb5be4a518cf622cf5b297415819ac710`
 - one-shot outer validation wrapper: `5982c5a30c27ba7f22a30cbf1f63661b1018505d9d9656b0c570ba70d8d5dffb`
 
-The V4 candidate is committed and pushed on the existing branch. Code commit `d60ca250d53318c2b2232ddeb01b330687d6499d` is followed by final audit commit `5d18a837c77be03ecef6e216fbb86ba475795ef3`; GitHub PR #8 is OPEN at exact HEAD `5d18a837c77be03ecef6e216fbb86ba475795ef3`. The pending V4
+The V4 candidate and its audit updates are committed and pushed on the existing branch (implementation commit `d60ca250d53318c2b2232ddeb01b330687d6499d`; audit commits `5d18a837c77be03ecef6e216fbb86ba475795ef3`, `b067c925f613a6757693fb4388ef78b2e790817b`, and `9907a7c512c6ecd12f9da844fad4b251c41c0197`). PR #8 is OPEN/unmerged. Re-read the live GitHub head before any review or remote action. The pending V4
 proposal uses the same frozen 8 original K562 peak rows; 16 workers; radii 10/20;
 30-minute end-to-end budget; existing 44-GiB per-process `RLIMIT_AS` and 40-GiB sampled
 process-group `VmRSS` soft stop (not a hard aggregate cap); CPU-only execution; and a fresh unique

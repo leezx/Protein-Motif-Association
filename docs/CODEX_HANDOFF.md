@@ -1,4 +1,22 @@
-# CURRENT OPERATIVE FOOTPRINT TASK — 2026-10-20 15:12 EDT
+# CURRENT OPERATIVE FOOTPRINT TASK — 2026-10-20 15:15 EDT
+
+## PRINT forward-audit candidate — second exact-head review finding repaired locally
+
+GitHub PR #8 currently points to parent HEAD
+`309dc690a927a349254baaa24202de5e5f2d1e72` (OPEN, unmerged). Fixed-PMA exact-head review
+requested two minimal changes: make the no-comparator fixture use one genuinely affected left
+context with a valid negative/comparator pair before removing the comparator, and avoid exact
+floating-point equality for independently recomputed `pnorm` values while checking NaN positions
+separately. The local source now asserts the complete pair passes both context and role coverage;
+after removing only `nearest_valid_sd`, context coverage must still pass while role coverage fails.
+The pnorm assertion checks the NaN mask exactly and finite values with tolerance `1e-14`.
+
+Candidate script SHA-256:
+`352eee934b00ad8317a1cb3d5aac83776e0bfbae4ba7b7e4eb8b55af5a3e622b`. `git diff --check` passed.
+R parse and `tests/test_print_pnorm_diagnostic.R` have not been run. This is a local candidate only;
+it is not yet pushed, reviewed, or executable-verified. No Argos access or analysis occurred, and
+PRINT scoring behavior remains unchanged. The fixed-PMA review requires the two local R commands;
+run them only after the user authorizes local verification.
 
 ## PRINT forward-pass audit candidate — fixed-PMA REQUEST_CHANGES; synthetic self-test repaired locally
 

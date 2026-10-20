@@ -461,8 +461,11 @@ run_self_test <- function() {
               "diagnostic failed to record native pnorm warnings")
   expected <- c(stats::pnorm(0.2, mean = 0.36, sd = 0.12),
                 stats::pnorm(0.3, mean = 0.36, sd = 0.12), NaN)
-  assert_that(identical(first$inputs$left$p, expected),
-              "diagnostic wrapper changed native pnorm return values")
+  observed_left <- first$inputs$left$p
+  assert_that(identical(is.nan(observed_left), is.nan(expected)) &&
+                isTRUE(all.equal(observed_left[!is.nan(expected)],
+                                 expected[!is.nan(expected)], tolerance = 1e-14)),
+              "synthetic left pnorm values or NaN positions changed")
   expected_right <- stats::pnorm(c(0.2, 0.3, 0.4),
                                  mean = c(0.46, 0.46, 0.25),
                                  sd = c(0.24, 0.24, 0.1525))
@@ -503,16 +506,20 @@ run_self_test <- function() {
                 grepl("missing forward-pass capture", conditionMessage(missing_capture_error)),
               "missing native predictor capture did not fail closed")
 
-  no_comparator_calls <- data.frame(
-    peak_row = c(1L, 1L), radius = c(1L, 1L),
-    scorer_pass = c("synthetic_test", "synthetic_test"),
-    scorer_path = c("pseudobulk_matrix", "pseudobulk_matrix"),
-    flank = c("left", "right"), nonpositive_sd = c(1L, 1L)
+  left_context <- data.frame(
+    peak_row = 1L, radius = 1L, scorer_pass = "synthetic_test",
+    scorer_path = "pseudobulk_matrix", flank = "left", nonpositive_sd = 1L
   )
-  no_comparator_audit <- audit[audit$role == "negative_sd", , drop = FALSE]
-  coverage <- forward_audit_coverage(no_comparator_calls, no_comparator_audit)
-  assert_that(!coverage$role_coverage_ok,
-              "missing nearest-valid comparator did not block role coverage")
+  left_audit <- audit[audit$scorer_path == "pseudobulk_matrix" &
+                        audit$flank == "left", , drop = FALSE]
+  complete_pair <- forward_audit_coverage(left_context, left_audit)
+  assert_that(complete_pair$context_coverage_ok && complete_pair$role_coverage_ok,
+              "complete negative/comparator pair should pass role coverage")
+  missing_comparator_audit <- left_audit[left_audit$role != "nearest_valid_sd", , drop = FALSE]
+  missing_comparator <- forward_audit_coverage(left_context, missing_comparator_audit)
+  assert_that(missing_comparator$context_coverage_ok &&
+                !missing_comparator$role_coverage_ok,
+              "missing nearest-valid comparator did not independently block role coverage")
   cat("PRINT pnorm diagnostic self-test PASS\n")
 }
 

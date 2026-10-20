@@ -93,3 +93,18 @@ Argos 访问、stage、缓存读取、预检、计算或评分变化。此次仅
 负 SD 的数据根因或科学门禁。
 
 该修订已推送到 PR #8，exact HEAD `99260be744929857b425651f1220ed43cc68f26d`；固定 PMA 精确版本复审待答。
+
+## Exact-head review 修订：comparator 覆盖与浮点断言（2026-10-20 15:15 EDT）
+
+固定 `PMA｜固定阶段审核` 对 PR #8 HEAD `309dc690a927a349254baaa24202de5e5f2d1e72` 提出两个
+夹具问题：旧 no-comparator 测试把未异常的 right flank 也声明为受影响，因此无法隔离
+comparator 角色门禁；另外 `identical()` 比较重算的浮点 `pnorm` 值可能受末位舍入影响。
+
+当前本地修订使用一个真实受影响的 left context：先以完整 negative-SD/comparator pair 断言
+context 与 role coverage 都通过，再仅移除 `nearest_valid_sd`，断言 context coverage 保持通过、
+role coverage 单独失败。`pnorm` 断言现在精确核对 NaN 位置，并对有限值采用 `1e-14` 容差。
+源文件 SHA-256：`352eee934b00ad8317a1cb3d5aac83776e0bfbae4ba7b7e4eb8b55af5a3e622b`。
+
+静态 `git diff --check` 已通过。R parser 和 `tests/test_print_pnorm_diagnostic.R` 未运行；尚未
+推送或固定 PMA 复审，也未访问 Argos、缓存或分析数据。没有修改 PRINT 打分语义或输出。
+用户授权本地源码修改，但尚未明确授权运行这两条 R 验证命令。

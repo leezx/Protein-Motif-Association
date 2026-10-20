@@ -1516,6 +1516,13 @@ Pushed the required audit update as `a36a2d82bffd928ea9f8498ecaf75503c5534f32`; 
 - Candidate script SHA-256: `8faca52a9bd02ff378190a20fd4768347a705438ac1a071b6b1d9fe532c1b165`.
 - Updated operative and dated handoff. `git diff --check` passes; no R test or parser was run in this step. The candidate has not been executed or remotely staged. No Argos/cache read or analysis occurred. The previous diagnostic one-shot remains consumed; any next remote read needs fixed-PMA exact-head review and a separate one-time release.
 
+### 2026-10-20 15:09 EDT — repaired PRINT forward-audit self-test fixture
+
+- Fixed `PMA｜固定阶段审核` reviewed exact HEAD `c5f5ca7c3e598b1ca492b08fc0bea6d63bdae86d` and returned `REQUEST_CHANGES`. It confirmed the three prior source repairs and found the built-in `run_self_test()` still used a NULL model with capture disabled, incompatible with the new fail-closed forward-audit requirement.
+- Updated `diagnose_print_pnorm.R` built-in synthetic self-test to pass a nontrivial five-feature scaling model and asymmetric two-layer weights through the actual `predictDispersion` capture wrapper. The fixture creates a negative-SD call with a nearest positive-SD comparator; it asserts unchanged return values/warnings, independent feature and affine reconstruction, output-column order, comparator selection, missing-capture rejection, missing-comparator coverage failure, and successful model hashing. Extracted the production role-coverage calculation so the same function is checked in the fixture.
+- Script SHA-256: `d37bf53e489e4845efcbcf864b082c9ee6207f4bbc3c4d4fd586875de0fdb78e`. `git diff --check` passed. No R parser or test was run; this built-in synthetic test is not yet execution-verified. No Argos access/staging/cache read/preflight/run occurred. Scores, warnings, pnorm inputs, and historical outputs were not changed.
+- Next: update this same PR/handoff and submit the exact candidate to the fixed PMA conversation. Keep remote execution blocked pending a separate exact-command review and one-time authorization; do not interpret this code repair as resolving the negative-SD scientific blocker.
+
 ### 2026-10-20 15:04 EDT — fixed-PMA rejected forward-audit candidate; repaired locally
 
 - Fixed `PMA｜固定阶段审核` reviewed exact PR #8 HEAD `f5b1b64100340fce84b37e7d1f9fe976c63778d2`: `REQUEST_CHANGES`. Reviewer confirmed the wrapped native predictor capture and affine/ReLU/de-standardization order, then identified three blockers: closed-connection cleanup in `sha256_object()`, incomplete fail-closed coverage for anomaly/comparator pairs, and inverse-scaled rather than independently derived raw features.

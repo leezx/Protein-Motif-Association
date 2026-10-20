@@ -53,3 +53,22 @@
 - L3：用户接受待定；没有准确度排名、全 peak PRINT 结果或扩大运行许可。
 - 对目标推进：获得了 PRINT 真实数据评分的明确工程异常证据；当前没有可报告的生物准确度结论。
 - 下一验收：只观察、不改评分的前向计算审计候选已加入本地诊断器：捕获标准化五特征、权重张量、隐藏层/ReLU、标准化输出及反标准化；每个负 SD 调用配一个最近正 SD 对照，并核对重建值与 `pnorm` 收到的参数。脚本 SHA-256：`8faca52a9bd02ff378190a20fd4768347a705438ac1a071b6b1d9fe532c1b165`。代码尚未执行、测试或远端暂存。当前 PR 精确版本先经固定 PMA 复核；之后另行申请一次只读 Argos 缓存核验，确定负值首次出现的步骤。若输入/标准化/权重不能对齐，维持 L2 BLOCKED，不更改评分。
+
+## Synthetic self-test fixture 修订（2026-10-20 15:09 EDT）
+
+固定 PMA 对 PR #8 exact HEAD `c5f5ca7c3e598b1ca492b08fc0bea6d63bdae86d` 返回
+`REQUEST_CHANGES`。三项前向审计源码修复通过静态检查；剩余 L1 blocker 是旧内建自测传入
+`model=NULL` 且未启用 `capture_forward`，因此会被新的缺捕获门禁拒绝。
+
+当前本地修订为内建自测建立了非平凡合成模型/数据：五特征分别重算并标准化，非对称权重
+经真实 capture wrapper 执行，输出中包含正 SD、负 SD、可配对最近对照和原生 pnorm warning。
+断言覆盖原生输出/warning 保持、特征与网络重建误差、左右输出列、最近对照位置、缺 capture
+拒绝、缺 comparator coverage 失败及模型 SHA-256 计算。生产代码与自测共用
+`forward_audit_coverage()`。脚本 SHA-256：
+`d37bf53e489e4845efcbcf864b082c9ee6207f4bbc3c4d4fd586875de0fdb78e`。
+
+`git diff --check` 已通过；R parser 和内建 synthetic self-test 尚未运行，故不能声称 fixture
+已通过。未访问、stage、预检或运行 Argos；无数据或评分输出变化。此修订只处理可执行性测试
+契约，不解除负预测 SD 的统计解释、历史 warning 对应、准确度或全峰扩展阻塞。下一步在同一
+PR 更新后请求固定 PMA 对话精确 HEAD 审查；若通过，也仍需独立的远程运行包审核及其一次性
+授权，才能访问缓存或执行新的诊断。

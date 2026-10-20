@@ -1,6 +1,6 @@
-# CURRENT OPERATIVE FOOTPRINT TASK — 2026-10-20 15:04 EDT
+# CURRENT OPERATIVE FOOTPRINT TASK — 2026-10-20 15:09 EDT
 
-## PRINT forward-pass audit candidate — fixed-PMA REQUEST_CHANGES; local repair awaiting re-review
+## PRINT forward-pass audit candidate — fixed-PMA REQUEST_CHANGES; synthetic self-test repaired locally
 
 The fixed `PMA｜固定阶段审核` conversation reviewed PR #8 exact HEAD
 `f5b1b64100340fce84b37e7d1f9fe976c63778d2` and returned `REQUEST_CHANGES`. It agreed that the
@@ -18,14 +18,19 @@ It identified three blockers:
    recompute the five features from the same bias/insertion windows and compare their standardized
    values to the native captured matrix, or label them as inverse-derived and limit the claim.
 
-The local repair tracks connection state, records window-derived raw features separately from
-inverse-scaled values, and adds context/role coverage plus feature reconstruction error to the
-forward-audit gate. Candidate script SHA-256:
-`2ae0404cd4d40bddeb085be3d846cf9cb3f19840a1a99113242b4d61692088af`. No R parser or test was run;
-the user authorized source edits but did not ask for test execution in this turn. No Argos
-access/staging/cache read/preflight/run occurred, and no scoring output was changed. The audit
-remains unapproved and cannot release any remote action. Next: publish this same-PR repair and ask
-the fixed PMA conversation for exact-head review.
+The fixed-PMA review of exact HEAD `c5f5ca7c3e598b1ca492b08fc0bea6d63bdae86d` confirmed the three
+source repairs, but returned `REQUEST_CHANGES` because `run_self_test()` still used `model=NULL`
+without `capture_forward=TRUE`, conflicting with the new required-capture gate. The local repair
+now supplies a synthetic model with asymmetric feature scaling and non-symmetric two-layer weights,
+routes an actual synthetic native predictor through the capture wrapper, creates one negative-SD
+position and its nearest positive-SD comparator, checks unchanged pnorm values/warnings, feature and
+forward reconstruction errors, output-column order, missing-capture failure, missing-comparator
+coverage failure, and successful model-object hashing. Current candidate script SHA-256:
+`d37bf53e489e4845efcbcf864b082c9ee6207f4bbc3c4d4fd586875de0fdb78e`. `git diff --check` passes;
+R parse and the synthetic self-test have **not** been executed. The user authorized source edits but
+has not explicitly asked to run local tests. No Argos access/staging/cache read/preflight/run
+occurred, and no scoring output changed. This candidate requires exact-head fixed-PMA review; no
+remote operation is authorized by this implementation change.
 
 ## PRINT pnorm diagnostic — completed; scientific gate BLOCKED
 

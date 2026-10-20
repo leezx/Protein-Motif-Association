@@ -61,6 +61,26 @@ summarize_diagnostic_gate <- function(calls, positions) {
 
 assert_that <- function(ok, message) if (!isTRUE(ok)) stop(message, call. = FALSE)
 
+forward_audit_coverage <- function(affected_calls, forward_audit_table) {
+  context_key <- function(x) paste(x$peak_row, x$radius, x$scorer_pass,
+                                   x$scorer_path, x$flank, sep = "\r")
+  expected_contexts <- if (nrow(affected_calls)) unique(context_key(affected_calls)) else character()
+  observed_contexts <- if (nrow(forward_audit_table)) unique(context_key(forward_audit_table)) else character()
+  context_coverage_ok <- length(expected_contexts) > 0L &&
+    setequal(expected_contexts, observed_contexts)
+  role_coverage_ok <- context_coverage_ok && all(vapply(expected_contexts, function(key) {
+    rows <- forward_audit_table[context_key(forward_audit_table) == key, , drop = FALSE]
+    sum(rows$role == "negative_sd") == 1L &&
+      sum(rows$role == "nearest_valid_sd") == 1L &&
+      all(rows$native_zero_coverage_mask[rows$role == "nearest_valid_sd"] %in% FALSE) &&
+      all(rows$comparator_finite_q_mean_sd_p[rows$role == "nearest_valid_sd"] %in% TRUE)
+  }, logical(1)))
+  list(expected_contexts = expected_contexts,
+       observed_contexts = observed_contexts,
+       context_coverage_ok = context_coverage_ok,
+       role_coverage_ok = role_coverage_ok)
+}
+
 assert_new_output_path <- function(path) {
   assert_that(!file.exists(path), "diagnostic output path already exists")
   invisible(path)
@@ -370,12 +390,39 @@ run_self_test <- function() {
   state$scorer_pass <- "synthetic_test"
   state$current_call <- NULL
   state$completed_calls <- list()
+  model <- list(
+    featureMean = c(2, 2, 2, log10(3), log10(3)),
+    featureSD = rep(1, 5),
+    targetMean = c(0.2, 0, 0.2, 0),
+    targetSD = rep(1, 4),
+    weights = list(
+      matrix(c(1, 0, 0, 0, 0), nrow = 5L, ncol = 1L),
+      0,
+      matrix(c(0, -1, 0, -1), nrow = 1L, ncol = 4L),
+      c(0, 0.5, 0, 0.5)
+    )
+  )
+  model_hash <- sha256_object(model)
+  assert_that(grepl("^[[:xdigit:]]{64}$", model_hash),
+              "model-object hashing did not return a SHA-256 digest")
+  predictDispersion <- function(x, modelWeights) {
+    hidden <- pmax(x %*% modelWeights[[1L]] + modelWeights[[2L]], 0)
+    hidden %*% modelWeights[[3L]] + modelWeights[[4L]]
+  }
   native_fp <- function(Tn5Insertion, Tn5Bias, dispersionModel,
                         footprintRadius = 1, flankRadius = 1, ...) {
-    left <- c(0.2, 0.4, NaN)
-    right <- c(0.2, 0.4, NaN)
-    pnorm(left, mean = c(0.1, 0.2, 0.3), sd = c(1, -1, 1))
-    pnorm(right, mean = c(0.1, 0.2, 0.3), sd = c(1, -1, 1))
+    bias <- window_sum(Tn5Bias, footprintRadius, flankRadius)
+    insertion <- window_sum(Tn5Insertion, footprintRadius, flankRadius)
+    raw <- cbind(bias$leftFlank, bias$rightFlank, bias$center,
+                 log10(insertion$center + insertion$leftFlank),
+                 log10(insertion$center + insertion$rightFlank))
+    scaled <- sweep(sweep(raw, 2L, dispersionModel$featureMean, "-"),
+                    2L, dispersionModel$featureSD, "/")
+    standardized <- predictDispersion(scaled, dispersionModel$weights)
+    unscaled <- sweep(sweep(standardized, 2L, dispersionModel$targetSD, "*"),
+                      2L, dispersionModel$targetMean, "+")
+    pnorm(c(0.2, 0.3, 0.4), mean = unscaled[, 1L], sd = unscaled[, 2L])
+    pnorm(c(0.2, 0.3, 0.4), mean = unscaled[, 3L], sd = unscaled[, 4L])
     invisible(NULL)
   }
   native_region <- function(regionATAC, Tn5Bias, dispersionModel, ...) {
@@ -384,10 +431,15 @@ run_self_test <- function() {
     "unchanged-result"
   }
   window_sum <- function(x, footprintRadius, flankRadius) {
-    list(center = c(0, 0, 0), leftFlank = c(0, 2, 0), rightFlank = c(0, 2, 0))
+    if (identical(as.numeric(x), c(21, 22, 23))) {
+      list(center = c(2, 2, 2), leftFlank = c(1, 2, 3), rightFlank = c(2, 2, 2))
+    } else {
+      list(center = c(2, 2, 2), leftFlank = c(1, 1, 1), rightFlank = c(1, 1, 1))
+    }
   }
-  wrapped <- make_diagnostic_scorers(native_region, native_fp, window_sum, state)
-  value <- wrapped$region(matrix(1:3, ncol = 1), 1:3, NULL)
+  wrapped <- make_diagnostic_scorers(native_region, native_fp, window_sum, state,
+                                     capture_forward = TRUE)
+  value <- wrapped$region(matrix(1:3, ncol = 1), 11:13, model)
   assert_that(identical(value, "unchanged-result"), "diagnostic changed scorer return value")
   assert_that(state$path_index == 2L, "expected both native scorer paths")
   assert_that(length(state$completed_calls) == 2L, "expected both captured native scorer paths")
@@ -395,17 +447,55 @@ run_self_test <- function() {
   first <- state$completed_calls[[1L]]
   assert_that(any(vapply(first$warnings, length, integer(1)) > 0L),
               "diagnostic failed to record native pnorm warnings")
-  expected <- c(stats::pnorm(0.2, mean = 0.1, sd = 1), NaN, NaN)
+  expected <- c(stats::pnorm(0.2, mean = 0.2, sd = 0.5),
+                stats::pnorm(0.3, mean = 0.2, sd = 0.5), NaN)
   assert_that(identical(first$inputs$left$p, expected),
               "diagnostic wrapper changed native pnorm return values")
   rows <- collect_call_rows(first, list(peak_row = 1L, chromosome = "chr1",
                                          start0 = 100L, end0 = 103L, radius = 1L))
   positions <- data.table::rbindlist(rows$positions)
-  assert_that(any(positions$genomic_position_0based == 101L &
-                    positions$native_zero_coverage_mask == FALSE) &&
-                any(positions$genomic_position_0based == 102L &
-                      positions$native_zero_coverage_mask == TRUE),
-              "diagnostic did not distinguish masked from unmasked anomalous positions")
+  assert_that(any(positions$genomic_position_0based == 102L &
+                    positions$native_zero_coverage_mask == FALSE),
+              "diagnostic did not preserve the unmasked anomalous-position classification")
+  audit <- data.table::rbindlist(rows$forward_audit)
+  assert_that(nrow(audit) == 4L &&
+                all(audit$max_feature_reconstruction_abs_error < 1e-12) &&
+                all(audit$max_forward_reconstruction_abs_error < 1e-12) &&
+                all(audit$max_scorer_output_abs_error < 1e-12) &&
+                sum(audit$role == "negative_sd") == 2L &&
+                sum(audit$role == "nearest_valid_sd") == 2L &&
+                all(audit$local_position_1based[audit$role == "negative_sd"] == 3L) &&
+                all(audit$local_position_1based[audit$role == "nearest_valid_sd"] == 2L),
+              "synthetic forward audit failed feature, affine, output-order, or nearest-comparator checks")
+
+  no_capture_state <- new.env(parent = emptyenv())
+  no_capture_state$path_index <- 0L
+  no_capture_state$scorer_pass <- "synthetic_missing_capture"
+  no_capture_state$current_call <- NULL
+  no_capture_state$completed_calls <- list()
+  no_capture <- make_diagnostic_scorers(native_region, native_fp, window_sum,
+                                        no_capture_state)
+  no_capture$region(matrix(1:3, ncol = 1), 11:13, model)
+  missing_capture_error <- tryCatch({
+    collect_call_rows(no_capture_state$completed_calls[[1L]],
+                      list(peak_row = 1L, chromosome = "chr1", start0 = 100L,
+                           end0 = 103L, radius = 1L))
+    NULL
+  }, error = identity)
+  assert_that(inherits(missing_capture_error, "error") &&
+                grepl("missing forward-pass capture", conditionMessage(missing_capture_error)),
+              "missing native predictor capture did not fail closed")
+
+  no_comparator_calls <- data.frame(
+    peak_row = c(1L, 1L), radius = c(1L, 1L),
+    scorer_pass = c("synthetic_test", "synthetic_test"),
+    scorer_path = c("pseudobulk_matrix", "pseudobulk_matrix"),
+    flank = c("left", "right"), nonpositive_sd = c(1L, 1L)
+  )
+  no_comparator_audit <- audit[audit$role == "negative_sd", , drop = FALSE]
+  coverage <- forward_audit_coverage(no_comparator_calls, no_comparator_audit)
+  assert_that(!coverage$role_coverage_ok,
+              "missing nearest-valid comparator did not block role coverage")
   cat("PRINT pnorm diagnostic self-test PASS\n")
 }
 

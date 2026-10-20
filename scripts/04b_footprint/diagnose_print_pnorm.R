@@ -13,11 +13,15 @@ sha256_file <- function(path) {
 
 sha256_object <- function(object) {
   path <- tempfile("print-model-weights-")
-  on.exit(unlink(path), add = TRUE)
   connection <- file(path, open = "wb")
-  on.exit(if (isOpen(connection)) close(connection), add = TRUE)
+  connection_open <- TRUE
+  on.exit({
+    if (connection_open) try(close(connection), silent = TRUE)
+    unlink(path)
+  }, add = TRUE)
   writeBin(serialize(object, NULL, version = 3L), connection)
   close(connection)
+  connection_open <- FALSE
   sha256_file(path)
 }
 
@@ -128,6 +132,10 @@ make_diagnostic_scorers <- function(native_region_scorer, native_footprint_score
       value <- native_predict_dispersion(x, modelWeights)
       current <- state$current_call
       assert_that(!is.null(current), "dispersion predictor called outside tracked scorer")
+      assert_that(is.matrix(x) && nrow(x) == length(current$left_total) && ncol(x) == 5L,
+                  "captured PRINT predictor input has unexpected dimensions")
+      assert_that(is.matrix(value) && nrow(value) == nrow(x) && ncol(value) == 4L,
+                  "captured PRINT predictor output has unexpected dimensions")
       current$scaled_features <- x
       current$model_weights <- modelWeights
       current$standardized_output <- value
@@ -148,6 +156,19 @@ make_diagnostic_scorers <- function(native_region_scorer, native_footprint_score
     state$current_call$left_total <- window$center + window$leftFlank
     state$current_call$right_total <- window$center + window$rightFlank
     state$current_call$dispersion_model <- dispersionModel
+    if (capture_forward) {
+      bias_window <- native_window_sum(Tn5Bias, footprintRadius, flankRadius)
+      raw_features <- cbind(
+        bias_window$leftFlank,
+        bias_window$rightFlank,
+        bias_window$center,
+        log10(state$current_call$left_total),
+        log10(state$current_call$right_total)
+      )
+      assert_that(nrow(raw_features) == length(Tn5Insertion) && ncol(raw_features) == 5L,
+                  "independently reconstructed PRINT feature matrix has unexpected dimensions")
+      state$current_call$raw_features <- raw_features
+    }
     state$current_call$warnings <- list(left = character(), right = character())
     state$current_call$inputs <- list()
     on.exit(state$current_call <- NULL, add = TRUE)
@@ -224,24 +245,40 @@ collect_call_rows <- function(call, context) {
       weights <- call$model_weights
       model <- call$dispersion_model
       standardized_output <- call$standardized_output
+      raw_features <- call$raw_features
+      if (is.null(capture) || is.null(weights) || is.null(model) ||
+          is.null(standardized_output) || is.null(raw_features)) {
+        stop("missing forward-pass capture for a PRINT pnorm context with anomalies")
+      }
       if (!is.null(capture) && !is.null(weights) && !is.null(model) &&
-          !is.null(standardized_output)) {
+          !is.null(standardized_output) && !is.null(raw_features)) {
         if (nrow(capture) != n || ncol(capture) != 5L || nrow(standardized_output) != n ||
-            ncol(standardized_output) != 4L) {
+            ncol(standardized_output) != 4L || nrow(raw_features) != n ||
+            ncol(raw_features) != 5L) {
           stop("captured PRINT dispersion matrices have unexpected dimensions")
         }
         # One anomalous location and the closest finite positive-SD comparator per pnorm call.
         negative_sd_indices <- which(is.finite(values$sd) & values$sd <= 0)
         if (!length(negative_sd_indices)) next
         anomaly_index <- negative_sd_indices[[1L]]
-        valid <- which(is.finite(values$sd) & values$sd > 0 & is.finite(values$mean))
+        valid <- which(is.finite(values$q) & is.finite(values$mean) &
+                         is.finite(values$sd) & values$sd > 0 & is.finite(values$p) &
+                         !is.na(mask) & !mask)
         comparator <- if (length(valid)) valid[which.min(abs(valid - anomaly_index))] else NA_integer_
         selected <- c(anomaly_index, comparator)
         selected <- selected[!is.na(selected)]
         weights_hash <- sha256_object(weights)
+        model_hash <- sha256_object(model)
         for (idx in selected) {
           scaled <- as.numeric(capture[idx, , drop = TRUE])
-          raw_features <- scaled * as.numeric(model$featureSD) + as.numeric(model$featureMean)
+          backcalculated_features <- scaled * as.numeric(model$featureSD) +
+            as.numeric(model$featureMean)
+          independently_recomputed_features <- as.numeric(raw_features[idx, , drop = TRUE])
+          independently_recomputed_scaled <-
+            (independently_recomputed_features - as.numeric(model$featureMean)) /
+              as.numeric(model$featureSD)
+          feature_reconstruction_error <-
+            max(abs(independently_recomputed_scaled - scaled))
           layer1_linear <- as.numeric(scaled %*% weights[[1]]) + as.numeric(weights[[2]])
           layer1_relu <- pmax(layer1_linear, 0)
           reconstructed_standardized <- as.numeric(layer1_relu %*% weights[[3]]) +
@@ -271,12 +308,18 @@ collect_call_rows <- function(call, context) {
           target_order = "left_ratio_mean;left_ratio_sd;right_ratio_mean;right_ratio_sd",
           weight_shapes = paste(vapply(weights, function(w) paste(dim(w), collapse = "x"),
                                        character(1)), collapse = ";"),
-          feature_left_bias_sum = raw_features[[1L]],
-          feature_right_bias_sum = raw_features[[2L]],
-          feature_center_bias_sum = raw_features[[3L]],
-          feature_log10_left_total = raw_features[[4L]],
-          feature_log10_right_total = raw_features[[5L]],
+          model_sha256 = model_hash,
+          feature_left_bias_sum = independently_recomputed_features[[1L]],
+          feature_right_bias_sum = independently_recomputed_features[[2L]],
+          feature_center_bias_sum = independently_recomputed_features[[3L]],
+          feature_log10_left_total = independently_recomputed_features[[4L]],
+          feature_log10_right_total = independently_recomputed_features[[5L]],
+          backcalculated_feature_values_from_scaled_input = paste(
+            format(backcalculated_features, digits = 17), collapse = ";"),
           scaled_features = paste(format(scaled, digits = 17), collapse = ";"),
+          independently_recomputed_scaled_features = paste(
+            format(independently_recomputed_scaled, digits = 17), collapse = ";"),
+          max_feature_reconstruction_abs_error = feature_reconstruction_error,
           feature_mean = paste(format(model$featureMean, digits = 17), collapse = ";"),
           feature_sd = paste(format(model$featureSD, digits = 17), collapse = ";"),
           weights_sha256 = weights_hash,
@@ -289,8 +332,12 @@ collect_call_rows <- function(call, context) {
           reconstructed_unscaled_output = paste(format(reconstructed_unscaled, digits = 17), collapse = ";"),
           captured_unscaled_output = paste(format(captured_unscaled, digits = 17), collapse = ";"),
           scorer_mean = values$mean[idx], scorer_sd = values$sd[idx],
+          scorer_q = values$q[idx], scorer_p = values$p[idx],
           max_forward_reconstruction_abs_error = comparison_error,
           max_scorer_output_abs_error = scorer_error,
+          comparator_finite_q_mean_sd_p = is.finite(values$q[idx]) &&
+            is.finite(values$mean[idx]) && is.finite(values$sd[idx]) &&
+            is.finite(values$p[idx]),
           stringsAsFactors = FALSE
           )
         }
@@ -603,11 +650,30 @@ main_impl <- function(args, audit) {
     data.table::rbindlist(forward_audit_rows, fill = TRUE) else data.table::data.table()
   gate_summary <- summarize_diagnostic_gate(calls_table, positions_table)
   forward_tolerance <- 1e-10
+  affected_calls <- if (nrow(calls_table)) calls_table[nonpositive_sd > 0L] else calls_table
+  context_key <- function(x) paste(x$peak_row, x$radius, x$scorer_pass,
+                                   x$scorer_path, x$flank, sep = "\r")
+  expected_contexts <- if (nrow(affected_calls)) unique(context_key(affected_calls)) else character()
+  observed_contexts <- if (nrow(forward_audit_table)) unique(context_key(forward_audit_table)) else character()
+  context_coverage_ok <- length(expected_contexts) > 0L &&
+    setequal(expected_contexts, observed_contexts)
+  role_coverage_ok <- context_coverage_ok && all(vapply(expected_contexts, function(key) {
+    rows <- forward_audit_table[context_key(forward_audit_table) == key, , drop = FALSE]
+    sum(rows$role == "negative_sd") == 1L &&
+      sum(rows$role == "nearest_valid_sd") == 1L &&
+      all(rows$native_zero_coverage_mask[rows$role == "nearest_valid_sd"] %in% FALSE) &&
+      all(rows$comparator_finite_q_mean_sd_p[rows$role == "nearest_valid_sd"] %in% TRUE)
+  }, logical(1)))
+  feature_reconstruction_error <- if (nrow(forward_audit_table) > 0L)
+    max(forward_audit_table$max_feature_reconstruction_abs_error) else Inf
   forward_reconstruction_error <- if (nrow(forward_audit_table) > 0L)
     max(forward_audit_table$max_forward_reconstruction_abs_error) else Inf
   scorer_reconstruction_error <- if (nrow(forward_audit_table) > 0L)
     max(forward_audit_table$max_scorer_output_abs_error) else Inf
-  forward_reconstruction_gate <- if (is.finite(forward_reconstruction_error) &&
+  forward_reconstruction_gate <- if (role_coverage_ok &&
+                                        is.finite(feature_reconstruction_error) &&
+                                        feature_reconstruction_error <= forward_tolerance &&
+                                        is.finite(forward_reconstruction_error) &&
                                         is.finite(scorer_reconstruction_error) &&
                                         forward_reconstruction_error <= forward_tolerance &&
                                         scorer_reconstruction_error <= forward_tolerance) {
@@ -633,6 +699,11 @@ main_impl <- function(args, audit) {
     diagnostic_outputs = list(calls = "pnorm_calls.tsv", positions = "pnorm_positions.tsv",
                               forward_audit = "dispersion_forward_audit.tsv"),
     forward_reconstruction_tolerance = forward_tolerance,
+    forward_audit_expected_context_count = length(expected_contexts),
+    forward_audit_observed_context_count = length(observed_contexts),
+    forward_audit_context_coverage_pass = context_coverage_ok,
+    forward_audit_role_coverage_pass = role_coverage_ok,
+    forward_audit_feature_reconstruction_max_abs_error = feature_reconstruction_error,
     forward_reconstruction_gate = forward_reconstruction_gate,
     forward_reconstruction_max_abs_error = forward_reconstruction_error,
     scorer_reconstruction_max_abs_error = scorer_reconstruction_error,

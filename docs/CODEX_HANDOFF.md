@@ -1,4 +1,31 @@
-# CURRENT OPERATIVE FOOTPRINT TASK — 2026-10-20 14:55 EDT
+# CURRENT OPERATIVE FOOTPRINT TASK — 2026-10-20 15:04 EDT
+
+## PRINT forward-pass audit candidate — fixed-PMA REQUEST_CHANGES; local repair awaiting re-review
+
+The fixed `PMA｜固定阶段审核` conversation reviewed PR #8 exact HEAD
+`f5b1b64100340fce84b37e7d1f9fe976c63778d2` and returned `REQUEST_CHANGES`. It agreed that the
+native `predictDispersion` wrapper captures the same call's input, weights and output, and that
+the two affine layers, ReLU, de-standardization and left/right output columns match pinned PRINT.
+It identified three blockers:
+
+1. `sha256_object()` closed its connection and then its exit hook called `isOpen()` on the
+   invalidated connection; repair by tracking an explicit open flag and cleanup on both normal/error
+   paths.
+2. Missing capture or missing valid comparator could be silently omitted while some remaining
+   rows still passed the error threshold; require exact per-context anomaly/comparator coverage and
+   fail closed, with finite q/mean/sd/p and an unmasked valid comparator.
+3. The purported raw features were only inverse-scaled from captured model input. Independently
+   recompute the five features from the same bias/insertion windows and compare their standardized
+   values to the native captured matrix, or label them as inverse-derived and limit the claim.
+
+The local repair tracks connection state, records window-derived raw features separately from
+inverse-scaled values, and adds context/role coverage plus feature reconstruction error to the
+forward-audit gate. Candidate script SHA-256:
+`2ae0404cd4d40bddeb085be3d846cf9cb3f19840a1a99113242b4d61692088af`. No R parser or test was run;
+the user authorized source edits but did not ask for test execution in this turn. No Argos
+access/staging/cache read/preflight/run occurred, and no scoring output was changed. The audit
+remains unapproved and cannot release any remote action. Next: publish this same-PR repair and ask
+the fixed PMA conversation for exact-head review.
 
 ## PRINT pnorm diagnostic — completed; scientific gate BLOCKED
 
@@ -84,14 +111,15 @@ stdout/stderr are retained beside them. No biological data or result files are i
   before any scale-up.
 - Trust: high for the recorded diagnostic observations and unchanged inputs; insufficient for
   biological interpretation or accuracy ranking.
-- Next: an observation-only local forward-pass audit candidate now captures the predictor's
-  standardized five-feature input, weight tensors, standardized output, and model scales. For each
-  negative-SD pnorm call it selects one anomalous position and the nearest positive-SD comparator,
-  reconstructs both affine layers/ReLU/de-standardization, and compares the reconstruction with
-  native pnorm arguments. SHA-256: `8faca52a9bd02ff378190a20fd4768347a705438ac1a071b6b1d9fe532c1b165`.
-  It has not been executed or staged remotely. Keep scoring unchanged;
-  submit the exact implementation to the fixed PMA conversation before any remote cache read. Do
-  not reuse the consumed diagnostic gate.
+- Next: the observation-only candidate captures the native standardized predictor input/weights/
+  output, independently reconstructs the five raw features from bias/insertion windows, then
+  compares standardized inputs and the affine/ReLU/de-standardized output. Each affected
+  pass/path/peak/radius/flank context must contain exactly one negative-SD row and one finite,
+  unmasked positive-SD comparator. Script SHA-256:
+  `2ae0404cd4d40bddeb085be3d846cf9cb3f19840a1a99113242b4d61692088af`. It has not been executed,
+  parsed, tested, or staged remotely; fixed-PMA review returned REQUEST_CHANGES on its parent
+  candidate and this revision awaits exact-head review. No Argos access is authorized by that
+  implementation review. Keep scoring unchanged and do not reuse the consumed diagnostic gate.
 
 The earlier “implementation approved; execution packet under review” text immediately below is
 historical and superseded by this completed one-shot result.

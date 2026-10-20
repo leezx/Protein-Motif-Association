@@ -39,6 +39,13 @@
 
 目前只把机制缩小到“无约束输出允许负 SD”，异常根因、准确度排名和全 peak 可用性仍未解决。任何后续远端缓存读取或计算都需要固定 PMA 对话中的新精确范围及一次性授权；原诊断 one-shot 已消耗。
 
+## 后续前向链候选审查（2026-10-20 15:04 EDT）
+
+固定 `PMA｜固定阶段审核` 对 PR #8 exact HEAD `f5b1b64100340fce84b37e7d1f9fe976c63778d2`
+给出 `REQUEST_CHANGES`。审查确认捕获包装器调用原生 `predictDispersion` 并原样返回；两层 affine、ReLU、反标准化和左右输出列顺序与 pinned PRINT 相符。三个 blocker：对象哈希退出钩子对已关闭连接再次调用 `isOpen()`；缺失捕获/有效比较位点时未强制每个异常上下文完整成对；“raw features”是从标准化输入逆变换得到，未独立验证原始窗口特征和标准化。
+
+同一 PR 的本地修订现加入显式连接状态清理；从现有同次调用的 bias 窗口和左右 insertion totals 独立重建五个输入特征，并与捕获标准化输入比较；为每个含非正 SD 的 `pass/path/peak/radius/flank` 上下文要求恰好一条异常行和一条有效、有限且未被 mask 的近邻对照，覆盖缺失时保持 BLOCKED。新增模型完整对象哈希。修订脚本 SHA-256：`2ae0404cd4d40bddeb085be3d846cf9cb3f19840a1a99113242b4d61692088af`。修订尚未完成 review；没有运行 R parser/测试，也没有 Argos 访问、暂存、缓存读取或执行；原评分、warning 和输出不修改。不得将这轮实现审查视为结果/科学门禁通过，也不得因此启动远程运行。
+
 ## Review-task checkpoint
 
 - L1：诊断交付、输入完整性和基线断言 PASS。

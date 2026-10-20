@@ -19,7 +19,7 @@ PR #8 HEAD `fb5d04fb469e8eae755fa39f5c86c300b7eeab1e` 记录的 V4 运行使用 
 
 ## 审核与执行门
 
-变更保留在同一个 OPEN PR #8，不合并。须把此代码、handoff、worklog 和当前精确 PR HEAD 提交到用户指定的固定 PMA 项目审核对话，获取 exact-head L1/L2 `APPROVE` 和明确的一次 V5 执行授权。审核通过后才可做新鲜 Argos 资源/输入 hash/R 依赖/输出路径/无活动进程预检，并经不可变 gate 启动一次。预检或运行失败均保留日志并停止，不自动重跑。
+第一次 exact-head 审核对 HEAD `397736a137ea836bf769d3e65f74d9b8f3399eda` 返回 `REQUEST_CHANGES`：两个执行审计字段仍硬编码100 GiB，与64-GiB阈值不一致。现已修正为由 `RSS_SOFT_STOP_KB` 同一常量派生停止原因后缀及summary阈值；停止行为本身未改。修正后的HEAD仍待固定PMA项目对话复审。变更保留在同一个 OPEN PR #8，不合并。须把此代码、handoff、worklog 和当前精确 PR HEAD 提交到用户指定的固定 PMA 项目审核对话，获取 exact-head L1/L2 `APPROVE` 和明确的一次 V5 执行授权。审核通过后才可做新鲜 Argos 资源/输入 hash/R 依赖/输出路径/无活动进程预检，并经不可变 gate 启动一次。预检或运行失败均保留日志并停止，不自动重跑。
 
 ## 限定范围
 

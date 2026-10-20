@@ -1063,3 +1063,9 @@ Updated the PR body and current handoff status so V3 is unambiguously historical
 - This reduces configured parallelism and the watchdog target, but does not guarantee a hard task-wide memory cap, a completed runtime, or a result. V4's two-second samples rose 97.91→146.86 GiB RSS sum; this is sampled RSS, not true peak, and shared pages may be double-counted. No wall-time extrapolation.
 - No remote command or compute has been run for V5. Required next gate: push this candidate to PR #8, obtain exact-current-HEAD L1/L2 APPROVE and explicit one-run authorization in the fixed PMA project conversation; then fresh Argos preflight and at most one run. If review/preflight/run blocks, preserve evidence and stop; no retry. No accuracy ranking, motif work, other caller, or PR merge.
 - Details: `docs/handoff/2026-10-20-print-v5-lower-resource.zh-CN.md`; current status is at the top of `docs/CODEX_HANDOFF.md`.
+
+## 2026-10-20 07:45 EDT — V5 review finding fixed; new exact-head review required
+
+- Fixed PMA exact-head review of `397736a137ea836bf769d3e65f74d9b8f3399eda` confirmed the 4-worker/64-GiB resource-reduction direction and returned `REQUEST_CHANGES` because `stop_reason` and `watchdog_soft_stop_gib` still hard-coded 100 GiB.
+- Minimal fix: derive both reported values from `RSS_SOFT_STOP_KB`; no sampler/termination logic or run scope changed. V5 remains 4 workers, 64-GiB sampled VmRSS soft-stop, full 159,628 peaks, radii 10/20, CPU-only. Syntax and whitespace checks will be rerun before commit.
+- No Argos access/preflight or compute occurred. Update same-PR audit record and body to the new live HEAD, then request fixed-PMA exact-head review and one-time V5 authorization again. Do not run before explicit approval; no retry if V5 fails.

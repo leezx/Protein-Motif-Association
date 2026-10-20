@@ -523,7 +523,8 @@ def main():
                                 pass
                         break
                     if rss_kb is not None and rss_kb >= RSS_SOFT_STOP_KB:
-                        reason = "process_group_sampled_vmrss_soft_stop_100_gib"
+                        soft_stop_gib = RSS_SOFT_STOP_KB // (1024 * 1024)
+                        reason = "process_group_sampled_vmrss_soft_stop_%d_gib" % soft_stop_gib
                         terminate_group(pgid, log, reason)
                         break
                     if failures_in_row >= 3:
@@ -559,7 +560,7 @@ def main():
                        "radii_bp": [10, 20], "caller_exit": return_code,
                        "stop_reason": reason,
                        "watchdog_peak_sampled_process_group_vmrss_kb": peak_rss,
-                       "watchdog_soft_stop_gib": 100,
+                       "watchdog_soft_stop_gib": RSS_SOFT_STOP_KB // (1024 * 1024),
                        "watchdog_is_hard_task_memory_limit": False,
                        "wall_limit_hours": 24,
                        "preflight_seconds": preflight_seconds,

@@ -1262,3 +1262,10 @@ The fixed `PMA｜固定阶段审核` conversation reviewed exact PR #8 HEAD `3fa
 - Extracted the reviewed group-size check into `has_reviewed_direct_compare_group_sizes()` and compare `sort(unname(group_sizes))` against the required integer sizes. Added a synthetic regression with 8 shuffled rows, named 3/2/2/1 groups, two chromosomes, four widths, and noncontiguous indices; it also rejects a malformed group-size pattern.
 - Validation passed: `Rscript tests/test_print_variable_width.R`, `python3 tests/test_select_print_integration_smoke.py`, and `git diff --check`. No remote access, staging, environment change, or gate invocation.
 - This closes the diagnosed caller admission bug only. V2 one-shot authorization remains consumed; there is still no bias/count/footprint computation or science output. L2 remains BLOCKED/UNVERIFIED-critical. Next: sync the repair and audit trail to PR #8, obtain exact-head review in the fixed PMA project conversation, and do not run until a new one-shot release is explicit.
+
+
+### 2026-10-20 10:53 EDT — isolate a new attempt after consumed V2 failure
+
+- Fixed-PMA diagnosis requires the next attempt to have a new ID/path and synchronized runner hash. The outer supervisor now uses `BG_K562_PRINT_INTEGRATION_SMOKE_20261020_V3` with unique `_v3` staged-code, run-root, and scientific-output paths. V2 logs and output directory remain untouched.
+- Pinned runner/helper hashes are updated to `d62ca69a4d41219c932adaa4e825a7670b1b23fd9299acf6422bef1ad451d180` and `5f5da1b9cf3179f40850792d26ecce6862ed8c3a5dfd82ad39fa8ab07d51d4ca`. A contract check enforces V3 identity and paths. The deadline, named-group R regression, and selector checks passed; `git diff --check` passed. Candidate outer supervisor SHA-256 is `1b4c574e71a8d63c34c92c26810c822e627c4cd25cd78eb7cbc85e8996ca68ad`.
+- This is a review candidate only. No Argos access, staging, permission changes, gate invocation, or new single-run release. Push to the same PR and obtain fixed-PMA exact-head review; any future execution needs a fresh explicit one-shot release.

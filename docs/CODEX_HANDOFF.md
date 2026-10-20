@@ -1,8 +1,8 @@
-# CURRENT OPERATIVE FOOTPRINT TASK — 2026-10-20 10:52 EDT
+# CURRENT OPERATIVE FOOTPRINT TASK — 2026-10-20 10:53 EDT
 
 ## Live status — V2 one-shot failed before PRINT analysis
 
-Footprinting only; Claude owns ChIP BED6/PR #7. PR #8 remains OPEN/unmerged at exact live HEAD `d5e9f693cbdb3a89327466b4a10b70f880bafe96`. The fixed PMA project conversation approved one V2 8-peak smoke (rcapps3/rcGPUs, 2 workers, radii 10/20, CPU-only); that one attempt is now consumed. V1 was an earlier separate failed launch (EXIT=126 before caller). V2 crossed gate/supervisor launch, passed fresh checks, and invoked PRINT R, but exited `1` before bias/count/footprint calculation because `run_print.R` rejected its direct-comparison shape assertion. Exact failure: `direct comparison mode requires the reviewed 8-region, two-worker, shuffled 3/2/2/1 smoke`.
+Footprinting only; Claude owns ChIP BED6/PR #7. PR #8 remains OPEN/unmerged. The fixed PMA project conversation approved one V2 8-peak smoke (rcapps3/rcGPUs, 2 workers, radii 10/20, CPU-only); that attempt is consumed. V1 was an earlier separate failed launch (EXIT=126 before caller). V2 passed fresh checks and invoked PRINT R, but exited `1` before bias/count/footprint calculation because `run_print.R` rejected its direct-comparison shape assertion. Fixed-PMA diagnosis confirmed a named-vector comparison bug. The same-PR repair is locally tested and now assigns a new V3 attempt ID plus independent stage/root/output paths; it has not been reviewed or run.
 
 V2 selected BED has 8 rows; saved mapping shows `(chromosome,width)` group sizes `[3,2,2,1]`, chromosomes chr9/chr22, four widths (1042, 1234, 1777, 1977), and noncontiguous group_1 indices 1/3/8. Command tail was `prefix 2 10,20`, with CPU IDs `[0,1]`. Fixed-PMA diagnosis identified the exact defect: `split()`/`vapply()` preserve names, so `identical(sort(named_sizes), c(1L,2L,2L,3L))` returns FALSE despite matching values. The same-PR patch compares `sort(unname(group_sizes))`; a shared helper and regression now cover the named shuffled 3/2/2/1 case and reject incorrect sizes. Targeted local R and selector checks pass. This only repairs the smoke admission assertion; it does not establish PRINT execution or biological output.
 
@@ -12,7 +12,7 @@ Gate status: `/home/zz950/PMA_fetch/pma_bg_pr8_20261019/BG_K562_PRINT_INTEGRATIO
 
 Fresh V2 preflight passed before launch: rcGPUs x86_64, 72 CPUs, ~920 GiB MemAvailable, no matching process/no SGE job, V2 paths absent, staged worker mode 700 and shebang interpreter executable; all five staged script hashes, immutable gate, BED, fragments, bias HDF5, two dispersion models, four PRINT source modules and clean pinned PRINT commit matched; R 4.2.2 dependencies loaded. Preflight rehashing the 12-GB bias HDF5 took about 30 seconds in addition to the 86.54-s in-gate preflight.
 
-No retry or V3 is authorized. The V2 one-shot approval is consumed. The current same-PR repair must be committed/pushed and receive exact-head review in the fixed PMA project conversation; any future attempt needs a new exact-head APPROVE and explicit single-run release. No environment change or merge.
+No new run is authorized. The V2 one-shot approval is consumed. The current same-PR repair and V3 path isolation must be pushed and receive exact-head review in the fixed PMA project conversation; any future attempt needs a new exact-head APPROVE and explicit single-run release. No environment change or merge.
 
 ## Previous snapshot — 2026-10-20 10:12 EDT
 

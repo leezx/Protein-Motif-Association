@@ -81,3 +81,10 @@
 - 同一 PR 修复为先 `unname(group_sizes)` 再排序比较，并提取共享 helper。新增 8 行交错 3/2/2/1 命名分组回归：正确结构通过、错误分组被拒绝，不改 peaks、半径、工具算法或筛选标准。
 - 本地验证通过：`Rscript tests/test_print_variable_width.R`、`python3 tests/test_select_print_integration_smoke.py`、`git diff --check`。没有 Argos 访问、staging、环境修改或 gate 调用。
 - V2 one-shot 授权已经消耗；本修复不表示 caller 已成功或产生 footprint。L2 仍 `BLOCKED / UNVERIFIED-critical`。需将本修复与记录推到同一 PR，在固定 PMA 项目对话审核新的 exact HEAD；即使获批，重新运行也必须有新的明确单次放行。
+
+
+## 10:53 EDT — 为后续审核隔离 V3 attempt
+
+- 固定 PMA 诊断要求新 attempt ID/路径并同步 runner hash。外层 supervisor 现在使用 `BG_K562_PRINT_INTEGRATION_SMOKE_20261020_V3`，staged-code、日志 root、科学输出目录均使用独立 `_v3` 路径，不复用 V2 失败目录。
+- supervisor 固定的 runner/helper SHA-256 已更新为 `d62ca69a4d41219c932adaa4e825a7670b1b23fd9299acf6422bef1ad451d180` / `5f5da1b9cf3179f40850792d26ecce6862ed8c3a5dfd82ad39fa8ab07d51d4ca`。新增合同检查确保 run ID 和三条路径都是 V3；deadline、R 分组回归与 selector 回归通过。候选 outer supervisor SHA-256：`1b4c574e71a8d63c34c92c26810c822e627c4cd25cd78eb7cbc85e8996ca68ad`。
+- 只形成待审核候选，没有 Argos 访问、staging、远端 chmod 或 gate 调用。V2 单次放行已消耗；新运行仍需固定 PMA 项目对话审核新 exact HEAD 并明确发放新单次运行许可。

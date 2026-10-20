@@ -1,4 +1,4 @@
-# CURRENT OPERATIVE FOOTPRINT TASK — 2026-10-19 22:30 EDT
+# CURRENT OPERATIVE FOOTPRINT TASK — 2026-10-19 22:31 EDT
 
 The user's immediate deliverable remains one runtime-only, genome-wide accessible-window footprint assessment on Argos. Accuracy scoring, tool selection, motif discovery, optimization, ChIP BED6/PR #7, and PR merge are out of scope. PR #8 was OPEN at `be378df1f8b8d5aa880293f9a8888b700d02462b`; the fixed `PMA｜固定阶段审核` conversation returned `REQUEST_CHANGES` because actual gate invocation and resource boundaries were not evidenced. Follow-up exact-head review approved only read-only inspection of the gate, existing K562 launch scripts/meta, runtime paths and current CPU/memory controls. That audit found no enforceable task-wide ≤50-GB memory limit in this Argos SSH session. **Fail closed: no caller or timing task has started or is released.** A new exact-head review is needed for this status/evidence record; even after review, compute remains blocked until a task-level memory limit is available and verifiable.
 

@@ -220,3 +220,6 @@ PR #8：`task_20261019_hint_overlay_smoke`，OPEN、未合并。固定 PMA 对�
 - 现有四 wrapper（代码 commit `44b9c1153692effb528b888129136ef2a920201f`）SHA-256：HINT `ab652df81d3ccf7e10e6ee4ea6def5a938ec646fc2cfaae6d7f2f7066d848663`；PRINT `cae788b22dfb8ffc6006bae168b356909b3082036faa4a73e853c496ce717abf`；TOBIAS `e94789f3e542e371df038f9be1542f64d7c431a16960e0491dd732e15c8fa9ef`；TraceBIND `b77ae55c0bc32018757e697062110f07ec96586bf70921041e65045cbe19c22d`。路径/依赖只做存在性检查，未运行程序或 import 探针。已知 PRINT `cladoRcpp` overlay 与 TraceBIND R 包路径存在；bounded PMA_fetch 搜索未找到 TraceBIND 模型文件，但这不证明其他根目录不存在。
 
 **决定：不启动任务。** 用户要求单任务内存不超过 50 GB，而现有 44-GiB `RLIMIT_AS` 是逐进程的；cgroup 当前无限制且账号无法写入。`taskset` 只能限制 CPU affinity，不能封顶总内存；抽样 RSS watchdog 也不能作为严格硬上限。因此不能声称满足内存合同，必须等 Argos 管理侧提供任务级 memory cgroup / 等价硬隔离及可验证启动接口。该能力确认后，再将具体 16 核、24 h、逐工具命令写进本 PR 并作 exact-head 复审。此前计划中的 16 核 K562 测速仍是方案，不是运行结果；HINT 32-chunk 与 TOBIAS 16-core 旧时长是不同调用条件下的历史观察，不能拼成排名。准确度未评估，未做 motif discovery，未运行任何新任务，未处理 ChIP/PR #7。
+
+
+固定 PMA 对话随后对 PR #8 exact HEAD `e3f4035822f91b21a7c8a65ab2910989df1529f1` 作出 **APPROVE**，范围仅限上述文档／事实记录及 fail-closed 决定；reviewer 明确没有独立访问 Argos 原始证据，也未授权计算、PR #7 或合并。PR 当前保持 OPEN、未合并。该批准不解除任务级内存硬限制缺失这一阻塞。

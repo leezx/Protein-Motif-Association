@@ -45,7 +45,7 @@ the GPT review or resource-limit gate.
    accuracy winner, discover motifs, start another sample, or optimize/port code. After exact-head
    review, run only the reviewed existing wrappers once under these limits. No merge is authorized.
 
-**Current status (2026-10-19 22:30 EDT).** The read-only resource audit is recorded in the current
+**Current status (2026-10-19 22:31 EDT; PR #8 HEAD `e3f4035822f91b21a7c8a65ab2910989df1529f1`).** The fixed PMA conversation approved this exact-head documentation/resource-gate record only; that approval does not release computation. The read-only resource audit is recorded in the current
 handoff. Gate SHA-256 is `3776778b950be90cad124c04937eee422c81466154eccdadfe9e57d58224253c`.
 It sets `ulimit -Sv/-Hv 46137344` KB per process and `NSLOTS=1`; it does not limit aggregate
 process-tree memory or CPU. The visible SSH cgroup-v1 hierarchy reported CPU quota `-1`, memory

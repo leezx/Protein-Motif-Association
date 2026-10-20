@@ -1,6 +1,15 @@
 # Step 4b PRINT 全峰集执行交接
 
-> **当前门禁（2026-10-19 23:52 EDT）：V1 已在 rcapps3 做过且仅做过一次尝试，因监督器回收状态缺陷在 PRINT 分析开始前安全退出。下文“V1 历史执行计划”中的 V1 路径、哈希和命令仅用于审计，严禁复制或重跑。当前候选只有 V2：`BG_K562_PRINT_FULLPEAK_20261020_V2`，launcher SHA256 `88dc0c8c8206c9e1ed04b40c455a64957d2f4e10ebd551f5fa0f1daa79c85c0d`；该修订刚修正 `cleanup_failed = not sampler_reaped`，尚未获固定 `PMA｜固定阶段审核` 对话对当前 HEAD 的批准，尚未同步或运行。只有该固定 PMA 对话对当前完整 PR HEAD 明确 APPROVE 并允许一次 V2 尝试后，才可重新做 fresh preflight、同步和启动。**
+> **最新状态（2026-10-20 00:04 EDT）：V1、V2 各一次尝试均已停止，均未生成 PRINT 结果。V2 在 caller 113.8018 秒后因 `smaps` PSS sampler 连续超时/未能在 0.5 秒内回收而按 fail-closed 规则退出；最后一个有效样本约 24.2 GiB，但不是全程峰值。没有完整运行时或有效 track/event/timing 文件，不能给 PRINT 全峰计算时间。两次单次授权均已消耗；不得重跑。固定 PMA 对话认为采样链路延迟超预算是最有证据支持的解释，不能据此单独断言由进程映射增长造成。下一次尝试必须先在同一 PR 完成并审核有证据支持的整任务内存监控/控制方案，再获新 exact-head APPROVE 与单次执行授权。standalone 登录说明见 `/Volumes/Stelligen_SSD/Stelligen/computingResource.md`：`ssh zz950@rcapps3.dfci.harvard.edu`；rcapps8 的 ARM 架构与共享 x86 R runtime 不兼容，PRINT 也不使用 GPU。**
+
+## 当前结论与决策门（2026-10-20 00:04 EDT）
+
+- 目标：K562 `ENCSR868FGK` 完整 159,628 个原始 IDR peaks，PRINT radii 10/20、16 核、CPU-only；该范围未变。
+- V2 的最强证据支持“smaps PSS 采样超出当前延迟预算”，而非内存阈值触发或已观察到的 R 错误。最后有效样本约 24.2 GiB；该值既不是全程峰值，也不是上界。
+- 113.8018 秒仅为 caller 被 watchdog 终止前的墙钟时间；没有完整 native track/event/timing 文件，所以不能称为 PRINT 运行时间或吞吐率。
+- GPT 不建议盲目延长 deadline/cadence，也不建议以减少 worker 数掩盖问题；后者会改变计划的 16 核测速条件。若节点没有可靠的整任务内存控制/统计接口，应停止该执行路径。
+- `computingResource.md` 说明 standalone 节点的直登方式。节点有 GPU，但本任务是 CPU-only；rcapps3 与当前 x86 R 环境匹配，rcapps8 之前的只读检查显示架构不匹配。
+- V1、V2 的单次批准都已耗尽。当前不复制脚本、不改环境、不启动任务。任何新尝试先需同一 PR 中新方案、新 HEAD 的 fixed-PMA exact-head 审核和新的单次批准。
 
 ## 目标与边界
 
@@ -63,3 +72,16 @@ To preserve V1 failure evidence, the candidate supervisor now pins a unique V2 g
 ## 2026-10-19 23:52 EDT — corrected V2 candidate; exact-head review pending
 
 PMA exact-head review of the prior V2 candidate (`993883...`) found an L1 boolean inversion: `kill_and_reap_sampler()` returns `reaped`, but the caller treated it as `cleanup_failed`. Corrected to `cleanup_failed = not sampler_reaped`. Current local launcher SHA256 is `88dc0c8c8206c9e1ed04b40c455a64957d2f4e10ebd551f5fa0f1daa79c85c0d`. In-memory syntax compilation and `git diff --check` pass. The V1 plan, paths, hashes, and launch command above are historical and must not be run. Current V2 uses the unique V2 paths stated in the 23:50 historical entry. V2 has not been copied to Argos or launched. Await review of the final PR HEAD in the same fixed PMA project conversation and explicit approval for one attempt; do not run preflight-dependent setup, sync, or caller before that approval.
+
+
+## 2026-10-19 23:58 EDT — V2 launched after exact-head approval and fresh preflight
+
+The fixed `PMA｜固定阶段审核` conversation approved PR #8 HEAD `dd961e5beccbfc56fbebcae01ed63cb05da90685` for exactly one new V2 attempt. On `rcapps3`, the fresh read-only check passed x86_64/72-CPU affinity, 957,366,716 kB MemAvailable, PSS backend availability, R 4.2.2, required R namespaces, full BED/fragments/bias/model/module hashes, clean pinned PRINT commit, absent V2 output/gate paths and preserved V1 evidence. Transferred launcher SHA256 `88dc0c8c8206c9e1ed04b40c455a64957d2f4e10ebd551f5fa0f1daa79c85c0d` and runner SHA256 `3b658a2021d13278f9b5e46e7aba2426613a1a53d71d52bd7fd6ee617489a966` match the reviewed files; immutable gate SHA256 `3776778b950be90cad124c04937eee422c81466154eccdadfe9e57d58224253c`. Started `BG_K562_PRINT_FULLPEAK_20261020_V2` once at 23:58:03 EDT. Initial read found gate metadata but no status file yet; supervisor was still in its own preflight, with no PRINT output directory or analysis stage. If the approved single attempt fails, preserve its logs and do not rerun.
+
+## 2026-10-20 00:04 EDT — V2 stopped by PSS sampler; no PRINT result
+
+The one approved V2 attempt ran once on `rcapps3`. Preflight completed in 136.71 s and the PRINT caller ran 113.8018 s before the fail-closed watchdog stopped it. Gate: `EXIT=124`, end `2026-10-20T00:02:14-04:00`, `stop_reason=pss_sampler_unreaped`. Of the first 55 sample events, 52 were accepted. The final three sample elapsed times were 1.503, 1.511 and 1.507 s, beyond the 1.5-s deadline; the final sampler raised `TimeoutExpired` within the 0.5-s reap bound. Recorded codes were `[-2,-6,-7,-1]`. The last valid aggregate PSS sample was 25,352,023 kB (~24.2 GiB), below the sampled 100-GiB threshold; this is not the full-run peak or an upper bound. All five required score/event/timing files are missing; only empty nested directories remain. Caller/gate processes were confirmed stopped. Preserve the V1/V2 logs and external output directories.
+
+The fixed PMA conversation assessed the strongest supported explanation as the PSS sampling chain exceeding its latency budget on the `smaps` backend. The measurements do not prove that R mapping growth alone caused it; scheduler contention or kernel-side scan latency may contribute. No R error was present. Do not increase deadlines blindly or lower worker count based on this evidence. The 113.8018-s caller wall time is time-to-watchdog-stop, not a completed runtime or throughput estimate. No valid PRINT output and no complete runtime benchmark were obtained.
+
+The user asked us to locate the direct-login node instructions. They are at `/Volumes/Stelligen_SSD/Stelligen/computingResource.md`: `ssh zz950@rcapps3.dfci.harvard.edu` (x86_64; CPU/R environment matched) and `ssh zz950@rcapps8.dfci.harvard.edu` (aarch64; shared x86 R runtime was previously incompatible). The table's accelerator is GPU hardware (K80/T4), not a TPU; this PRINT run is CPU-only, so that accelerator is not used. V1 and V2 single-attempt approvals are consumed. Any next run needs a reviewed evidence-based whole-task memory monitor/control backend, exact-head review on the changed PR, and a new explicit one-attempt authorization. No new run, code edit, environment change, accuracy ranking, motif analysis, other caller, ChIP/PR #7 activity or merge occurred in this update.

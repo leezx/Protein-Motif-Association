@@ -59,3 +59,9 @@
 
 - V2 代码及审计更新提交为 `4c9774a62dd382e2a9ce66b4a47393f3c3f0e415`，已推送到原 PR #8 分支；本地 HEAD、origin 和 GitHub API 核对一致，PR 仍 OPEN、未合并。
 - PR 描述与 `docs/CODEX_HANDOFF.md` 同步到该 SHA。尚未在固定 PMA 对话发起此 SHA 的新审核；未执行 Argos staging、权限更改或 V2 gate。
+
+
+## 10:48 EDT — 准备最终 exact-head 审核包
+
+- 同步 CODEX_HANDOFF，区分 V2 实现提交 `4c9774a` 与即将生成的最终文档提交；审核前将再次从本地、origin、GitHub API 实时核对最终 SHA，并同步 PR body。
+- 当前无 Argos 访问、无 staging、无远程权限变更、无新 gate 调用。

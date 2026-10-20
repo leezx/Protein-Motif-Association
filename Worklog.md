@@ -1240,3 +1240,9 @@ The fixed `PMA｜固定阶段审核` conversation reviewed exact PR #8 HEAD `3fa
 
 - Corrected the candidate SHA in the prepared PR description and handoff to the actual GitHub API/origin/local value `4c9774a62dd382e2a9ce66b4a47393f3c3f0e415` (an earlier draft string was caught before review submission).
 - PR body and CODEX_HANDOFF now distinguish parent V1 code approval from the unreviewed V2 candidate. No Argos action or V2 launch occurred.
+
+
+### 2026-10-20 10:48 EDT — finalize V2 review packet
+
+- Synchronized CODEX_HANDOFF to distinguish the implementation commit `4c9774a` from the final live review target, which will be fetched after this documentation-only commit. V2 path isolation, V1 failure evidence, and current no-run boundary are unchanged.
+- No Argos access, mode change, staging, or gate invocation. Next: commit/push final review packet, verify exact local/origin/GitHub HEAD and PR body, then submit that exact SHA in the fixed PMA conversation.

@@ -410,6 +410,16 @@ Histone QC (both directions of the M–H identity hold because M and H share one
 - the 300-position tabix recount, which also reports positions where one experiment has several overlapping peaks
   (counted once by construction).
 
+**Blacklist-masked copies** (`10_mask_blacklist.py`, `tracks*_noBlacklist/`).
+- Values inside ENCODE hg38 blacklist v2 intervals are set to 0 base-wise. Peaks are not dropped, because many peaks
+  overlap the blacklist only in part.
+- Values outside the blacklist are unchanged. The raw tracks stay the reference.
+- Reason: 57 % of bases with E ≥ 10,000 lie in the blacklist. The maximum, at chr1:125.17 Mb in the "High Signal
+  Region" chr1:125,130,200–143,562,200, is near-universal artefactual peak calling.
+- QC per track:
+  - no output base inside the blacklist;
+  - Σ(value·bp) in = out + masked.
+
 **Class annotation v1.1.** The user's file is kept unchanged; v1.1 is a separate file.
 - 168 genes were `Other/ambiguous` with basis `conservative_unresolved` and are in the Lambert 2018 human TF list.
   v1.1 sets them to Sequence-specific TF (basis `lambert2018_TF_list`).

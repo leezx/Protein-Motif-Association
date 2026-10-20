@@ -10,7 +10,7 @@ GNU time reports 19:14.53 elapsed, 1096.86 s user CPU, 31.86 s system CPU, 97% C
 
 External evidence is preserved under `/home/zz950/PMA_fetch/pma_print_fullpeak_rcapps3_20261020_v6/` and gate records under `/home/zz950/PMA_fetch/pma_bg_pr8_20261019/`; no biological outputs were written. The V6 one-run authorization is consumed. Do not retry, patch the bias transformation, pad variable-width intervals, or substitute fixed-width summit windows under this authorization. The fixed PMA conversation is being asked for an audit/technical diagnosis only; it is not authorization for V7. Any next run requires a reviewed same-PR correction and a new explicit one-run authorization.
 
-Scope remains PRINT-only full-peak execution evidence; no accuracy ranking, motif analysis, other caller, C/C++ optimization, ChIP/PR #7 work, or merge.
+Scope remains PRINT-only full-peak execution evidence; no accuracy ranking, motif analysis, other caller, C/C++ optimization, ChIP/PR #7 work, or merge. The fixed PMA conversation reviewed the documentation correction at HEAD `3fa181aef66b6fac7d5217a32a44b85bc57e8889` and returned L1 no blocking issues / L2 finding closed. That approval covers the record only; it explicitly does not authorize code changes, synthetic validation, remote access, or V7.
 
 Historical interim snapshot: at 08:18 EDT the caller was active and sampled RSS was about 26.3 GiB. V6 later exited 1 at 08:29:05 EDT as recorded above; the interim snapshot is not the final result. Its one-run approval is consumed.
 

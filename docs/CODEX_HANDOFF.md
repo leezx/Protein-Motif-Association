@@ -1,4 +1,14 @@
-# CURRENT OPERATIVE FOOTPRINT TASK — 2026-10-20 10:04 EDT
+# CURRENT OPERATIVE FOOTPRINT TASK — 2026-10-20 10:06 EDT
+
+## Live status — PRINT 8-region smoke exact-head review pending
+
+Footprint only; ChIP BED6/PR #7 is assigned to Claude and excluded. PR #8 is OPEN and unmerged on `task_20261019_hint_overlay_smoke`. Before this status sync, local HEAD, `origin` branch, and GitHub PR API all reported `0d8543db67c42beee6e1f4c6ba83db9a711ddd98`; an earlier `gh` response showing `2cdede4` was stale and has been resolved by direct `gh api` confirmation. The fixed PMA project chat is `PMA｜固定阶段审核`.
+
+The low-resource 8-peak PRINT integration candidate from `c761138` is still not run. A read-only Argos check at 2026-10-20 10:05 EDT found no queued jobs for `zz950`, no matching PRINT smoke process, and no smoke output/status directory. The candidate remains one attempt only: 8 unchanged frozen BED rows, two workers, radii 10/20, frozen bias/model/fragments, direct native-score comparison, 30-minute wall cap, per-process `RLIMIT_AS <=44 GiB`, and a 40-GiB sampled process-group VmRSS soft-stop. No Argos preflight or computation occurred. Next: exact-head PMA L1/L2 review of the current PR tip; if approved, the user's active instruction permits only this bounded smoke. No automatic retry or full-peak run.
+
+Current candidate script SHA-256 values: selector `7e2a67554e4d5c601cdb6c18a3758bb420520fa21d6324eff6f02d15c1dd5856`; PRINT runner `b3602e3ca4660a5feed4c8100f5bcbf6b024a9df8571b80d7e09acc1598b97cb`; helper `664d8ff626f903ae107759c4112aa7692061244795f374c1d562d0ce8e4453c6`; base supervisor `3c6ede01d5836dcdccbb1b579376557d0ea4934bb4cac36dc4e5532b0d220997`; smoke supervisor `084de78158ca9a44ecf96467335fd95fb11e9e171c39addc93bdbc6309946187`. The smoke candidate adds no biological result. Existing evidence remains: V6 failed during bias preparation after 19:14.53 caller wall time and about 25.74 GiB max RSS, with no track or footprint events; this is not a completed runtime benchmark.
+
+## Previous snapshot — 2026-10-20 10:04 EDT
 
 ## Current status — L2 smoke candidate pushed; fixed-PMA exact-head review pending
 

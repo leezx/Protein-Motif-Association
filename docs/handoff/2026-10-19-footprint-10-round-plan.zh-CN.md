@@ -2,6 +2,10 @@
 
 用户把 ChIP BED6 交给 Claude；本 handoff 只推进 Step 4b footprint。用户已把即时目标收敛为：选择一个 ATAC 样本，在其同样本完整 peak BED 区间上运行 PRINT 的 motif-independent footprint calling，记录计算时间/资源与输出统计。不是逐碱基扫描全 hg38；不评准确度、不找 motif、不优化/移植代码、不运行其他 caller、不合并 PR。
 
+## GPT exact-head wording correction — 2026-10-19 22:47 EDT
+
+PR #8 HEAD `819dfe44754536ffa07feb9dbff841e21ff9ca7e` 收到 `REQUEST_CHANGES`：不能称 12,838,026,244-byte HDF5 为“same-sample bias”，因为现有证据只证明它是预计算 hg38 Tn5-bias HDF5，未证明按 K562 样本校准。已在 `docs/CODEX_HANDOFF.md` 做唯一措辞修正，并明确不声称样本特异性校准。此文档修正不授权或解除计算门槛；QSUB 仍被 Argos 队列/PE/作业级内存配置阻塞。
+
 ## 目前已核实
 
 - 样本：K562 `ENCSR868FGK`，ATAC BAM `ENCFF534DCE.bam`；用户只要求本次计算时间/资源，K562 的 ENCODE nucleosome-free-fraction 警告意味着不得把本次结果写成准确度证据。

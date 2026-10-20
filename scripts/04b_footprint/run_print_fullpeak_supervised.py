@@ -191,36 +191,62 @@ def sample_helper(pgid):
     return 0
 
 
-def timed_group_pss(pgid, timeout_seconds):
-    """Run smaps scanning out-of-process so a blocked read cannot stall cleanup."""
-    command = [sys.executable, os.path.abspath(__file__), "--sample-pgid", str(pgid)]
-    started = time.monotonic()
-    sampler = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                               universal_newlines=True, start_new_session=True)
-    try:
-        stdout, stderr = sampler.communicate(timeout=timeout_seconds)
-    except subprocess.TimeoutExpired:
-        # The helper has no children. Its own session separates cleanup from
-        # both the monitored caller and the supervisor.
+def kill_and_reap_sampler(sampler, timeout_seconds):
+    if sampler.poll() is None:
         try:
             os.killpg(sampler.pid, signal.SIGKILL)
         except OSError:
             pass
-        sampler.communicate()
-        return [], None, [-2], time.monotonic() - started
-    elapsed = time.monotonic() - started
-    if sampler.returncode != 0:
-        return [], None, [-3], elapsed
     try:
-        result = json.loads(stdout)
-        members = [(int(pid), str(state)) for pid, state in result["members"]]
-        pss_kb = int(result["pss_kb"])
-        failures = [int(pid) for pid in result["failures"]]
-        if pss_kb < 0:
-            raise ValueError("negative aggregate PSS")
-        return members, pss_kb, failures, elapsed
-    except (ValueError, TypeError, KeyError, IndexError):
-        return [], None, [-4], elapsed
+        sampler.communicate(timeout=timeout_seconds)
+        return True
+    except subprocess.TimeoutExpired:
+        return False
+    except Exception:
+        return False
+
+
+def timed_group_pss(pgid, timeout_seconds):
+    """Run smaps scanning out-of-process so a blocked read cannot stall cleanup."""
+    command = [sys.executable, os.path.abspath(__file__), "--sample-pgid", str(pgid)]
+    started = time.monotonic()
+    sampler = None
+    cleanup_failed = False
+    result = ([], None, [-3], 0.0)
+    try:
+        sampler = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                   universal_newlines=True, start_new_session=True)
+        try:
+            stdout, stderr = sampler.communicate(timeout=timeout_seconds)
+        except subprocess.TimeoutExpired:
+            result = ([], None, [-2], time.monotonic() - started)
+        else:
+            elapsed = time.monotonic() - started
+            if sampler.returncode != 0:
+                result = ([], None, [-3], elapsed)
+            else:
+                try:
+                    payload = json.loads(stdout)
+                    members = [(int(pid), str(state)) for pid, state in payload["members"]]
+                    pss_kb = int(payload["pss_kb"])
+                    failures = [int(pid) for pid in payload["failures"]]
+                    if pss_kb < 0:
+                        raise ValueError("negative aggregate PSS")
+                    result = (members, pss_kb, failures, elapsed)
+                except (ValueError, TypeError, KeyError, IndexError):
+                    result = ([], None, [-4], elapsed)
+    except Exception:
+        result = ([], None, [-3], time.monotonic() - started)
+    finally:
+        if sampler is not None:
+            try:
+                if sampler.poll() is None:
+                    cleanup_failed = not kill_and_reap_sampler(sampler, 0.5)
+                else:
+                    sampler.communicate(timeout=0.5)
+            except Exception:
+                cleanup_failed = True
+    return result + (sampler, cleanup_failed)
 
 
 def terminate_group(pgid, log, reason):
@@ -409,11 +435,18 @@ def main():
                         break
                     sample_started = time.monotonic()
                     interval_overrun = sample_started - next_sample_due
-                    members, pss_kb, failures, sample_elapsed = timed_group_pss(
+                    members, pss_kb, failures, sample_elapsed, sampler, sampler_cleanup_failed = timed_group_pss(
                         pgid, SAMPLE_BUDGET_SECONDS)
                     next_sample_due += SAMPLE_SECONDS
                     if interval_overrun > MAX_SAMPLE_INTERVAL_OVERRUN_SECONDS:
                         failures.append(-5)  # fixed start-to-start cadence was missed
+                        pss_kb = None
+                    if sample_elapsed > SAMPLE_BUDGET_SECONDS:
+                        failures.append(-6)  # a late helper result is not a valid sample
+                        pss_kb = None
+                    if sampler_cleanup_failed:
+                        failures.append(-7)  # helper still alive after bounded cleanup
+                        pss_kb = None
                     if process.poll() is None and not members:
                         failures.append(-1)  # process group vanished while caller is alive
                     elif process.poll() is None and process.pid not in {pid for pid, _ in members}:
@@ -422,7 +455,7 @@ def main():
                         failures_in_row += 1
                     else:
                         failures_in_row = 0
-                    if pss_kb is not None:
+                    if pss_kb is not None and not failures:
                         peak_pss = max(peak_pss, pss_kb)
                     log.write(json.dumps({"event": "sample", "time_epoch": time.time(),
                                           "pgid": pgid, "pids": [p for p, _ in members],
@@ -430,8 +463,22 @@ def main():
                                           "pss_backend": "smaps:Pss-sum",
                                           "sample_elapsed_seconds": sample_elapsed,
                                           "sample_interval_overrun_seconds": interval_overrun,
+                                          "sampler_cleanup_failed": sampler_cleanup_failed,
                                           "sample_failures": failures}) + "\n")
                     log.flush()
+                    if sampler_cleanup_failed:
+                        reason = "pss_sampler_unreaped"
+                        terminate_group(pgid, log, reason)
+                        cleanup_needed = False
+                        if sampler is not None and not kill_and_reap_sampler(sampler, 0.5):
+                            try:
+                                log.write(json.dumps({"event": "sampler_reap_failed",
+                                                      "sampler_pid": sampler.pid,
+                                                      "time_epoch": time.time()}) + "\n")
+                                log.flush()
+                            except Exception:
+                                pass
+                        break
                     if pss_kb is not None and pss_kb >= PSS_LIMIT_KB:
                         reason = "aggregate_pss_limit_100_gib"
                         terminate_group(pgid, log, reason)

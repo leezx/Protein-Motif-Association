@@ -119,3 +119,90 @@ event_interval0 <- function(bed_start0, local_start1, local_end1) {
   }
   result
 }
+
+assert_numeric_close <- function(actual, expected, label,
+                                 atol = 1e-10, rtol = 1e-10) {
+  if (!identical(dim(actual), dim(expected)) || length(actual) != length(expected)) {
+    stop(label, ": dimensions or lengths differ")
+  }
+  actual <- as.numeric(actual)
+  expected <- as.numeric(expected)
+  if (!identical(is.na(actual), is.na(expected)) ||
+      !identical(is.infinite(actual), is.infinite(expected)) ||
+      !identical(sign(actual[is.infinite(actual)]), sign(expected[is.infinite(expected)]))) {
+    stop(label, ": NA/Inf masks differ")
+  }
+  finite <- is.finite(actual) & is.finite(expected)
+  allowed <- atol + rtol * abs(expected[finite])
+  if (any(abs(actual[finite] - expected[finite]) > allowed)) {
+    stop(label, ": numeric values exceed tolerance")
+  }
+  invisible(TRUE)
+}
+
+assert_print_region_equal <- function(actual, expected, label,
+                                      atol = 1e-10, rtol = 1e-10) {
+  exact_fields <- c("regionID", "summits")
+  numeric_fields <- c("summitPvalscores", "aggregateATAC", "aggregateScores",
+                      "bias", "summitCellTypeScores", "cellTypeScores")
+  range_fields <- c("footprintRanges")
+  fields <- unique(c(exact_fields, numeric_fields, range_fields))
+  if (length(setdiff(names(expected), fields)) > 0L) {
+    stop(label, ": unhandled result fields: ", paste(setdiff(names(expected), fields), collapse = ","))
+  }
+  if (!identical(names(actual), names(expected))) stop(label, ": result fields differ")
+  for (field in intersect(exact_fields, names(expected))) {
+    if (!identical(actual[[field]], expected[[field]])) {
+      stop(label, ": exact field differs: ", field)
+    }
+  }
+  for (field in intersect(numeric_fields, names(expected))) {
+    if (is.null(actual[[field]]) || is.null(expected[[field]])) {
+      if (!identical(actual[[field]], expected[[field]])) stop(label, ": null field differs: ", field)
+    } else {
+      assert_numeric_close(actual[[field]], expected[[field]], paste(label, field), atol, rtol)
+    }
+  }
+  for (field in intersect(range_fields, names(expected))) {
+    a <- actual[[field]]; e <- expected[[field]]
+    if (is.null(a) || is.null(e)) {
+      if (!identical(a, e)) stop(label, ": range null state differs")
+      next
+    }
+    if (!identical(as.character(GenomicRanges::seqnames(a)),
+                   as.character(GenomicRanges::seqnames(e))) ||
+        !identical(as.integer(IRanges::start(a)), as.integer(IRanges::start(e))) ||
+        !identical(as.integer(IRanges::end(a)), as.integer(IRanges::end(e))) ||
+        !identical(names(a), names(e))) {
+      stop(label, ": footprint range coordinates differ")
+    }
+    ma <- S4Vectors::mcols(a); me <- S4Vectors::mcols(e)
+    if (!identical(names(ma), names(me)) || nrow(ma) != nrow(me)) {
+      stop(label, ": footprint range metadata shape differs")
+    }
+    for (column in names(me)) {
+      if (is.numeric(ma[[column]]) && is.numeric(me[[column]])) {
+        assert_numeric_close(ma[[column]], me[[column]],
+                             paste(label, "footprintRanges", column), atol, rtol)
+      } else if (!identical(ma[[column]], me[[column]])) {
+        stop(label, ": footprint range metadata differs: ", column)
+      }
+    }
+  }
+  invisible(TRUE)
+}
+
+direct_region_atac <- function(count_data, region_index, group_ids, width) {
+  if (length(region_index) != 1L || region_index < 1L || region_index > length(count_data)) {
+    stop("invalid direct-comparison region index")
+  }
+  per_group <- lapply(group_ids, function(group_id) {
+    row <- count_data[[region_index]]
+    if (is.null(row) || nrow(row) == 0L) return(numeric(width))
+    keep <- row[["group"]] %in% group_id
+    track <- numeric(width)
+    if (any(keep)) track[row[["position"]][keep]] <- row[["count"]][keep]
+    track
+  })
+  do.call(cbind, per_group)
+}

@@ -87,4 +87,28 @@ stopifnot(identical(track_positions0(100L, 4L), 100:103),
           identical(unname(event_interval0(100L, -9L, 10L)), c(90L, 110L)))
 stopifnot(inherits(try(event_interval0(0L, -9L, 10L), silent = TRUE), "try-error"))
 
+assert_numeric_close(c(1, NA_real_, Inf), c(1 + 1e-12, NA_real_, Inf), "tolerance fixture")
+stopifnot(inherits(try(assert_numeric_close(c(1, NA_real_), c(1, 2), "NA mask fixture"),
+                       silent = TRUE), "try-error"))
+stopifnot(inherits(try(assert_numeric_close(c(1, 2), c(1, 2, 3), "length fixture"),
+                       silent = TRUE), "try-error"))
+range_a <- GenomicRanges::GRanges("summit:20-20", IRanges::IRanges(11, 30))
+S4Vectors::mcols(range_a)$score <- 2
+S4Vectors::mcols(range_a)$cellType <- "all"
+range_b <- GenomicRanges::GRanges("summit:20-20", IRanges::IRanges(11, 30))
+S4Vectors::mcols(range_b)$score <- 2 + 1e-12
+S4Vectors::mcols(range_b)$cellType <- "all"
+region_a <- list(regionID = "chr1:100-150", summitPvalscores = matrix(c(1, 2)),
+                 aggregateATAC = c(2, 3), footprintRanges = range_a,
+                 aggregateScores = c(4, 5), summits = 2L, bias = c(0.5, 0.7),
+                 summitCellTypeScores = matrix(2))
+region_b <- region_a
+region_b$footprintRanges <- range_b
+region_b$aggregateScores <- c(4, 5 + 1e-12)
+assert_print_region_equal(region_a, region_b, "region comparison fixture")
+region_bad <- region_b
+region_bad$footprintRanges <- GenomicRanges::shift(range_b, 1L)
+stopifnot(inherits(try(assert_print_region_equal(region_a, region_bad, "range fixture"),
+                       silent = TRUE), "try-error"))
+
 cat("PRINT variable-width contract checks passed\n")

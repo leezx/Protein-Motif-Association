@@ -1,5 +1,6 @@
 # Step 4b-1: PRINT (Hu et al. 2025) native R implementation, CPU (mclapply/doParallel), precomputed hg38 Tn5 bias.
 # usage: Rscript run_print.R <print_repo> <shared_dir> <regions.bed> <frags.tsv.gz> <out_prefix> <nCores> <radius,...>
+# Set PRINT_DIRECT_COMPARE=1 only for the reviewed 8-region integration smoke.
 #   shared_dir holds precomputedTn5Bias/hg38Tn5Bias.h5 and dispModel/dispersionModel<k>bp.rds (Zenodo 7121026)
 # Output: <out_prefix>.r<radius>.track.tsv.gz  chrom, pos (0-based), score = PRINT -log10(p) smoothed track
 #         <out_prefix>.timing.tsv              stage, seconds
@@ -26,6 +27,14 @@ chromosomes <- as.character(seqnames(regions))
 width_groups <- group_peak_indices(chromosomes, widths)
 if (sum(vapply(width_groups, function(g) length(g$index), integer(1))) != length(regions))
   stop("width grouping does not cover every input region")
+direct_compare <- identical(Sys.getenv("PRINT_DIRECT_COMPARE"), "1")
+if (direct_compare &&
+    (length(regions) != 8L || nCores != 2L || !identical(sort(radii), c(10L, 20L)) ||
+     !identical(sort(vapply(width_groups, function(g) length(g$index), integer(1))), c(1L, 2L, 2L, 3L)) ||
+     length(unique(chromosomes)) < 2L || length(unique(widths)) < 3L ||
+     !any(vapply(width_groups, function(g) length(g$index) > 1L && any(diff(g$index) != 1L), logical(1))))) {
+  stop("direct comparison mode requires the reviewed 8-region, two-worker, shuffled 3/2/2/1 smoke")
+}
 timing$input_and_grouping <- tic() - t0; t0 <- tic()
 
 # PRINT's native S4 slot is a rectangular matrix, while the frozen input peaks
@@ -140,6 +149,91 @@ footprints_by_radius <- lapply(group_footprints, function(result_groups) {
 timing$footprint_groups <- tic() - t0
 for (rad in radii) timing[[paste0("footprint_r", rad)]] <- footprint_seconds[[as.character(rad)]]
 
+direct_reference <- NULL
+if (direct_compare) {
+  direct_started <- tic()
+  direct_reference <- lapply(radii, function(rad) vector("list", length(regions)))
+  names(direct_reference) <- as.character(radii)
+  direct_rows <- list()
+  for (g in seq_along(bias_groups)) {
+    item <- bias_groups[[g]]
+    idx <- item$index
+    group_count <- full_count_tensor[idx]
+    names(group_count) <- as.character(seq_along(idx))
+    group_ids <- gtools::mixedsort(full_group_labels)
+    group_bias <- readRDS(item$bias_path)
+    for (j in seq_along(idx)) {
+      region_atac <- direct_region_atac(group_count, j, group_ids, item$width)
+      for (rad in radii) {
+        expected <- regionFootprintScoring(
+          regionATAC = region_atac,
+          Tn5Bias = as.numeric(group_bias[j, ]),
+          dispersionModel = dispersion_models[[as.character(rad)]],
+          footprintRadius = rad, flankRadius = rad,
+          regionID = as.character(regions[idx[[j]]]),
+          scoreType = "pval", cellTypeLabels = full_cell_type_labels,
+          returnCellTypeScores = FALSE)
+        actual <- group_footprints[[as.character(rad)]][[g]][[j]]
+        assert_print_region_equal(actual, expected,
+                                  sprintf("direct comparison region %d radius %d", idx[[j]], rad))
+        direct_reference[[as.character(rad)]][[idx[[j]]]] <- expected
+        direct_rows[[length(direct_rows) + 1L]] <- data.table(
+          radius = rad, global_row = idx[[j]], group_id = g,
+          width = item$width, compared_fields = paste(names(expected), collapse = ","),
+          event_count = if (is.null(expected$footprintRanges)) 0L else length(expected$footprintRanges))
+      }
+    }
+  }
+  fwrite(rbindlist(direct_rows), paste0(out, ".direct-comparison.tsv"), sep = "\t")
+  timing$direct_compare <- tic() - direct_started
+}
+
+validate_direct_exports <- function(track_path, event_path, radius, expected_by_region) {
+  expected_tracks <- rbindlist(lapply(seq_along(expected_by_region), function(i) {
+    x <- expected_by_region[[i]]; rg <- regions[i]
+    data.table(chrom = as.character(seqnames(rg)),
+               pos = track_positions0(start(rg) - 1L, length(x$aggregateScores)),
+               score = x$aggregateScores)
+  }))
+  observed_tracks <- fread(track_path)
+  if (!identical(names(observed_tracks), c("chrom", "pos", "score")) ||
+      nrow(observed_tracks) != nrow(expected_tracks) ||
+      !identical(as.character(observed_tracks$chrom), as.character(expected_tracks$chrom)) ||
+      !identical(as.integer(observed_tracks$pos), as.integer(expected_tracks$pos))) {
+    stop("re-read PRINT track coordinates differ from direct per-region reference at radius ", radius)
+  }
+  assert_numeric_close(observed_tracks$score, expected_tracks$score,
+                       paste("re-read track scores radius", radius))
+  expected_events <- rbindlist(lapply(seq_along(expected_by_region), function(i) {
+    x <- expected_by_region[[i]]; rg <- regions[i]
+    if (is.null(x$footprintRanges) || length(x$footprintRanges) == 0L) return(NULL)
+    coords <- lapply(seq_along(x$footprintRanges), function(j) {
+      event_interval0(start(rg) - 1L, IRanges::start(x$footprintRanges)[j],
+                      IRanges::end(x$footprintRanges)[j])
+    })
+    data.table(chrom = as.character(seqnames(rg)),
+               start = vapply(coords, `[[`, integer(1), 1L),
+               end = vapply(coords, `[[`, integer(1), 2L),
+               score = x$aggregateScores[x$summits])
+  }))
+  if (is.null(expected_events)) {
+    expected_events <- data.table(chrom = character(), start = integer(), end = integer(), score = numeric())
+  }
+  observed_events <- if (file.info(event_path)$size == 0L) {
+    data.table(chrom = character(), start = integer(), end = integer(), score = numeric())
+  } else fread(event_path, header = FALSE,
+               col.names = c("chrom", "start", "end", "score"))
+  if (nrow(observed_events) != nrow(expected_events) ||
+      !identical(as.character(observed_events$chrom), as.character(expected_events$chrom)) ||
+      !identical(as.integer(observed_events$start), as.integer(expected_events$start)) ||
+      !identical(as.integer(observed_events$end), as.integer(expected_events$end))) {
+    stop("re-read PRINT event coordinates differ from direct per-region reference at radius ", radius)
+  }
+  assert_numeric_close(observed_events$score, expected_events$score,
+                       paste("re-read event scores radius", radius))
+  invisible(c(track_rows = nrow(observed_tracks), event_rows = nrow(observed_events)))
+}
+
 for (rad in radii) {
   t0 <- tic()
   fp <- footprints_by_radius[[as.character(rad)]]
@@ -176,6 +270,10 @@ for (rad in radii) {
     if (!file.create(event_path)) stop("could not create empty native event file")
   } else {
     fwrite(ev, event_path, sep = "\t", col.names = FALSE)
+  }
+  if (direct_compare) {
+    validate_direct_exports(track_path, event_path, rad,
+                            direct_reference[[as.character(rad)]])
   }
   timing[[paste0("write_r", rad)]] <- tic() - t0
 }

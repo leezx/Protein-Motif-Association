@@ -446,10 +446,11 @@ def main():
             environment = os.environ.copy()
             environment.update({"R_LIBS": RLIBS, "OMP_NUM_THREADS": "1",
                                 "OPENBLAS_NUM_THREADS": "1", "MKL_NUM_THREADS": "1",
-                                "NUMEXPR_NUM_THREADS": "1", "CUDA_VISIBLE_DEVICES": ""})
+                                "NUMEXPR_NUM_THREADS": "1", "CUDA_VISIBLE_DEVICES": "",
+                                "PRINT_DIRECT_COMPARE": os.environ.get("PRINT_DIRECT_COMPARE", "0")})
             command = ["/usr/bin/time", "-v", "/usr/bin/taskset", "-c",
                        ",".join(str(cpu) for cpu in cpus), RSCRIPT, RUNNER,
-                       PRINT_REPO, SHARED, BED, FRAGS, prefix, "1", "10,20"]
+                       PRINT_REPO, SHARED, BED, FRAGS, prefix, str(len(cpus)), "10,20"]
             os.makedirs(os.path.join(ROOT, "runlogs"), mode=0o700, exist_ok=True)
             stdout_path = os.path.join(ROOT, "runlogs", "caller.stdout")
             time_path = os.path.join(ROOT, "runlogs", "gnu_time.stderr")
@@ -538,7 +539,7 @@ def main():
                         terminate_group(pgid, log, reason)
                         break
                     if time.time() - started >= MAX_WALL_SECONDS:
-                        reason = "wall_timeout_24h"
+                        reason = "wall_timeout_%d_seconds" % MAX_WALL_SECONDS
                         terminate_group(pgid, log, reason)
                         break
                     if process.poll() is not None:
@@ -562,13 +563,13 @@ def main():
                 cleanup_needed = False
                 caller_elapsed = time.time() - caller_started
             summary = {"run_id": RUN_ID, "host": socket.gethostname(),
-                       "architecture": os.uname()[4], "cpus": cpus, "workers": 1,
+                       "architecture": os.uname()[4], "cpus": cpus, "workers": len(cpus),
                        "radii_bp": [10, 20], "caller_exit": return_code,
                        "stop_reason": reason,
                        "watchdog_peak_sampled_process_group_vmrss_kb": peak_rss,
                        "watchdog_soft_stop_gib": RSS_SOFT_STOP_KB // (1024 * 1024),
                        "watchdog_is_hard_task_memory_limit": False,
-                       "wall_limit_hours": 24,
+                       "wall_limit_seconds": MAX_WALL_SECONDS,
                        "preflight_seconds": preflight_seconds,
                        "caller_wall_seconds_including_time_wrapper": caller_elapsed,
                        "bed_path": BED, "fragments_path": FRAGS, "runner_path": RUNNER,

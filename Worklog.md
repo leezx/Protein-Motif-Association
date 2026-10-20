@@ -1246,3 +1246,19 @@ The fixed `PMA｜固定阶段审核` conversation reviewed exact PR #8 HEAD `3fa
 
 - Synchronized CODEX_HANDOFF to distinguish the implementation commit `4c9774a` from the final live review target, which will be fetched after this documentation-only commit. V2 path isolation, V1 failure evidence, and current no-run boundary are unchanged.
 - No Argos access, mode change, staging, or gate invocation. Next: commit/push final review packet, verify exact local/origin/GitHub HEAD and PR body, then submit that exact SHA in the fixed PMA conversation.
+
+
+### 2026-10-20 10:52 EDT — V2 PRINT integration smoke failed before analysis
+
+- After exact-head fixed-PMA approval of PR #8 HEAD `d5e9f693cbdb3a89327466b4a10b70f880bafe96`, launched the single authorized V2 attempt through immutable gate on rcGPUs. Fresh preflight passed: 72 CPUs, ~920 GiB MemAvailable, no SGE job/matching task, V2 paths absent, staged worker executable and interpreter valid; all pinned scripts/gate/BED/fragments/HDF5/models/PRINT modules hashes matched, PRINT checkout clean, R 4.2.2 dependencies loaded.
+- Gate state: `BG_K562_PRINT_INTEGRATION_SMOKE_20261020_V2 EXIT=1 END=2026-10-20T10:51:17-04:00`. R caller failed before bias/count/footprint computation with: `direct comparison mode requires the reviewed 8-region, two-worker, shuffled 3/2/2/1 smoke`. Saved BED/map show 8 rows, `(chrom,width)` counts [3,2,2,1], chr9/chr22, four widths, noncontiguous group_1 indices 1/3/8; command passed 2 workers and radii 10/20. Fixed-PMA diagnosis is pending because observed map/arguments appear to satisfy the assertion.
+- Measured failed-attempt runtime/resources: gate START 10:49:32 / END 10:51:17 EDT (~105 s); in-gate preflight 86.54 s; caller supervisor wall 17.34 s; GNU time caller elapsed 13.71 s, user 8.34 s, system 0.70 s, 65% CPU, max RSS 603,384 KiB (~589 MiB). Process-group sampled VmRSS peak 426,924 KiB (~417 MiB); one late sample returned -6; 40-GiB soft-stop did not fire. Per-process RLIMIT_AS 44 GiB, not an aggregate cap.
+- All five track/event/timing files are missing; no footprint calls or biological/resource-success claim. V2 output directory contains no scientific files. L2 remains BLOCKED/UNVERIFIED-critical. No retry, V3, environment change, or merge authorized; await fixed-PMA diagnosis and any future new exact-head approval/release.
+
+
+### 2026-10-20 10:53 EDT — fix named-vector comparison in PRINT smoke admission
+
+- Fixed PMA project conversation diagnosed the V2 rejection: `vapply()` over the named `split()` result returns a named integer vector; `sort()` retains names, making `identical(named_sizes, unnamed_expected)` false even when values are `[1,2,2,3]`. No evidence suggests the BED mapping or CLI parameters were wrong.
+- Extracted the reviewed group-size check into `has_reviewed_direct_compare_group_sizes()` and compare `sort(unname(group_sizes))` against the required integer sizes. Added a synthetic regression with 8 shuffled rows, named 3/2/2/1 groups, two chromosomes, four widths, and noncontiguous indices; it also rejects a malformed group-size pattern.
+- Validation passed: `Rscript tests/test_print_variable_width.R`, `python3 tests/test_select_print_integration_smoke.py`, and `git diff --check`. No remote access, staging, environment change, or gate invocation.
+- This closes the diagnosed caller admission bug only. V2 one-shot authorization remains consumed; there is still no bias/count/footprint computation or science output. L2 remains BLOCKED/UNVERIFIED-critical. Next: sync the repair and audit trail to PR #8, obtain exact-head review in the fixed PMA project conversation, and do not run until a new one-shot release is explicit.

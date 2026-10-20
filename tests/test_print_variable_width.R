@@ -18,6 +18,21 @@ for (n in c(1L, 99L, 100L, 101L, 128L)) {
             identical(unname(bias[n, ]), vectors[[n]]))
 }
 
+# Reproduce the reviewed 8-row shuffled 3/2/2/1 grouping. split()/vapply()
+# retain group names; the shape check must compare the sizes, not those names.
+smoke_chrom <- c("chr9", "chr9", "chr9", "chr22", "chr22", "chr9", "chr22", "chr9")
+smoke_width <- c(1042L, 1234L, 1042L, 1777L, 1977L, 1234L, 1777L, 1042L)
+smoke_groups <- group_peak_indices(smoke_chrom, smoke_width)
+smoke_group_sizes <- vapply(smoke_groups, function(g) length(g$index), integer(1))
+stopifnot(length(smoke_groups) == 4L, !is.null(names(smoke_group_sizes)),
+          identical(sort(unname(smoke_group_sizes)), c(1L, 2L, 2L, 3L)),
+          has_reviewed_direct_compare_group_sizes(smoke_groups),
+          any(vapply(smoke_groups, function(g) length(g$index) > 1L &&
+                       any(diff(g$index) != 1L), logical(1))))
+bad_smoke_groups <- smoke_groups
+bad_smoke_groups[[1L]]$index <- c(bad_smoke_groups[[1L]]$index, 2L)
+stopifnot(!has_reviewed_direct_compare_group_sizes(bad_smoke_groups))
+
 # Mixed widths, repeated width groups, interleaved chromosomes, and repeated
 # coordinates represented by separate input rows must preserve each global ID.
 chrom <- c("chr2", "chr1", "chr2", "chr1", "chr1", "chr2", "chr1")

@@ -65,3 +65,19 @@
 
 - 同步 CODEX_HANDOFF，区分 V2 实现提交 `4c9774a` 与即将生成的最终文档提交；审核前将再次从本地、origin、GitHub API 实时核对最终 SHA，并同步 PR body。
 - 当前无 Argos 访问、无 staging、无远程权限变更、无新 gate 调用。
+
+
+## 10:52 EDT — V2 one-shot 在 footprint 计算前失败
+
+- 固定 PMA 已对 exact HEAD `d5e9f693cbdb3a89327466b4a10b70f880bafe96` 批准一次 V2 8 峰 smoke；任务在 rcGPUs/CPU-only、2 workers、radii 10/20 下通过 fresh hash/权限/依赖预检后启动。
+- Gate 记录 `EXIT=1 END=2026-10-20T10:51:17-04:00`。caller 在 bias/count/footprint 之前被 `run_print.R` direct-comparison 断言拒绝。保存映射显示行数8、组大小 `[3,2,2,1]`、chr9/chr22、四种宽度、group_1 非连续索引；命令参数为2 workers 和 radii 10/20，与断言表面相符。已向固定 PMA 对话询问具体 R 侧 predicate/解析问题；未做独立修改或重跑。
+- 资源数据仅描述失败的 caller 尝试：整体105秒（其中预检86.54秒）；caller wall17.34秒，GNU elapsed13.71秒、user8.34秒、system0.70秒、65% CPU、max RSS603,384 KiB（约589 MiB）；process-group 采样 VmRSS峰426,924 KiB（约417 MiB），一条尾部样本返回-6；40-GiB软停止未触发，单进程RLIMIT_AS为44 GiB。五个 track/event/timing 文件全缺，无footprint结果。
+- V2 one-shot 授权已消耗。等待固定 PMA 诊断；新运行必须重新 exact-head 审核并得到新的单次放行。
+
+
+## 10:53 EDT — 修复 V2 的命名向量准入断言
+
+- 固定 PMA 对话诊断出准确原因：对 `split()` 返回的命名列表做 `vapply()` 会保留组名，`sort()` 也保留名称；因此 `identical(c(带名称的 1,2,2,3), c(1L,2L,2L,3L))` 为 FALSE。保存的区间映射和命令行参数符合其余准入条件。
+- 同一 PR 修复为先 `unname(group_sizes)` 再排序比较，并提取共享 helper。新增 8 行交错 3/2/2/1 命名分组回归：正确结构通过、错误分组被拒绝，不改 peaks、半径、工具算法或筛选标准。
+- 本地验证通过：`Rscript tests/test_print_variable_width.R`、`python3 tests/test_select_print_integration_smoke.py`、`git diff --check`。没有 Argos 访问、staging、环境修改或 gate 调用。
+- V2 one-shot 授权已经消耗；本修复不表示 caller 已成功或产生 footprint。L2 仍 `BLOCKED / UNVERIFIED-critical`。需将本修复与记录推到同一 PR，在固定 PMA 项目对话审核新的 exact HEAD；即使获批，重新运行也必须有新的明确单次放行。

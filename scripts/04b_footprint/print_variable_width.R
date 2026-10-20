@@ -15,6 +15,11 @@ group_peak_indices <- function(chromosomes, widths) {
   })
 }
 
+has_reviewed_direct_compare_group_sizes <- function(width_groups) {
+  group_sizes <- vapply(width_groups, function(g) length(g$index), integer(1))
+  identical(sort(unname(group_sizes)), c(1L, 2L, 2L, 3L))
+}
+
 bind_active_print_project <- function(project_object, envir = .GlobalEnv) {
   assign("project", project_object, envir = envir)
   invisible(project_object)

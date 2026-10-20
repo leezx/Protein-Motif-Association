@@ -30,7 +30,7 @@ if (sum(vapply(width_groups, function(g) length(g$index), integer(1))) != length
 direct_compare <- identical(Sys.getenv("PRINT_DIRECT_COMPARE"), "1")
 if (direct_compare &&
     (length(regions) != 8L || nCores != 2L || !identical(sort(radii), c(10L, 20L)) ||
-     !identical(sort(vapply(width_groups, function(g) length(g$index), integer(1))), c(1L, 2L, 2L, 3L)) ||
+     !has_reviewed_direct_compare_group_sizes(width_groups) ||
      length(unique(chromosomes)) < 2L || length(unique(widths)) < 3L ||
      !any(vapply(width_groups, function(g) length(g$index) > 1L && any(diff(g$index) != 1L), logical(1))))) {
   stop("direct comparison mode requires the reviewed 8-region, two-worker, shuffled 3/2/2/1 smoke")

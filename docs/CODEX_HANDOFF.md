@@ -19,6 +19,10 @@ different execution shapes. PRINT/TraceBIND preparation was outside caller timin
 RSS is recorded as reported, not asserted to be process-tree aggregate. The TraceBIND value is not
 full mtDNA-fine-tuned/mito-FDR runtime. A fair end-to-end speed ranking and cancer-wide call remain
 unavailable/unapproved. See the dated handoff and benchmark design for stage times and evidence.
+The fixed PMA reviewer approved exact evidence-record HEAD `ee64e13f060b6fe25c81f6c1c1012689864307b5`
+with no blocking findings. It requested a routine PR-body wording correction distinguishing the
+three task `EXIT=0` records from TOBIAS GNU-time exit 0 plus completion marker. That body-only
+correction is applied; no new review loop or computation was requested or authorized.
 
 ## Current live status — 2026-10-19 22:05 EDT — read-only qualification completed; accuracy cannot rank
 

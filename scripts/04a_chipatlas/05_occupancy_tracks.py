@@ -1,10 +1,12 @@
 """Step 4a §11: ChIP-Atlas Protein Occupancy Evidence Tracks (peak-derived; not read coverage).
 
 usage: 05_occupancy_tracks.py <occupancy.bed.gz> <class_annotation.csv|-> <chrom.sizes> <out_dir> [workers] [region]
-PMA_TRACK_MODE=protein (default) or histone. Histone mode (input = histone BED6+18, annotation '-'), m = ChIP-Atlas
-antigen (mark):  H(x) = |{e : x in peaks(e)}| -> histone_experiments.bw;  M(x) = |{m : x in peaks(m)}| ->
-histone_marks.bw;  H_m(x) = |{e : mark(e) = m, x in peaks(e)}| for the core marks H3K27ac, H3K4me3, H3K4me1,
-H3K27me3, H3K9me3, H3K36me3 -> histone_<m>.bw.  Histone QC: M <= H; M > 0 <=> H > 0; H_m <= H; sum of core H_m <= H.
+PMA_TRACK_MODE=protein (default) or histone. Histone mode: input = histone BED6+18, annotation = the label table of
+08_histone_labels.py. Universe = experiments whose label is a validated histone_modification; m = canonical label.
+  H(x) = |{e in universe : x in peaks(e)}| -> histone_experiments.bw
+  M(x) = |{m : x in peaks(m)}|            -> histone_modifications.bw
+  H_m(x) = |{e : mark(e) = m, x in peaks(e)}| for H3K27ac, H3K4me3, H3K4me1, H3K27me3, H3K9me3, H3K36me3 -> histone_<m>.bw
+Histone QC: M <= H; M > 0 <=> H > 0 (same universe); H_m <= H; sum of core H_m <= H.
 Definitions, per base x, from experiment-level peaks of Output A (v1); p = target label (HGNC symbol, else the
 ChIP-Atlas antigen), class(p) from the annotation (labels without HGNC symbol: 'Non-gene label'):
   E(x)   = |{e : x in peaks(e)}|                          experiments.bw
@@ -33,7 +35,7 @@ CAP = {"Histone writer/eraser", "Histone reader", "Chromatin remodeler", "Archit
 MODE = os.environ.get("PMA_TRACK_MODE", "protein")
 CORE_MARKS = ("H3K27ac", "H3K4me3", "H3K4me1", "H3K27me3", "H3K9me3", "H3K36me3")
 if MODE == "histone":
-    MAIN = ("histone_experiments", "histone_marks") + tuple(f"histone_{m}" for m in CORE_MARKS)
+    MAIN = ("histone_experiments", "histone_modifications") + tuple(f"histone_{m}" for m in CORE_MARKS)
 else:
     MAIN = ("experiments", "proteins", "tf", "cap")
 
@@ -41,8 +43,10 @@ else:
 def row_items(f, cls):
     """(track, item) pairs a peak row contributes to, including QC-only class tracks in protein mode."""
     if MODE == "histone":
-        m = "_".join(f[7].split())
-        out = [("histone_experiments", f[3]), ("histone_marks", m)]
+        m = cls.get("_".join(f[7].split()))  # canonical label of a validated modification, else None
+        if m is None:
+            return []
+        out = [("histone_experiments", f[3]), ("histone_modifications", m)]
         if m in CORE_MARKS:
             out.append((f"histone_{m}", f[3]))
         return out
@@ -59,7 +63,8 @@ def row_items(f, cls):
 def identities(val):
     if MODE == "histone":
         h = val["histone_experiments"]; core = [val[f"histone_{m}"] for m in CORE_MARKS]
-        return (("M_gt_H", val["histone_marks"] <= h), ("M_zero_H_pos", (val["histone_marks"] > 0) == (h > 0)),
+        return (("M_gt_H", val["histone_modifications"] <= h),
+                ("M_zero_H_pos", (val["histone_modifications"] > 0) == (h > 0)),
                 ("core_gt_H", all(c <= h for c in core)), ("sum_core_gt_H", sum(core) <= h))
     ksum = sum(v for t, v in val.items() if t.startswith("class_"))
     return (("P_ne_sum_classes", val["proteins"] == ksum), ("TF_gt_P", val["tf"] <= val["proteins"]),
@@ -197,15 +202,18 @@ def spot_check(bed, cls, out_dir, n=300, seed=20261020):
     tracks = {}
     for t in MAIN:
         tracks[t] = out_dir / f"{t}.bedGraph.gz"
-    bad = []
+    bad = []; multi = 0
     for line in lines:
         c, a, b, _ = line.split("\t"); x = rnd.randint(int(a), int(b) - 1)
         rows = subprocess.run(["tabix", str(bed), f"{c}:{x + 1}-{x + 1}"], capture_output=True, text=True,
                               check=True).stdout.splitlines()
-        sets = collections.defaultdict(set)
+        sets = collections.defaultdict(set); records = 0
         for r in rows:
-            for track, item in row_items(r.split("\t"), cls):
+            items = row_items(r.split("\t"), cls)
+            records += any(t == MAIN[0] for t, _ in items)
+            for track, item in items:
                 sets[track].add(item)
+        multi += records > len(sets[MAIN[0]])
         want = {t: len(sets[t]) for t in MAIN}
         got = {}
         for t in MAIN:
@@ -214,12 +222,17 @@ def spot_check(bed, cls, out_dir, n=300, seed=20261020):
             got[t] = int(q[3]) if q else 0
         if got != want:
             bad.append(dict(pos=f"{c}:{x}", want=want, got=got))
-    return dict(positions=len(lines), mismatches=len(bad), examples=bad[:5])
+    return dict(positions=len(lines), mismatches=len(bad), examples=bad[:5],
+                positions_with_repeat_peaks_of_one_experiment=multi)
 
 
 def main(bed, ann, sizes_path, out, workers=6, region=None):
     sizes = {l.split("\t")[0]: int(l.split("\t")[1]) for l in Path(sizes_path).read_text().splitlines() if l}
-    cls = {} if ann == "-" else {r["gene"]: r["Class"] for r in csv.DictReader(open(ann, encoding="utf-8-sig"))}
+    if MODE == "histone":
+        cls = {r["label"]: r["canonical_label"] for r in csv.DictReader(open(ann), delimiter="\t")
+               if r["category"] == "histone_modification"}
+    else:
+        cls = {r["gene"]: r["Class"] for r in csv.DictReader(open(ann, encoding="utf-8-sig"))}
     classes = sorted(set(cls.values()) | {"Non-gene label"})
     out = Path(out); wdir = out / "work"; wdir.mkdir(parents=True, exist_ok=True)
     if region:

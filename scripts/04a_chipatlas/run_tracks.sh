@@ -15,7 +15,7 @@ protein)
     $P/light_v1/protein_by_class ;;
 histone)
   PMA_TRACK_MODE=histone python $HERE/05_occupancy_tracks.py $P/histone_v1/PMA_chipatlas_hg38_histone_occupancy.bed.gz \
-    - $SIZES $P/light_v1/tracks_histone $N ;;
+    ${PMA_HISTONE_ANN:-$P/light_v1/PMA_chipatlas_hg38_histone_label_annotation.tsv} $SIZES $P/light_v1/tracks_histone $N ;;
 *) echo "usage: run_tracks.sh [workers] [protein|histone]" >&2; exit 2 ;;
 esac
 echo TRACKS_DONE $MODE

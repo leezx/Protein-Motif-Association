@@ -369,22 +369,46 @@ Further rules:
 - Transcription machinery and Other/ambiguous count in E and P only.
 - CTCF has primary class Architectural/cohesin, so it counts in CAP, not TF.
 
-**Histone tracks** (`PMA_TRACK_MODE=histone`, from the histone BED6+18 of §10; m = ChIP-Atlas mark name):
+**Histone labels.** `08_histone_labels.py` assigns each of the 144 ChIP-Atlas Histone-class labels to exactly one
+category (deterministic rules, `PMA_chipatlas_hg38_histone_label_annotation.tsv`):
+
+| Category | Labels | Experiments |
+|---|---|---|
+| `histone_modification` (one histone, one residue, one defined modification) | 89 | 36,009 |
+| `histone_variant_or_core` (H3, H3.3, H2A.Z, CENPA, H1.x, macroH2A, oncohistone H3K27M) | 31 | 959 |
+| `pan_or_ambiguous` (Pan_*, H3ac, H4ac, H3K27me / H3K4me without degree, multi-site antibodies, H2Aub without site, nonstandard H4K4me3 / H3K14me3 / H3K4ox / H3K9acS10ph) | 22 | 505 |
+| `non_histone_target` (CENPB, HINFP) | 2 | 8 |
+
+- `canonical_label` merges spelling variants of one modification only: H2BK120ub1 → H2BK120ub, Ub → ub.
+- Ambiguous labels are never assigned to a specific degree or site.
+
+**Histone tracks** (`PMA_TRACK_MODE=histone`, from the histone BED6+18 of §10). Universe: experiments whose label is a
+`histone_modification`; m is the canonical modification label.
 
 | Track | Definition |
 |---|---|
-| `histone_experiments.bw` | H(x) = \|{e : x ∈ peaks(e)}\| over histone experiments |
-| `histone_marks.bw` | M(x) = \|{m : x ∈ peaks(m)}\| |
-| `histone_<m>.bw` | H_m(x) = \|{e : mark(e) = m, x ∈ peaks(e)}\| for the core marks H3K27ac, H3K4me3, H3K4me1, H3K27me3, H3K9me3, H3K36me3 |
+| `histone_experiments.bw` | H(x) = \|{e ∈ universe : x ∈ peaks(e)}\| |
+| `histone_modifications.bw` | M(x) = \|{m : x ∈ peaks(m)}\| (distinct validated modification labels) |
+| `histone_<m>.bw` | H_m(x) = \|{e : mark(e) = m, x ∈ peaks(e)}\| for the six core marks |
 
-M mixes active and repressive marks, so it is an evidence-diversity count only. The core-mark tracks carry the
-biology.
+The six core marks fall into four functional groups, which are never summed into one signal:
+- active regulatory: H3K27ac, H3K4me3;
+- enhancer-associated (active or poised): H3K4me1;
+- repressive: H3K27me3, H3K9me3;
+- transcription elongation (gene bodies): H3K36me3.
 
-Histone QC:
+Interpretation limits:
+- Raw counts measure evidence quantity. Experiment numbers differ by mark (H3K27ac 12,010 vs H3K36me3 1,690), so
+  counts are not comparable across marks.
+- The per-mark recurrence fraction R_m(x) = H_m(x) / N_m is deferred.
+- In IGV every track autoscales on its own axis (`09_igv_session.py`); heights are not compared across tracks.
+
+Histone QC (both directions of the M–H identity hold because M and H share one universe):
 - M ≤ H;
 - M > 0 ⇔ H > 0;
 - H_m ≤ H and Σ_core H_m ≤ H;
-- the same 300-position recount.
+- the 300-position tabix recount, which also reports positions where one experiment has several overlapping peaks
+  (counted once by construction).
 
 **Class annotation v1.1.** The user's file is kept unchanged; v1.1 is a separate file.
 - 168 genes were `Other/ambiguous` with basis `conservative_unresolved` and are in the Lambert 2018 human TF list.

@@ -32,29 +32,49 @@ unique staged code directory: /home/zz950/PMA_fetch/pma_print_pnorm_diag_code_20
 
 The V5 `run_print.R` constructs `print_main_print` beside the output prefix. The V5 supervisor constructs the selection BED and map under its evidence root. These relationships are documented locally; they must be verified read-only during fresh preflight before staging.
 
+## Immutable gate source audit
+
+The fixed `PMA｜固定阶段审核` conversation authorized a gate-file-only read: SHA-256 plus argv parser/exec lines. No gate execution, input/cache/output/process/environment/resource inspection, or staging was included. The exact remote file returned:
+
+```text
+SHA-256 3776778b950be90cad124c04937eee422c81466154eccdadfe9e57d58224253c
+ 3 ID=$1
+ 4 SCRIPT=$2
+ 5 GROUP=${3:-ctrl}
+ 6 TOOL=${4:-hint}
+12 export JOB_ID="$ID" NSLOTS=1 GROUP TOOL
+13 export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 CUDA_VISIBLE_DEVICES=''
+18 status_code=0
+19 "$SCRIPT" > "$D/$ID.stdout" 2> "$D/$ID.stderr" || status_code=$?
+21 exit "${status_code:-99}"
+```
+
+The gate accepts exactly `ID SCRIPT [GROUP] [TOOL]` and invokes `SCRIPT` with no positional arguments. It does not forward arbitrary argv. The staged wrapper owns timeout and R arguments. It reads only its own `/proc/self/status` affinity line to select the first already-permitted CPU, then `exec`s `taskset -c CPU timeout ... Rscript`. This binds the diagnostic to one allowed CPU without changing host affinity or requesting more resources. Gate `NSLOTS=1` is metadata/scheduler context, not the CPU limit.
+
 ## Staging set and hashes
 
-Only the diagnostic R file and its same-directory helper are staged; no data are staged.
+Only the diagnostic R file, its same-directory helper, and the fixed invocation wrapper are staged; no data are staged.
 
 ```text
 diagnose_print_pnorm.R  3d883552675d765010fb08663d011ef0ee285c13c106fdc5ab4617488055aca0
 print_variable_width.R  9dee1d7588e7a47a9449ae88a61710c4f16dd4b6f40cef93886b6421ef1f362b
+run_print_pnorm_diagnostic_gate.sh  d07ebc0f711caf7af2a103a99233f4ef2e2629fb86ee962a2519de9c82642b8c
 ```
 
-Expected local source files are under `/tmp/pma-hint-smoke/scripts/04b_footprint/`. Preflight must reject a pre-existing staging directory, output directory, gate status for the unique ID, active matching process, host/architecture mismatch, missing input, any mismatch among the six trusted V5 evidence/track/event SHA pins, PRINT commit/module mismatch, missing R package/runtime, wrong immutable gate SHA, or an inability to confirm 44-GiB per-process `RLIMIT_AS`, one-CPU affinity, and CPU-only/single-thread BLAS/OpenMP settings. Count/bias/model cache files have no historical pins; the diagnostic hashes them before reading and verifies those hashes again on normal/catchable error exits, describing them only as frozen at diagnostic start.
+Expected local source files are under `/tmp/pma-hint-smoke/scripts/04b_footprint/`. Preflight must reject a pre-existing staging directory, output directory, gate status for the unique ID, active matching process, host/architecture mismatch, missing input, any mismatch among the six trusted V5 evidence/track/event SHA pins, PRINT commit/module mismatch, missing R package/runtime, wrong immutable gate SHA, or an inability to confirm 44-GiB per-process `RLIMIT_AS`, `taskset`, CPU affinity, and CPU-only/single-thread BLAS/OpenMP settings. Count/bias/model cache files have no historical pins; the diagnostic hashes them before reading and verifies those hashes again on normal/catchable error exits, describing them only as frozen at diagnostic start.
 
 ## Proposed one-time invocation
 
-After fixed-PMA approval and successful fresh preflight, stage the two hash-pinned scripts to the unique code directory and call the immutable gate exactly once. `timeout` is intended to impose a 30-minute wall limit with TERM followed by KILL after 60 seconds; exact argv forwarding remains unverified and this command is not authorized. The gate's previously audited 44-GiB per-process address-space cap and single-thread variables are historical facts, but one slot alone does not constrain CPU affinity; the run must use explicit one-CPU affinity.
+After fixed-PMA approval and successful fresh preflight, stage the three hash-pinned scripts to the unique code directory and call the immutable gate exactly once. The gate only accepts a script path, so the wrapper executes `/usr/bin/taskset -c <first-allowed-cpu> /usr/bin/timeout --signal=TERM --kill-after=60s 1800s Rscript ...`. It sets known BLAS/OpenMP thread variables to one and clears CUDA. The gate supplies 44-GiB soft/hard per-process `RLIMIT_AS`; this is not an aggregate process-tree memory cap. This remains a proposal pending exact-head review and a separate explicit one-time release.
 
 ```sh
 ssh zz950@rcapps3.dfci.harvard.edu 'mkdir -m 700 /home/zz950/PMA_fetch/pma_print_pnorm_diag_code_20261020_v1'
-scp /tmp/pma-hint-smoke/scripts/04b_footprint/diagnose_print_pnorm.R /tmp/pma-hint-smoke/scripts/04b_footprint/print_variable_width.R zz950@rcapps3.dfci.harvard.edu:/home/zz950/PMA_fetch/pma_print_pnorm_diag_code_20261020_v1/
-ssh zz950@rcapps3.dfci.harvard.edu 'sha256sum /home/zz950/PMA_fetch/pma_print_pnorm_diag_code_20261020_v1/diagnose_print_pnorm.R /home/zz950/PMA_fetch/pma_print_pnorm_diag_code_20261020_v1/print_variable_width.R'
-ssh zz950@rcapps3.dfci.harvard.edu 'R_LIBS=/home/zz950/PMA_fetch/pma_r_print_overlay_v1/lib:/home/zz950/softwares/R_lib_tracebind:/home/zz950/softwares/R_lib_4 bash /home/zz950/PMA_fetch/pma_bg_gate_v2.sh BG_K562_PRINT_PNORM_DIAG_20261020_V1 /usr/bin/timeout --signal=TERM --kill-after=60s 1800s /home/zz950/softwares/miniconda3/envs/r4p3/bin/Rscript /home/zz950/PMA_fetch/pma_print_pnorm_diag_code_20261020_v1/diagnose_print_pnorm.R /home/zz950/softwares/src/PRINT /home/zz950/DATA/2.PROJECTS/PMA/atac_footprint/processed/round1/runs_print_stream_validation_rcapps3_20261020_v5/print_main_print /home/zz950/PMA_fetch/pma_print_stream_validation_rcapps3_20261020_v5/eight_frozen_peaks.bed /home/zz950/PMA_fetch/pma_print_stream_validation_rcapps3_20261020_v5/eight_frozen_peaks.map.tsv /home/zz950/DATA/2.PROJECTS/PMA/atac_footprint/processed/round1/runs_print_stream_validation_rcapps3_20261020_v5/print /home/zz950/DATA/2.PROJECTS/PMA/atac_footprint/processed/round1/print_shared /home/zz950/PMA_fetch/pma_print_stream_validation_rcapps3_20261020_v5 /home/zz950/PMA_fetch/pma_print_pnorm_diagnostic_rcapps3_20261020_v1'
+scp /tmp/pma-hint-smoke/scripts/04b_footprint/diagnose_print_pnorm.R /tmp/pma-hint-smoke/scripts/04b_footprint/print_variable_width.R /tmp/pma-hint-smoke/scripts/04b_footprint/run_print_pnorm_diagnostic_gate.sh zz950@rcapps3.dfci.harvard.edu:/home/zz950/PMA_fetch/pma_print_pnorm_diag_code_20261020_v1/
+ssh zz950@rcapps3.dfci.harvard.edu 'sha256sum /home/zz950/PMA_fetch/pma_print_pnorm_diag_code_20261020_v1/diagnose_print_pnorm.R /home/zz950/PMA_fetch/pma_print_pnorm_diag_code_20261020_v1/print_variable_width.R /home/zz950/PMA_fetch/pma_print_pnorm_diag_code_20261020_v1/run_print_pnorm_diagnostic_gate.sh'
+ssh zz950@rcapps3.dfci.harvard.edu 'bash /home/zz950/PMA_fetch/pma_bg_gate_v2.sh BG_K562_PRINT_PNORM_DIAG_20261020_V1 /home/zz950/PMA_fetch/pma_print_pnorm_diag_code_20261020_v1/run_print_pnorm_diagnostic_gate.sh ctrl print'
 ```
 
-The three SSH/SCP commands above are superseded proposals, not executed commands. The next packet will place `taskset -c <verified-online-cpu>` around the child process, retain one-thread BLAS/OpenMP variables, and follow the gate's actually verified argument interface. No gate trial call is allowed. The gate source excerpt is not yet available: the last review expressly denied remote read/preflight, so request permission for a gate-file-only read before connecting to Argos.
+These commands remain proposals, not executed commands. `bash -n` passed locally for the wrapper. It selects the first CPU from its inherited allowed CPU list; fresh preflight must confirm `taskset`, `timeout`, Rscript, runtime/packages, paths, and hashes. No gate trial is allowed.
 
 ## Fresh preflight and stop rules
 

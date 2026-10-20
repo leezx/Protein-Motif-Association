@@ -1,12 +1,13 @@
-# CURRENT OPERATIVE FOOTPRINT TASK — 2026-10-20 14:29 EDT
+# CURRENT OPERATIVE FOOTPRINT TASK — 2026-10-20 14:39 EDT
 
 ## PRINT pnorm diagnostic — implementation approved; execution packet under review
 
 At PR #8 branch `task_20261019_hint_overlay_smoke`, diagnostic implementation review approved HEAD
 `6cf2b6b9a55555c1be13a927978066bbddfca23c`; the current audit revision follows it on the same
 OPEN, unmerged PR. The user authorized local PRINT-source work. The fixed `PMA｜固定阶段审核`
-conversation approved implementation only, not execution. V5's one-shot is consumed. No Argos
-access/staging/input read/gate call is authorized yet.
+conversation approved implementation only, not diagnostic execution. V5's one-shot is consumed.
+It separately authorized reading only the immutable gate file to verify its SHA and argv parser/exec
+lines. That read is complete; it did not authorize staging, input/cache access, preflight, or run.
 
 New `scripts/04b_footprint/diagnose_print_pnorm.R` is an observation-only candidate against the
 existing V5 8-peak count chunks, bias-group RDS files, dispersion models, and validated r10/r20
@@ -37,19 +38,16 @@ The current implementation and its fixes are pushed to the same PR #8.
 
 The proposed command packet at `docs/handoff/2026-10-20-print-pnorm-diagnostic-run-review.zh-CN.md`
 was reviewed at PR #8 HEAD `ff7703e3e29d5acf5ce62c4974f91e15d0e945c7` and returned
-`REQUEST_CHANGES`: the documented gate audit did not include its argv parser/exec source; `NSLOTS=1`
-does not restrict CPU affinity; and replay results must not be described as closing the historical
-V5 warning issue. The reviewer requested the gate source excerpt and hash from an already authorized
-read-only inspection, explicit one-core affinity plus single-thread BLAS/OpenMP, the corrected
-interpretation, and synchronization of this operative summary. No Argos access, stage, input read,
-run, peak expansion, accuracy claim, or merge is authorized. The reviewer’s phrase “already
-authorized read-only inspection” conflicts with its explicit denial of remote access/preflight/read.
-Ask the fixed PMA reviewer to authorize one narrow inspection of the immutable gate script only
-(verify its SHA and quote the argument parser/exec lines), excluding input/cache/process inspection,
-staging, environment changes, and gate invocation. The replacement packet will bind the child
-process to one CPU using `taskset -c <verified-online-cpu>` and preserve single-thread BLAS/OpenMP
-settings. Do not connect to Argos until that narrow inspection is explicitly authorized; do not run
-the diagnostic until the corrected exact-head packet has a new explicit one-time release.
+`REQUEST_CHANGES`. The fixed reviewer later authorized a gate-file-only read; it returned SHA-256
+`3776778b950be90cad124c04937eee422c81466154eccdadfe9e57d58224253c` and showed the interface is
+`ID SCRIPT [GROUP] [TOOL]`, followed by `"$SCRIPT"` with no forwarded arguments. A pinned wrapper
+now owns the timeout/Rscript arguments, binds to one CPU selected from its inherited allowed CPU
+list with `taskset`, and sets known BLAS/OpenMP thread variables to one. The earlier direct-argv
+command is superseded. Current documentation records the corrected warning interpretation and
+current hashes. No staging, input/cache/process/environment read, preflight, gate call, diagnostic,
+peak expansion, accuracy claim, or merge has occurred. Next request fixed-PMA exact-head review of
+this revised packet and its three-file stage set; any execution still requires a separate explicit
+one-time release plus a fresh successful preflight.
 
 ## PRINT V5 8-peak integration validation — PASS; one-shot consumed
 

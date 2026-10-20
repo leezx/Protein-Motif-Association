@@ -24,10 +24,11 @@ BASE = load("print_base_supervisor", os.path.join(ROOT, "run_print_fullpeak_supe
 
 
 def main():
-    assert SMOKE.RUN_ID == "BG_K562_PRINT_STREAM_VALIDATION_20261020_V4"
-    assert all("_20261020_v4" in path for path in
+    assert SMOKE.RUN_ID == "BG_K562_PRINT_STREAM_VALIDATION_20261020_V5"
+    assert all("_20261020_v5" in path for path in
                (SMOKE.SCRIPT_DIR, SMOKE.ROOT, SMOKE.OUTPUT_DIR))
-    assert all("_20261020_v3" not in path and "_20261020_v2" not in path for path in
+    assert all("_20261020_v4" not in path and "_20261020_v3" not in path and
+               "_20261020_v2" not in path for path in
                (SMOKE.SCRIPT_DIR, SMOKE.ROOT, SMOKE.OUTPUT_DIR))
     assert SMOKE.sha256(os.path.join(ROOT, "select_print_integration_smoke.py")) == \
         SMOKE.SELECTOR_SHA256

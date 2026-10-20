@@ -16,10 +16,10 @@ import tempfile
 import time
 
 
-RUN_ID = "BG_K562_PRINT_STREAM_VALIDATION_20261020_V4"
-SCRIPT_DIR = "/home/zz950/PMA_fetch/pma_print_stream_validation_code_20261020_v4"
-ROOT = "/home/zz950/PMA_fetch/pma_print_stream_validation_rcapps3_20261020_v4"
-OUTPUT_DIR = "/home/zz950/DATA/2.PROJECTS/PMA/atac_footprint/processed/round1/runs_print_stream_validation_rcapps3_20261020_v4"
+RUN_ID = "BG_K562_PRINT_STREAM_VALIDATION_20261020_V5"
+SCRIPT_DIR = "/home/zz950/PMA_fetch/pma_print_stream_validation_code_20261020_v5"
+ROOT = "/home/zz950/PMA_fetch/pma_print_stream_validation_rcapps3_20261020_v5"
+OUTPUT_DIR = "/home/zz950/DATA/2.PROJECTS/PMA/atac_footprint/processed/round1/runs_print_stream_validation_rcapps3_20261020_v5"
 FROZEN_BED = "/home/zz950/DATA/2.PROJECTS/PMA/atac_footprint/raw/2026-10-19/encode_k562/ENCSR868FGK/ENCFF993BAP.bed.gz"
 SELECTOR_NAME = "select_print_integration_smoke.py"
 RUNNER_NAME = "run_print.R"
@@ -31,8 +31,8 @@ MAX_TOTAL_WALL_SECONDS = 30 * 60
 RSS_SOFT_STOP_KB = 40 * 1024 * 1024
 SELECTOR_SHA256 = "7e2a67554e4d5c601cdb6c18a3758bb420520fa21d6324eff6f02d15c1dd5856"
 BASE_SUPERVISOR_SHA256 = "af29005f2ec0101100303be50227fe0f94a13d9cb25cb5a07a8a6159efaa44c0"
-RUNNER_SHA256 = "f388b705d021862ff99e45cda576c43194b3234fc457b2afc79308f49f135c31"
-HELPER_SHA256 = "6657838e9e1d95ff08124b95fc78da9aae266ddce5b83e255c59d4d5ad8069b0"
+RUNNER_SHA256 = "f2059c1677d9efda31d175b7f326a1bdae18a01fb4f4224ed3eab86cde985042"
+HELPER_SHA256 = "9dee1d7588e7a47a9449ae88a61710c4f16dd4b6f40cef93886b6421ef1f362b"
 OUTER_STOP_REQUESTED = []
 
 

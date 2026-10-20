@@ -23,6 +23,7 @@ source(file.path(dirname(normalizePath(script_arg)), "print_variable_width.R"))
 # drop (position x 1 group); the oracle must never inherit that wrapper.
 native_regionFootprintScoring <- regionFootprintScoring
 regionFootprintScoring <- make_bulk_safe_region_scorer(native_regionFootprintScoring)
+bulk_safe_regionFootprintScoring <- regionFootprintScoring
 timing <- list(); tic <- function() proc.time()[["elapsed"]]
 caller_started <- tic()
 t0 <- tic()
@@ -85,6 +86,13 @@ project <- footprintingProject(projectName = basename(out), refGenome = "hg38")
 mainDir(project) <- main
 dataDir(project) <- paste0(main, "data/"); dir.create(dataDir(project), showWarnings = FALSE)
 regionRanges(project) <- regions
+oracle_scorer_owner <- NULL
+if (direct_compare) {
+  get_footprints_generic <- methods::getGeneric("getFootprints", where = .GlobalEnv)
+  if (is.null(get_footprints_generic)) stop("PRINT getFootprints S4 generic is unavailable")
+  oracle_scorer_owner <- resolve_print_oracle_scorer_owner(
+    project, get_footprints_generic, bulk_safe_regionFootprintScoring)
+}
 bc <- fread(cmd = paste("zcat", frags, "| head -1"), header = FALSE)$V4[1]
 barcodeGroups <- data.frame(barcode = bc, group = "all")
 barcodeGrouping(project) <- barcodeGroups
@@ -153,7 +161,8 @@ if (direct_compare) {
         native_regionFootprintScoring,
         getFootprints(project_group, mode = as.character(rad),
                       footprintRadius = rad, flankRadius = rad, nCores = nCores),
-        envir = environment(getFootprints))
+        envir = oracle_scorer_owner,
+        expected_current = bulk_safe_regionFootprintScoring)
       footprint_seconds[[as.character(rad)]] <- footprint_seconds[[as.character(rad)]] + tic() - footprint_started
       group_footprints[[as.character(rad)]][[g]] <- footprints(project_group, as.character(rad))
       bind_active_print_project(project_group)

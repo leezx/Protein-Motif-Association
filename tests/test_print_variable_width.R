@@ -70,28 +70,74 @@ multi_native <- native_sapply_fixture(multi_group, c("a", "b"))
 multi_safe <- safe_sapply_fixture(multi_group, c("a", "b"))
 stopifnot(identical(multi_safe, multi_native))
 
-# The legacy grouped oracle must be able to use the untouched native scorer,
-# then restore the worker-safe binding even if the native call errors.
-oracle_env <- new.env(parent = .GlobalEnv)
-oracle_env$regionFootprintScoring <- function(x) paste0("safe:", x)
-oracle_env$native_regionFootprintScoring <- function(x) paste0("native:", x)
-oracle_env$getFootprints <- function(x) regionFootprintScoring(x)
-environment(oracle_env$getFootprints) <- oracle_env
-oracle_call <- function() with_print_region_scorer(
-  oracle_env$native_regionFootprintScoring,
-  oracle_env$getFootprints("oracle"), envir = environment(oracle_env$getFootprints))
-stopifnot(identical(oracle_call(), "native:oracle"),
-          identical(oracle_env$getFootprints("after"), "safe:after"))
-oracle_env$getFootprints <- function(x) {
-  if (identical(x, "error")) stop("expected native oracle error")
+# The PRINT legacy oracle is an S4 generic -> method -> get_footprints helper.
+# Keep generic, method, helper and scorer in different environments so this
+# fixture catches assumptions about environment(getFootprints).
+oracle_generic_env <- new.env(parent = .GlobalEnv)
+methods::setClass("PmaOracleProbe", representation(value = "character"),
+                  where = oracle_generic_env)
+methods::setGeneric("pmaOracleGetFootprints",
+                    function(project) standardGeneric("pmaOracleGetFootprints"),
+                    where = oracle_generic_env)
+oracle_scorer_env <- new.env(parent = oracle_generic_env)
+oracle_scorer_env$native_regionFootprintScoring <- function(x) paste0("native:", x)
+oracle_scorer_env$regionFootprintScoring <- function(x) paste0("safe:", x)
+oracle_helper_env <- new.env(parent = oracle_scorer_env)
+oracle_helper_env$error_mode <- FALSE
+oracle_helper_env$get_footprints <- eval(quote(function(x) {
+  if (error_mode) stop("expected native oracle error")
   regionFootprintScoring(x)
-}
-environment(oracle_env$getFootprints) <- oracle_env
+}), envir = oracle_helper_env)
+oracle_method_env <- new.env(parent = oracle_helper_env)
+oracle_method_definition <- eval(quote(function(project) get_footprints("oracle")),
+                                envir = oracle_method_env)
+methods::setMethod("pmaOracleGetFootprints", signature = c(project = "PmaOracleProbe"),
+                   definition = oracle_method_definition, where = oracle_generic_env)
+oracle_project <- methods::new("PmaOracleProbe", value = "test")
+oracle_generic <- methods::getGeneric("pmaOracleGetFootprints", where = oracle_generic_env)
+oracle_owner <- resolve_print_oracle_scorer_owner(
+  oracle_project, oracle_generic, oracle_scorer_env$regionFootprintScoring)
+stopifnot(identical(oracle_owner, oracle_scorer_env),
+          !exists("regionFootprintScoring", envir = oracle_helper_env, inherits = FALSE),
+          !exists("get_footprints", envir = oracle_method_env, inherits = FALSE))
+oracle_call <- function() with_print_region_scorer(
+  oracle_scorer_env$native_regionFootprintScoring,
+  oracle_generic(oracle_project), envir = oracle_owner,
+  expected_current = oracle_scorer_env$regionFootprintScoring)
+stopifnot(identical(oracle_call(), "native:oracle"),
+          identical(oracle_scorer_env$regionFootprintScoring("after"), "safe:after"))
+oracle_helper_env$error_mode <- TRUE
+stopifnot(inherits(try(oracle_call(), silent = TRUE), "try-error"),
+          identical(oracle_scorer_env$regionFootprintScoring("restored"), "safe:restored"))
+
+# Never unlock namespace/import environments or replace a locked/active scorer.
+locked_scorer_env <- new.env(parent = emptyenv())
+locked_scorer_env$regionFootprintScoring <- oracle_scorer_env$regionFootprintScoring
+lockBinding("regionFootprintScoring", locked_scorer_env)
 stopifnot(inherits(try(with_print_region_scorer(
-  oracle_env$native_regionFootprintScoring,
-  oracle_env$getFootprints("error"), envir = environment(oracle_env$getFootprints)),
-  silent = TRUE), "try-error"),
-  identical(oracle_env$getFootprints("restored"), "safe:restored"))
+  oracle_scorer_env$native_regionFootprintScoring, TRUE,
+  envir = locked_scorer_env,
+  expected_current = oracle_scorer_env$regionFootprintScoring), silent = TRUE), "try-error"))
+active_scorer_env <- new.env(parent = emptyenv())
+makeActiveBinding("regionFootprintScoring",
+                  function(value) oracle_scorer_env$regionFootprintScoring,
+                  active_scorer_env)
+stopifnot(inherits(try(with_print_region_scorer(
+  oracle_scorer_env$native_regionFootprintScoring, TRUE,
+  envir = active_scorer_env,
+  expected_current = oracle_scorer_env$regionFootprintScoring), silent = TRUE), "try-error"))
+locked_environment <- new.env(parent = emptyenv())
+locked_environment$regionFootprintScoring <- oracle_scorer_env$regionFootprintScoring
+lockEnvironment(locked_environment, bindings = FALSE)
+stopifnot(inherits(try(with_print_region_scorer(
+  oracle_scorer_env$native_regionFootprintScoring, TRUE,
+  envir = locked_environment,
+  expected_current = oracle_scorer_env$regionFootprintScoring), silent = TRUE), "try-error"),
+  inherits(try(find_print_lexical_binding_owner("missing_scorer", oracle_method_env),
+               silent = TRUE), "try-error"),
+  inherits(try(resolve_print_oracle_scorer_owner(
+    oracle_project, oracle_generic, function(x) paste0("wrong:", x)),
+    silent = TRUE), "try-error"))
 
 # Mixed widths, repeated width groups, interleaved chromosomes, and repeated
 # coordinates represented by separate input rows must preserve each global ID.

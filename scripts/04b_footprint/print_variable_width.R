@@ -290,13 +290,77 @@ make_bulk_safe_region_scorer <- function(native_scorer) {
 # Temporarily bind the pinned native scorer in the lexical environment used by
 # PRINT's grouped caller. This keeps the equivalence oracle independent from
 # the singleton-matrix compatibility wrapper used by streamed workers.
-with_print_region_scorer <- function(scorer, expression, envir = .GlobalEnv) {
-  if (!is.function(scorer) || !is.environment(envir)) {
-    stop("PRINT scorer override requires a function and environment")
+find_print_lexical_binding_owner <- function(symbol, envir) {
+  if (length(symbol) != 1L || is.na(symbol) || !nzchar(symbol) ||
+      !is.environment(envir)) {
+    stop("PRINT lexical binding lookup requires a symbol and environment")
   }
-  previous <- get("regionFootprintScoring", envir = envir, inherits = FALSE)
-  assign("regionFootprintScoring", scorer, envir = envir)
-  on.exit(assign("regionFootprintScoring", previous, envir = envir), add = TRUE)
+  current <- envir
+  repeat {
+    if (exists(symbol, envir = current, inherits = FALSE)) return(current)
+    if (identical(current, emptyenv())) break
+    current <- parent.env(current)
+  }
+  stop("PRINT lexical binding not found: ", symbol)
+}
+
+assert_print_binding_replaceable <- function(symbol, envir) {
+  if (!is.environment(envir) || !exists(symbol, envir = envir, inherits = FALSE)) {
+    stop("PRINT override target is not a local binding: ", symbol)
+  }
+  if (environmentIsLocked(envir) || bindingIsLocked(symbol, envir) ||
+      bindingIsActive(symbol, envir)) {
+    stop("PRINT refuses to replace a locked or active binding: ", symbol)
+  }
+  invisible(TRUE)
+}
+
+# Resolve the concrete S4 getFootprints method and then follow its lexical
+# get_footprints closure to the environment that owns the scorer binding. The
+# generic's own environment is not necessarily part of that lookup path.
+resolve_print_oracle_scorer_owner <- function(project, generic,
+                                             expected_bulk_safe_scorer) {
+  if (length(class(project)) < 1L || !methods::is(generic, "genericFunction") ||
+      !is.function(expected_bulk_safe_scorer)) {
+    stop("PRINT oracle resolution requires a project, S4 generic, and scorer")
+  }
+  signature_names <- methods::slot(generic, "signature")
+  if (length(signature_names) < 1L) stop("PRINT S4 generic has no dispatch signature")
+  signature <- rep("ANY", length(signature_names))
+  names(signature) <- signature_names
+  signature[[1L]] <- class(project)[[1L]]
+  selected_method <- methods::selectMethod(generic, signature = signature,
+                                            fdef = generic)
+  method_environment <- environment(selected_method)
+  helper_owner <- find_print_lexical_binding_owner("get_footprints",
+                                                    method_environment)
+  helper <- get("get_footprints", envir = helper_owner, inherits = FALSE)
+  if (!is.function(helper)) stop("resolved PRINT get_footprints binding is not a function")
+  scorer_owner <- find_print_lexical_binding_owner("regionFootprintScoring",
+                                                    environment(helper))
+  assert_print_binding_replaceable("regionFootprintScoring", scorer_owner)
+  current_scorer <- get("regionFootprintScoring", envir = scorer_owner,
+                        inherits = FALSE)
+  if (!identical(current_scorer, expected_bulk_safe_scorer)) {
+    stop("resolved PRINT scorer binding is not the expected bulk-safe wrapper")
+  }
+  scorer_owner
+}
+
+with_print_region_scorer <- function(scorer, expression, envir,
+                                    expected_current) {
+  symbol <- "regionFootprintScoring"
+  if (!is.function(scorer) || !is.function(expected_current) ||
+      !is.environment(envir)) {
+    stop("PRINT scorer override requires functions and a binding-owner environment")
+  }
+  assert_print_binding_replaceable(symbol, envir)
+  previous <- get(symbol, envir = envir, inherits = FALSE)
+  if (!identical(previous, expected_current)) {
+    stop("PRINT scorer binding changed after lexical-owner resolution")
+  }
+  assign(symbol, scorer, envir = envir)
+  on.exit(assign(symbol, previous, envir = envir), add = TRUE)
   eval(substitute(expression), envir = parent.frame())
 }
 

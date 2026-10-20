@@ -4,6 +4,35 @@
 
 范围：PMA Step 4b footprint，仅 PR #8。ChIP BED6/PR #7 由 Claude 负责。
 
+## V4 实际运行结果（2026-10-20 13:37 EDT）
+
+固定 PMA 对话对 PR #8 exact HEAD `9b048058903c24dbd1c39783084718e5b134a36c` 明确批准一次 V4 8-peak gate。预检、宿主资源、依赖、输入/模型/PRINT/gate 哈希与唯一输出路径均通过；五个 staged 文件哈希及执行权限匹配。按批准的命令调用一次后，gate 于 `2026-10-20T13:35:25-04:00` 返回 `EXIT=1`，V4 额度已消耗，禁止重试。
+
+8峰选择成功；4个 bias group 成功写出；disk-backed count tensor完成，counts stage约3.171123分钟。随后 legacy oracle 尚未进入评分即报错：
+
+```text
+Error in get("regionFootprintScoring", envir = envir, inherits = FALSE) :
+  object 'regionFootprintScoring' not found
+Calls: with_print_region_scorer -> get -> get
+Execution halted
+```
+
+故障定位为本地补丁假定 `regionFootprintScoring` 绑定直接存在于 `environment(getFootprints)`；该环境没有该局部绑定。评分 dispatch 未发生。没有 r10/r20 track、native-event BED、timing TSV，也没有 footprint 或准确度结果。外部结果目录仅有选择记录、bias-group临时对象和count tensor。清理后无V4 gate/supervisor/PRINT进程残留。
+
+资源/时间：caller wall 208.623秒；GNU time 3:26.32，用户CPU 155.24秒、系统CPU 19.74秒、84% CPU，最大子进程RSS 17,921,156 KiB。采样进程组VmRSS峰值17,921,796 KiB（约17.09 GiB），低于40-GiB采样软停止；该值不是硬聚合内存上限。结果不支持全峰耗时或准确度外推。
+
+外部证据目录：`/home/zz950/PMA_fetch/pma_print_stream_validation_rcapps3_20261020_v4/`；gate记录：`/home/zz950/PMA_fetch/pma_bg_pr8_20261019/BG_K562_PRINT_STREAM_VALIDATION_20261020_V4.status`；外部输出：`/home/zz950/DATA/2.PROJECTS/PMA/atac_footprint/processed/round1/runs_print_stream_validation_rcapps3_20261020_v4/`。摘要SHA-256：summary `467105ee87da5c03ee397071f8292be8600d87bedf00c1b4203c2177b6d57bdf`，watchdog `2d4a3e31f9eeedf39283789ad1b0050bfeea67292e13195408293907f6781e3e`，caller log `a696d30f0eea9e0e9e39de11b119524f494c4c604311c3848278bc5c5d5df12a`，GNU-time log `c6dca09a159cedf9aed274b0fce9a647141d6ac918cfa4cd1291d3dba8f2900d`，selection `4cb65107b73d8ac17a372bfb0425fe98ba3a080aa812f344971a2d0b62c4a017`，gate status `7aa62cebf20a541e5c933251dd8ac0fd0bc99b6f2629e2d5329e282e653975a1`。外部数据和结果未复制入仓库。
+
+阶段结论：L1 footprint交付FAIL（预检和清理PASS）；L2评分语义等价BLOCKED/UNVERIFIED-critical；无准确度结论；L3 ON TRACK/PARTIAL。固定PMA对话正在进行故障诊断。V4不得重跑。未来任何本地修复需在同一PR审核新的exact HEAD，并取得新的明确one-shot Argos授权。
+
+## 2026-10-20 13:42 EDT — GPT diagnosis and local V5 repair candidate
+
+固定 PMA 对话诊断：错误来自把 S4 generic 的环境误当作 `regionFootprintScoring` 的词法绑定环境；这不代表 PRINT 原生 scorer 缺失。按建议仅在同一 PR 修改本地源码：通过 `methods::selectMethod()` 选出具体 `getFootprints` 方法，从方法词法链找到 `get_footprints`，再从 helper 词法链找到实际 scorer 绑定所有者。替换前要求该绑定正是预期 bulk-safe 包装器，且环境/绑定未锁定、不是 active binding；只临时替换实际所有者中的绑定，并由 `on.exit` 在成功或错误时恢复。缺失、错误、锁定、active binding 均 fail closed，不解锁 namespace、不用 `assignInNamespace`。
+
+回归测试使用 generic、method、helper、scorer 分属不同环境的 S4 fixture；验证解析到正确 owner、无 shadow binding、原生 scorer 调用后恢复 wrapper、异常后恢复 wrapper，且锁定/active/missing/wrong binding 均拒绝。完整本地套件现通过：R 单测及解析、三个 Python wrapper 编译、PRINT speed supervisor、8-peak selector、smoke deadline/path/hash、runner contract fixtures、`git diff --check`。哈希：`run_print.R` `f2059c1677d9efda31d175b7f326a1bdae18a01fb4f4224ed3eab86cde985042`；`print_variable_width.R` `9dee1d7588e7a47a9449ae88a61710c4f16dd4b6f40cef93886b6421ef1f362b`；outer wrapper `8ed17c3ad8e01be0c08b59cda576c43194b3234fc457b2afc79308f49f135c31`；base supervisor `af29005f2ec0101100303be50227fe0f94a13d9cb25cb5a07a8a6159efaa44c0`；selector `7e2a67554e4d5c601cdb6c18a3758bb420520fa21d6324eff6f02d15c1dd5856`。
+
+V4 的单次授权已消耗且禁止重试。现有一次性包装器已改为独立 V5 ID 与全新 code/root/output 路径，属于待审代码候选，不等于运行授权。当前未远程 staging、未读取 Argos 输入、未调用 gate。下一步在固定 PMA 对话审核提交后的 exact PR head，并单独明确是否放行一次新的 V5 8-peak 验收。
+
 ## 当前状态
 
 用户授权修改本地 PRINT 源码。固定 `PMA｜固定阶段审核` 对话建议：保留 PRINT 原生计数/评分语义，实现持久评分 worker 调度后，先用 8 个原始 peak 做一次实现验收。该答复是技术建议，不是当前代码 exact-head 审核或 Argos 运行许可。

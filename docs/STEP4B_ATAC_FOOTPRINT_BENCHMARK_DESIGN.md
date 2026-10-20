@@ -52,12 +52,22 @@ only and does not authorize Argos access or execution.
    `APPROVE` and the user's existing task-specific execution direction can release any dependent
    Argos job. This plan does not authorize a PR merge.
 
+**Current qualification result (2026-10-19).** The fixed PMA conversation approved exact PR #8 HEAD
+`324d4e04a6652ff4f77a894b61fd7fcb52bd16cd` for the bounded read-only qualification. The four HCT116
+ATAC inputs pass their existing checksum/quickcheck certificate, but the selected HCT116 CTCF ChIP
+candidate has only one biological replicate per condition, and the current HINT/TraceBIND wrappers
+do not emit a complete threshold-free score track. Therefore the selected independent occupancy
+AP endpoint is **not computable; accuracy cannot be ranked**. Existing timing records are
+descriptive and non-comparable (different cell lines, regions and core counts; one PRINT failure;
+no complete TraceBIND timing). A four-job timing-only matrix was approved only in principle; exact
+commands/gate wrappers still require review, and the checked R library lacks `tracebind`. No timing
+job is released or running. Do not select a caller or begin a C/C++ port from these data; no
+accuracy winner is established.
+
 **Status.** The earlier benchmark design was approved by ChatGPT on 2026-10-17 with revisions.
-That approval does not cover the material Section 4 revisions. The fixed PMA project conversation
-returned `REQUEST_CHANGES` on the 2026-10-19 exact-head review. Its documentation findings have been
-corrected in the same PR, and the audit-status sync is included in the branch revision awaiting fresh
-review. No caller
-is selected, and no C/C++ port is approved. Both decisions wait for a measured benchmark (§6).
+That approval does not cover material Section 4 revisions. The current read-only qualification is
+documented in `docs/CODEX_HANDOFF.md` and the dated handoff. No caller is selected, and no C/C++ port
+is approved.
 
 **PI direction.**
 - Read Hu et al. 2025 *Nature* ("Multiscale footprints reveal the organization of cis-regulatory

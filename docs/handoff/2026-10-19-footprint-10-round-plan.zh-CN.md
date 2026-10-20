@@ -1,6 +1,6 @@
 # Step 4b footprint：十轮内形成可行工具选择
 
-> **当前操作方案（2026-10-19 21:55 EDT）**：用户要求停止扩展方案，只做一次可信、有限资源的
+> **当前操作方案（2026-10-19 22:05 EDT）**：用户要求停止扩展方案，只做一次可信、有限资源的
 > 准确度与耗时评估。下方“十轮封顶计划”和更早的多方案文字均为历史记录，已由
 > `docs/STEP4B_ATAC_FOOTPRINT_BENCHMARK_DESIGN.md` 开头的“Current operative plan”取代；不要按历史表格
 > 继续增加数据集、折叠方案、事件级替代、优化或额外轮次。
@@ -13,12 +13,26 @@
 > 不可变 44-GiB `RLIMIT_AS`；TraceBIND 必须标明当前 wrapper 的 **PRINT-bias reduced mode**（没有
 > mtDNA fine-tuning / mito-FDR），不能称为完整 TraceBIND 默认流程或完整模式耗时。记录墙钟、user/system CPU、进程树峰值 RSS、共享/专属预处理、片段量、
 > 评分位点数和退出状态。仅四项成功才作速度排名，否则只报观察值。是否允许在准确度资格失败后
-> 仍做 speed-only 运行，正在提交固定 PMA 对话审核。本段和设计文档当前版本尚未获 exact-head review；
-> 不据此启动 Argos。
+> 仍做 speed-only 运行，固定 PMA 审核已原则同意，但要求先提供四条具体命令及 gate/计时包装，并确认依赖
+> 已存在，再由用户作阶段放行。22:05 EDT 只读核验后，准确度已确定为“不能排名”；四方计时目前也未获放行。
+> 当前 checked R4.2.2 library 中缺少 TraceBIND，且本阶段不安装、不修改环境，因此不能启动四方计时。
 
 更新时间：2026-10-19 16:46 EDT（UTC 20:46）
 范围：仅 footprint→de novo motif；ChIP BED6 / PR #7 由 Claude 负责，本交接不涉及。  
 PR #8：`task_20261019_hint_overlay_smoke`，OPEN、未合并。固定 PMA 对话 `PMA｜固定阶段审核` 对父 HEAD `03dbdd9a5bc8f54e1ef09056e3f4cc755e71ae2a` 批准第 3 轮公开研究元数据盘点；提交后的 HEAD `bfa06d4e86bbe77d4d4ebc84190f408fb6a216d9` 收到 `REQUEST_CHANGES`；三项 finding 已在同一 PR 修正并推送至内容提交 `6f9c04621dae462bb316366c0c0b41f79c4e12bd`；完整状态同步 HEAD `d15db7f4d292f6484f003c45035f7eb5449635e7` 获文档/方法和只读审计 `APPROVE`。之后按已批准的元数据范围核对 K562 候选，内容提交 `2eeb09deaf172885d31059124de03931415c5587` 已推送；状态同步 tip `08c334ddc3c436ea17ef7906ab277958dbcbeea0` 经复核，阶段关闭 HEAD `632eb4993f13d069e4d0bde4c984b747eab693e5` 获 round-3 文档/方法记录 `APPROVE`；随后按审核意见把两项非阻塞 attribution 修正同步到当前 tip `7746d8bf22324ed66426322f04efa1845cee154d`，无需另开复审。审查确认候选总结忠实，但提醒同一 biosample ID、旧平台或 audit 数量单独不能证明重复不独立或数据不可用。批准范围不包含实验数据文件、Argos、caller、分析、环境修改、ChIP 数据处理或合并。审核指出本手册上一时间行将 UTC/EDT 写反；此处已更正。未下载或读取 BAM、FASTQ、BED、BigWig、矩阵等实验数据文件。
+
+## 2026-10-19 22:05 EDT — 一次性评估只读资格结论
+
+固定 PMA 对话对 exact PR #8 HEAD `324d4e04a6652ff4f77a894b61fd7fcb52bd16cd` 的 APPROVE
+只覆盖：核对现有 HCT116 输入完整性/标签来源、输出分数接口、实际运行模式、已安装依赖并将结果记录入同一 PR；不含数据下载/修改、环境安装、caller、计时任务或 PR merge。
+
+- HCT116 四个官方 unfiltered ATAC BAM 的 `BG_HCT116_UNFILTERED_VERIFY_V3` 为 EXIT=0；byte count、ENCODE MD5、SHA-256、`samtools quickcheck`、chrM header 均通过。清单为 `/home/zz950/DATA/2.PROJECTS/PMA/atac_footprint/raw/2026-10-19/encode_hct116_unfiltered/ENCSR328JGW_ENCSR260SWI/MD5SUMS.encode.tsv`。这不证明 ChIP 标签。
+- 选定的 HCT116 CTCF-degron ENCODE ChIP 每条件只有一个 biological replicate（另有两个 technical replicates）；已核对的四个精确 ChIP accession 在范围内的 PMA 候选目录未找到文件。现有 metadata 已不满足冻结 label gate，因此 occupancy AP 不能计算。
+- PRINT r10 与 TOBIAS bigWig 是候选连续轨；HINT wrapper 只输出阈值事件；TraceBIND wrapper 以 p=0.05 截断事件，且明确是 PRINT-bias reduced mode（无 mtDNA fine-tuning / mito-FDR）。四方 AP 不成立，结论为 **准确度不能排名**。
+- 已见环境：TOBIAS 0.17.5 可用；HINT overlay 指向该 Python 环境且 `rgt` module 可见，独立 `pma_hint` launcher shebang 已失效；PRINT R4.2.2 与 `cladoRcpp` overlay 存在，但旧 K562 worker 忘记该 overlay 而失败；已检查 R4.2.2 library 未找到 `tracebind`，依赖探针 30 秒超时后停止。未安装软件、改环境或运行 caller。
+- 已有 HCT116 HINT ctrl 10:03.94（32 chunks）、aux 10:10.11（32 chunks）；HCT116 两次不是拟定的最多 8 CPU 控制。K562 TOBIAS 1:02:16（16 cores）；PRINT 36:19.75 后因 `cladoRcpp` worker namespace 失败；无完整可比 TraceBIND 时间。因此只能作历史描述，不排快慢。
+
+准确度目前可直接收敛为“不能排名”。四工具 time-only 虽获固定 PMA 原则同意，但 exact-head 尚未审核具体命令/gate wrappers，且 checked R library 中缺少 TraceBIND；当前禁止安装的范围下不满足“现有依赖可用”。没有启动或排队任何 caller/timing 任务。下一步只需固定 PMA 对话审核这一项结论和是否停止本次评估；若要完整四方 timing，必须另行解决 TraceBIND 依赖并重新审核具体命令，不能把当前历史时间拼成速度排名。
 固定 PMA 对完整 HEAD `774a3498d7cc17904afe3dc4610711586fe56d82` 再次给出 `APPROVE`：四个 wrapper 的当前接口描述与 canonical §4 一致；缺失/不可评分/运行失败不能混为零；标签、共同分数和折外证据仍缺。无阻塞 finding。仅有一项非阻塞措辞修正：将“二值 BED”改为“阈值后事件 BED”；即使事件列保留 p/score，也不能恢复完整阈值前排序空间。该修正与本次审核记录一并纳入后续文档同步，无需另起重复审查轮次。
 审核明确的科学结论：目前不能确定哪个工具准确度最高。occupancy/扰动标签测的是指定场景的预测一致性，不是碱基级 footprint 边界真值；裸 gDNA 也不是通用真阴性。没有合格标签、四工具共同可评分集和验证过的折外分数，因此没有四工具 AP 排名。审核建议在同 PR 记录此结论，并只用仓库现有源码/文档完成接口与验收规格只读核对。后续复审前从 GitHub 读取完整 live tip，handoff 不自引用其自身 SHA。
 审核边界：此前 `fd0b041` 的 APPROVE 仅覆盖方法文档；`525f0d4` 收到的时间、状态来源、折外边界和事件级备选 findings 已在同 PR 修复，并获当前 `0829b08` 方案级批准。15:41 EDT Argos 队列读取来自当时用户明确要求的 15 分钟监控 heartbeat；只读取调度与已有状态文件，没有读取实验数据，也没有核查 detached processes。该监控授权不扩大为 caller 执行授权。

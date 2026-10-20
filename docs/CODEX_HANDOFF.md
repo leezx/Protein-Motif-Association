@@ -1,5 +1,44 @@
 # PMA — handoff to Codex (2026-10-17, written by Claude Code)
 
+## Current live status — 2026-10-19 22:05 EDT — read-only qualification completed; accuracy cannot rank
+
+Footprinting only; ChIP BED6/PR #7 remains with Claude and out of scope. PR #8 is OPEN and unmerged
+on `task_20261019_hint_overlay_smoke`. Fixed-PMA conversation `PMA｜固定阶段审核` approved exact
+HEAD `324d4e04a6652ff4f77a894b61fd7fcb52bd16cd` for read-only checks of existing inputs, label
+provenance, score interfaces, actual modes, installed dependencies and recording findings. That
+approval excluded downloads, installs, data/environment modifications, caller runs and timing jobs.
+
+The four official unfiltered HCT116 ATAC BAMs passed byte-count, ENCODE MD5, SHA-256,
+`samtools quickcheck` and chrM-header checks in `BG_HCT116_UNFILTERED_VERIFY_V3` (EXIT=0); manifest:
+`/home/zz950/DATA/2.PROJECTS/PMA/atac_footprint/raw/2026-10-19/encode_hct116_unfiltered/ENCSR328JGW_ENCSR260SWI/MD5SUMS.encode.tsv`.
+This certifies ATAC inputs only. The selected HCT116 CTCF ChIP candidates remain ineligible:
+official metadata show one biological replicate plus two technical replicates per condition, and
+the bounded read-only search found no files for the four exact ChIP accessions in the checked PMA
+ATAC/ChIP candidate directories. The metadata alone already fails the frozen label gate.
+
+The score-interface check also fails the four-tool AP gate: PRINT has a candidate continuous r10
+track and TOBIAS a continuous `footprints.bw`; the current HINT wrapper emits thresholded events
+only, and TraceBIND emits threshold-truncated events at p=0.05 in PRINT-bias reduced mode (no mtDNA
+fine-tuning / no mito-FDR). Thus **accuracy cannot be ranked**; there is no valid four-tool AP or
+accuracy winner. Do not fill missing scores with zero or substitute binary events.
+
+Read-only environment checks found TOBIAS 0.17.5 and its Python modules available. The HINT overlay
+launcher points to that Python environment and its `rgt` module is present; the separate `pma_hint`
+environment's RGT launcher has a stale shebang. PRINT's R4.2.2 R environment and `cladoRcpp` overlay
+exist, but the prior K562 PRINT job failed because worker `R_LIBS` omitted the overlay. In the
+checked R4.2.2 library paths, `tracebind` was not found; a timed dependency probe was stopped after
+30 seconds. No package was installed or environment changed. Therefore a four-tool timing matrix is
+not currently launch-ready under the approved no-install scope; timing-only was approved in
+principle, but still requires four reviewed command/gate wrappers, present dependencies and a human
+stage release. Existing times remain descriptive only: HINT 10:03.94 at 32 chunks on HCT116 ctrl
+(not the proposed ≤8-CPU setting); TOBIAS 1:02:16 at 16 cores on K562; PRINT 36:19.75 then failed
+after all chunks due to missing worker namespace; no comparable complete TraceBIND timing. These
+do not form a speed ranking. No caller or timing job ran in this read-only stage.
+
+**Practical result today:** no defensible accuracy winner; accuracy is `cannot rank`. Historical
+runtime records provide context but not a fair time/resource comparison. A valid four-way timing
+table is blocked by the missing TraceBIND dependency and has not been authorized for execution.
+
 ## Current live status — 2026-10-19 21:55 EDT — one-shot assessment plan submitted for review
 
 Footprinting only; Claude owns ChIP BED6/PR #7. PR #8 is OPEN, unmerged, on

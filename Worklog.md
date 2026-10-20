@@ -1417,3 +1417,9 @@ Pushed the required audit update as `a36a2d82bffd928ea9f8498ecaf75503c5534f32`; 
 - Committed source, tests, and V4/V5 audit reconciliation on PR #8 as `bc2de36546ff8283524f10d14f1cbb866206e8ca` and pushed to `task_20261019_hint_overlay_smoke`; local/origin/GitHub PR head agreed at publication. PR remains OPEN/unmerged.
 - Replaced the stale PR body with the actual V4 failure, local lexical-owner repair, passed local checks, and a distinct V5 review request. The body requires explicit V5 one-shot release in the fixed PMA conversation; plain review approval alone is not run authorization.
 - V5 IDs/paths are distinct from consumed V4. No remote stage, input access, gate, environment update, rerun, or merge occurred.
+
+### 2026-10-20 13:45 EDT — completed V5 review packet details
+
+- Added the exact V5 run ID, unique code/evidence/output paths, five staged-file SHA-256 values, and single candidate gate command to `docs/CODEX_HANDOFF.md` and the dated PRINT handoff. V5 remains a candidate only; V4 remains consumed.
+- No source/test change in this documentation-only addition; the complete local suite was already rerun and passed at 13:43 EDT. `git diff --check` passes.
+- Next action: publish this audit update to the same PR, verify local/origin/GitHub exact head and body, then ask for fixed-PMA exact-head review. No remote staging/input/gate action is authorized by this worklog update.

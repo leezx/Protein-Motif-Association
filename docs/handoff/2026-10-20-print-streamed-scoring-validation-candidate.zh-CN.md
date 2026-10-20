@@ -33,6 +33,14 @@ Execution halted
 
 V4 的单次授权已消耗且禁止重试。现有一次性包装器已改为独立 V5 ID 与全新 code/root/output 路径，属于待审代码候选，不等于运行授权。当前未远程 staging、未读取 Argos 输入、未调用 gate。下一步在固定 PMA 对话审核提交后的 exact PR head，并单独明确是否放行一次新的 V5 8-peak 验收。
 
+V5 review packet：run `BG_K562_PRINT_STREAM_VALIDATION_20261020_V5`；code stage `/home/zz950/PMA_fetch/pma_print_stream_validation_code_20261020_v5`；evidence root `/home/zz950/PMA_fetch/pma_print_stream_validation_rcapps3_20261020_v5`；DATA output `/home/zz950/DATA/2.PROJECTS/PMA/atac_footprint/processed/round1/runs_print_stream_validation_rcapps3_20261020_v5`。五个执行文件 SHA-256：selector `7e2a67554e4d5c601cdb6c18a3758bb420520fa21d6324eff6f02d15c1dd5856`；runner `f2059c1677d9efda31d175b7f326a1bdae18a01fb4f4224ed3eab86cde985042`；helper `9dee1d7588e7a47a9449ae88a61710c4f16dd4b6f40cef93886b6421ef1f362b`；base supervisor `af29005f2ec0101100303be50227fe0f94a13d9cb25cb5a07a8a6159efaa44c0`；outer V5 wrapper `8ed17c3ad8e01be0c08b59cda576c43194b3234fc457b2afc79308f49f135c31`。唯一候选命令：
+
+```sh
+PRINT_SMOKE_EXPECTED_SHA256=8ed17c3ad8e01be0c08b59cda576c43194b3234fc457b2afc79308f49f135c31 bash /home/zz950/PMA_fetch/pma_bg_gate_v2.sh BG_K562_PRINT_STREAM_VALIDATION_20261020_V5 /home/zz950/PMA_fetch/pma_print_stream_validation_code_20261020_v5/run_print_integration_smoke_supervised.py ctrl print
+```
+
+该提议只针对8个原始peak、16 workers、3/3/2、r10/r20、CPU-only、30分钟总预算、44-GiB每进程RLIMIT_AS及40-GiB采样RSS软停止，复用已核验fragments。必须另由固定PMA对话针对最终 exact HEAD 明确批准此 V5 命令一次；当前没有远程执行授权。
+
 ## 当前状态
 
 用户授权修改本地 PRINT 源码。固定 `PMA｜固定阶段审核` 对话建议：保留 PRINT 原生计数/评分语义，实现持久评分 worker 调度后，先用 8 个原始 peak 做一次实现验收。该答复是技术建议，不是当前代码 exact-head 审核或 Argos 运行许可。

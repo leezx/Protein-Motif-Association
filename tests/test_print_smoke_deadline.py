@@ -24,17 +24,17 @@ BASE = load("print_base_supervisor", os.path.join(ROOT, "run_print_fullpeak_supe
 
 
 def main():
-    assert SMOKE.RUN_ID == "BG_K562_PRINT_INTEGRATION_SMOKE_20261020_V3"
-    assert all("_20261020_v3" in path for path in
+    assert SMOKE.RUN_ID == "BG_K562_PRINT_STREAM_VALIDATION_20261020_V4"
+    assert all("_20261020_v4" in path for path in
                (SMOKE.SCRIPT_DIR, SMOKE.ROOT, SMOKE.OUTPUT_DIR))
-    assert all("_20261020_v2" not in path for path in
+    assert all("_20261020_v3" not in path and "_20261020_v2" not in path for path in
                (SMOKE.SCRIPT_DIR, SMOKE.ROOT, SMOKE.OUTPUT_DIR))
     assert SMOKE.sha256(os.path.join(ROOT, "select_print_integration_smoke.py")) == \
         SMOKE.SELECTOR_SHA256
-    # The V3 wrapper is a consumed one-shot and its recorded runner hash is historical.
-    # The current runner changed afterward to preserve R warnings for the separate speed64 candidate.
-    assert SMOKE.RUNNER_SHA256 == "d62ca69a4d41219c932adaa4e825a7670b1b23fd9299acf6422bef1ad451d180"
-    assert SMOKE.sha256(os.path.join(ROOT, "print_variable_width.R")) == SMOKE.HELPER_SHA256
+    assert SMOKE.RUNNER_SHA256 == SMOKE.sha256(os.path.join(ROOT, "run_print.R"))
+    assert SMOKE.HELPER_SHA256 == SMOKE.sha256(os.path.join(ROOT, "print_variable_width.R"))
+    assert SMOKE.BASE_SUPERVISOR_SHA256 == SMOKE.sha256(
+        os.path.join(ROOT, "run_print_fullpeak_supervised.py"))
     assert SMOKE.sha256(os.path.join(ROOT, "run_print_fullpeak_supervised.py")) == \
         SMOKE.BASE_SUPERVISOR_SHA256
     deadline = time.monotonic() + 10

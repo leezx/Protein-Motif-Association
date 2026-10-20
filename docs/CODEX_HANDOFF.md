@@ -1,4 +1,63 @@
-# CURRENT OPERATIVE FOOTPRINT TASK — 2026-10-20 12:20 EDT
+# CURRENT OPERATIVE FOOTPRINT TASK — 2026-10-20 13:06 EDT
+
+## PRINT streamed scorer candidate — local checks passed; one 8-peak Argos validation still gated
+
+Footprinting only; Claude owns ChIP BED6/PR #7. PR #8 remains the sole workstream. The user
+authorized local PRINT-source changes. The fixed `PMA｜固定阶段审核` conversation recommended
+implementing a persistent scorer scheduler, then one 8-original-peak validation before full-peak
+work. Its most recent response was technical guidance, **not** approval to run Argos. No new Argos
+command, remote staging, input read, environment change, or full run has occurred in this candidate.
+
+The candidate keeps PRINT's native fragment-to-count algorithm and disk-backed 2,000-row count
+chunks. Scoring now dispatches the original BED rows in-order, bounded by 500 peaks or 1,000,000
+total interval bp (first limit reached), retains an oversized single peak intact, reads one count
+chunk at a time, and reads HDF5 bias slices only in the parent. One persistent 16-worker PSOCK pool
+is reused across chunks; each task scores one peak at radii 10 and 20 with PRINT's pinned
+`regionFootprintScoring()` formulas, explicit `scoreType="pval"`, `flankRadius=radius`, the original
+interval/count/bias, and group label. A narrowly scoped wrapper preserves the official scorer body
+while preventing `sapply()` from dropping the matrix dimension for one bulk group. BLAS/OpenMP
+threads are capped at one.
+
+Each complete chunk writes track/event parts and a per-chunk manifest with global row, exact
+coordinates, widths, row counts, and SHA-256 hashes. Both scales are staged and checked for row
+counts and gzip integrity before final output names are published; `.complete.tsv` is written last.
+The 8-row implementation-validation mode uses a forced 3/3/2 split and compares all 16
+region-radius objects to the legacy `getFootprints()` path, then rereads and validates final tracks
+and event BEDs. Duplicate rows remain separate; empty event BEDs are valid.
+
+Local checks passed: R parse of runner/helper; `Rscript tests/test_print_variable_width.R` (bounded
+chunk boundaries, singleton/multi-group matrix contract, duplicate/empty-output publication, hashes
+and row counts); Python compile; `python3 tests/test_print_speed64_supervisor.py`;
+`python3 tests/test_select_print_integration_smoke.py`;
+`python3 tests/test_print_smoke_deadline.py`; `bash tests/test_step4b_runner_contract.sh`; and
+`git diff --check`. The contract fixture prints expected negative-path `BAM_CONVERSION_FAIL` /
+`BAM_PREP_FAIL` markers and ends PASS. These are local synthetic/static checks, not a real HDF5,
+PRINT S4, PSOCK, or Argos caller run. Local R lacks `hdf5r` and `survcomp`; no local biological
+input was processed.
+
+Current candidate hashes (recompute after any source edit):
+
+- `run_print.R`: `e3be118cda14f028b458a111e38be0b260ef1f54b368e5d7890a11bb31ec3caa`
+- `print_variable_width.R`: `d2f6a30b9c712bc22d8fd70d945bd84c85eb5ed0643386050930f21af21fdaab`
+- base supervisor: `f5fcee3a1d768758042b5edae0e1265fb5be4a518cf622cf5b297415819ac710`
+- one-shot outer validation wrapper: `5982c5a30c27ba7f22a30cbf1f63661b1018505d9d9656b0c570ba70d8d5dffb`
+
+The pending V4 proposal uses the same frozen 8 original K562 peak rows; 16 workers; radii 10/20;
+30-minute end-to-end budget; existing 44-GiB per-process `RLIMIT_AS` and 40-GiB sampled
+process-group `VmRSS` soft stop (not a hard aggregate cap); CPU-only execution; and a fresh unique
+code-stage, root, and result path. Only if fixed-PMA review explicitly approves the exact pushed
+HEAD and this one gate call, fresh Argos preflight succeeds, and all five staged script hashes
+match, may the V4 one-shot run. It produces no accuracy ranking and does not authorize a full-peak
+run. If the 8-row equivalence fails, retain evidence and stop; do not relabel it as a PRINT result.
+
+L1 local static/contracts: PASS; real caller integration: UNVERIFIED. L2: scoring-semantic
+equivalence and resource sufficiency remain UNVERIFIED-critical until the gated 8-row Argos run.
+L3: the user direction is to get PRINT running; no result yet. The 64-row V2 timeout remains the
+only larger sample evidence (105 score invocations completed, one active at termination; no final
+tracks). Nothing justifies projecting full-peak runtime or memory. See
+`docs/handoff/2026-10-20-print-streamed-scoring-validation-candidate.zh-CN.md`.
+
+# Historical checkpoint — 2026-10-20 12:20 EDT
 
 ## PRINT 64-peak speed sample — capped at 30 minutes; no complete track
 

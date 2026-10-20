@@ -48,7 +48,7 @@ def test_parent_delegates_all_work_to_supervised_worker():
         root = os.path.join(tmp, "unique-run-root")
         previous = (SPEED.ROOT, SPEED.OUTPUT_DIR, SPEED.CODE_DIR,
                     SPEED.MAX_WALL_SECONDS, SPEED.sys.argv[:], SPEED.signal.signal,
-                    SPEED.load_module)
+                    SPEED.load_module, SPEED.OUTER_SHA256)
         calls = []
 
         class FakeOuter:
@@ -64,6 +64,9 @@ def test_parent_delegates_all_work_to_supervised_worker():
             SPEED.ROOT = root
             SPEED.OUTPUT_DIR = os.path.join(tmp, "unused-output")
             SPEED.CODE_DIR = SCRIPTS
+            # The speed64 V2 wrapper is consumed and pins an older outer
+            # watchdog; this unit test exercises parent delegation only.
+            SPEED.OUTER_SHA256 = SPEED.sha256(OUTER.__file__)
             SPEED.MAX_WALL_SECONDS = 30
             SPEED.sys.argv = [SPEED.__file__, "ctrl", "print"]
             SPEED.signal.signal = lambda *_args: None
@@ -72,7 +75,7 @@ def test_parent_delegates_all_work_to_supervised_worker():
         finally:
             (SPEED.ROOT, SPEED.OUTPUT_DIR, SPEED.CODE_DIR,
              SPEED.MAX_WALL_SECONDS, SPEED.sys.argv, SPEED.signal.signal,
-             SPEED.load_module) = previous
+             SPEED.load_module, SPEED.OUTER_SHA256) = previous
 
         assert len(calls) == 1
         command, deadline, registry, grace = calls[0]

@@ -1,4 +1,5 @@
 source(file.path("scripts", "04b_footprint", "print_variable_width.R"))
+library(data.table)
 
 # Direct HDF5 slice helper contract: one-based inclusive coordinates, exact
 # length and exact source values must be preserved for the independent oracle.
@@ -32,6 +33,42 @@ stopifnot(length(smoke_groups) == 4L, !is.null(names(smoke_group_sizes)),
 bad_smoke_groups <- smoke_groups
 bad_smoke_groups[[1L]]$index <- c(bad_smoke_groups[[1L]]$index, 2L)
 stopifnot(!has_reviewed_direct_compare_group_sizes(bad_smoke_groups))
+
+# Bounded scorer chunks preserve original row order and stop at either the
+# peak-count or cumulative-bases limit; a single oversized peak stays whole.
+chunks_by_bases <- make_bounded_region_chunks(1:6, c(400000L, 400000L, 300000L,
+                                                       1200000L, 100L, 100L),
+                                              max_peaks = 500L, max_bases = 1000000L)
+stopifnot(identical(chunks_by_bases, list(1:2, 3L, 4L, 5:6)))
+chunks_by_count <- make_bounded_region_chunks(1:7, rep(1L, 7L),
+                                              max_peaks = 3L, max_bases = 100L)
+stopifnot(identical(chunks_by_count, list(1:3, 4:6, 7L)))
+stopifnot(inherits(try(make_bounded_region_chunks(1:2, c(10L, 10L), max_peaks = NA),
+                       silent = TRUE), "try-error"))
+
+# The bulk-safe wrapper retains PRINT's exact function body/formulas while
+# repairing only sapply() dimension dropping for a singleton group. The
+# multi-group path must remain byte-for-byte structurally identical.
+native_sapply_fixture <- function(regionATAC, cellTypeLabels) {
+  group_values <- sapply(seq_len(ncol(regionATAC)), function(i) regionATAC[, i])
+  cell_types <- unique(cellTypeLabels)
+  cell_values <- sapply(cell_types, function(cell) {
+    rowSums(regionATAC[, cellTypeLabels %in% cell, drop = FALSE])
+  })
+  list(group_values = group_values, cell_values = cell_values)
+}
+safe_sapply_fixture <- make_bulk_safe_region_scorer(native_sapply_fixture)
+single_group <- matrix(c(1, 3, 5, 7), ncol = 1L,
+                       dimnames = list(NULL, "all"))
+single_result <- safe_sapply_fixture(single_group, "all")
+stopifnot(identical(dim(single_result$group_values), c(4L, 1L)),
+          identical(dim(single_result$cell_values), c(4L, 1L)),
+          identical(colnames(single_result$cell_values), "all"),
+          identical(as.numeric(single_result$cell_values), as.numeric(single_group)))
+multi_group <- cbind(c(1, 3, 5, 7), c(2, 4, 6, 8))
+multi_native <- native_sapply_fixture(multi_group, c("a", "b"))
+multi_safe <- safe_sapply_fixture(multi_group, c("a", "b"))
+stopifnot(identical(multi_safe, multi_native))
 
 # Mixed widths, repeated width groups, interleaved chromosomes, and repeated
 # coordinates represented by separate input rows must preserve each global ID.
@@ -133,5 +170,56 @@ region_bad <- region_b
 region_bad$footprintRanges <- GenomicRanges::shift(range_b, 1L)
 stopifnot(inherits(try(assert_print_region_equal(region_a, region_bad, "range fixture"),
                        silent = TRUE), "try-error"))
+
+# Chunk parts are immutable; final tracks/events publish only after both scales
+# pass row-count, compression, and SHA-256 checks. Zero events are a valid empty
+# BED, while duplicate peak rows remain represented in the track.
+publish_tmp <- tempfile("print-publish-contract-")
+dir.create(publish_tmp)
+publish_out <- file.path(publish_tmp, "print")
+parts_dir <- paste0(publish_out, ".stream_parts")
+dir.create(parts_dir)
+track_parts <- list(
+  r10 = list(data.table(chrom = c("chr1", "chr1"), pos = 10:11, score = c(1, 2)),
+             data.table(chrom = c("chr1", "chr1"), pos = 10:11, score = c(1, 2))),
+  r20 = list(data.table(chrom = c("chr1", "chr1"), pos = 10:11, score = c(3, 4)),
+             data.table(chrom = c("chr1", "chr1"), pos = 10:11, score = c(3, 4)))
+)
+event_parts <- list(
+  r10 = list(data.table(chrom = "chr1", start = 10L, end = 11L, score = 2), NULL),
+  r20 = list(NULL, NULL)
+)
+publish_manifest <- data.table(chunk_id = 1:2,
+  r10_track_rows = c(2L, 2L), r10_event_rows = c(1L, 0L),
+  r20_track_rows = c(2L, 2L), r20_event_rows = c(0L, 0L))
+for (rad in c("10", "20")) {
+  for (i in 1:2) {
+    track_path <- file.path(parts_dir, sprintf("r%s.track.%06d.tsv", rad, i))
+    event_path <- file.path(parts_dir, sprintf("r%s.events.%06d.bed", rad, i))
+    atomic_write_print_part(track_parts[[paste0("r", rad)]][[i]], track_path,
+                            c("chrom", "pos", "score"))
+    atomic_write_print_part(event_parts[[paste0("r", rad)]][[i]], event_path,
+                            c("chrom", "start", "end", "score"))
+    publish_manifest[[paste0("r", rad, "_track_sha256")]][i] <- sha256_file(track_path)
+    publish_manifest[[paste0("r", rad, "_events_sha256")]][i] <- sha256_file(event_path)
+  }
+}
+header_manifest_path <- file.path(parts_dir, "header_fixture.tsv")
+atomic_write_print_part(data.table(global_row = 1L, start0 = 10L, end0 = 11L),
+                        header_manifest_path, c("global_row", "start0", "end0"),
+                        header = TRUE)
+stopifnot(identical(names(fread(header_manifest_path)),
+                    c("global_row", "start0", "end0")))
+publish_streamed_print_outputs(
+  list(parts_dir = parts_dir, manifest = publish_manifest,
+       expected_track_rows = 4L), publish_out, c(10L, 20L))
+stopifnot(file.exists(paste0(publish_out, ".complete.tsv")),
+          count_gzip_text_lines(sprintf("%s.r10.track.tsv.gz", publish_out)) == 5,
+          count_text_lines(sprintf("%s.r10.native_events.bed", publish_out)) == 1,
+          count_text_lines(sprintf("%s.r20.native_events.bed", publish_out)) == 0,
+          inherits(try(atomic_write_print_part(NULL,
+                       file.path(parts_dir, "r10.events.000001.bed"),
+                       c("chrom", "start", "end", "score")), silent = TRUE), "try-error"))
+unlink(publish_tmp, recursive = TRUE)
 
 cat("PRINT variable-width contract checks passed\n")

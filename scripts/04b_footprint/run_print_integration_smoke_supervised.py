@@ -16,10 +16,10 @@ import tempfile
 import time
 
 
-RUN_ID = "BG_K562_PRINT_INTEGRATION_SMOKE_20261020_V3"
-SCRIPT_DIR = "/home/zz950/PMA_fetch/pma_print_integration_smoke_code_20261020_v3"
-ROOT = "/home/zz950/PMA_fetch/pma_print_integration_smoke_rcapps3_20261020_v3"
-OUTPUT_DIR = "/home/zz950/DATA/2.PROJECTS/PMA/atac_footprint/processed/round1/runs_print_integration_smoke_rcapps3_20261020_v3"
+RUN_ID = "BG_K562_PRINT_STREAM_VALIDATION_20261020_V4"
+SCRIPT_DIR = "/home/zz950/PMA_fetch/pma_print_stream_validation_code_20261020_v4"
+ROOT = "/home/zz950/PMA_fetch/pma_print_stream_validation_rcapps3_20261020_v4"
+OUTPUT_DIR = "/home/zz950/DATA/2.PROJECTS/PMA/atac_footprint/processed/round1/runs_print_stream_validation_rcapps3_20261020_v4"
 FROZEN_BED = "/home/zz950/DATA/2.PROJECTS/PMA/atac_footprint/raw/2026-10-19/encode_k562/ENCSR868FGK/ENCFF993BAP.bed.gz"
 SELECTOR_NAME = "select_print_integration_smoke.py"
 RUNNER_NAME = "run_print.R"
@@ -30,9 +30,9 @@ GATE_SHA256 = "3776778b950be90cad124c04937eee422c81466154eccdadfe9e57d58224253c"
 MAX_TOTAL_WALL_SECONDS = 30 * 60
 RSS_SOFT_STOP_KB = 40 * 1024 * 1024
 SELECTOR_SHA256 = "7e2a67554e4d5c601cdb6c18a3758bb420520fa21d6324eff6f02d15c1dd5856"
-BASE_SUPERVISOR_SHA256 = "7d594c58de85c012cc3ff08d93c8c67252be65f9cd860497243bc9295ef0a234"
-RUNNER_SHA256 = "d62ca69a4d41219c932adaa4e825a7670b1b23fd9299acf6422bef1ad451d180"
-HELPER_SHA256 = "5f5da1b9cf3179f40850792d26ecce6862ed8c3a5dfd82ad39fa8ab07d51d4ca"
+BASE_SUPERVISOR_SHA256 = "f5fcee3a1d768758042b5edae0e1265fb5be4a518cf622cf5b297415819ac710"
+RUNNER_SHA256 = "e3be118cda14f028b458a111e38be0b260ef1f54b368e5d7890a11bb31ec3caa"
+HELPER_SHA256 = "d2f6a30b9c712bc22d8fd70d945bd84c85eb5ed0643386050930f21af21fdaab"
 OUTER_STOP_REQUESTED = []
 
 
@@ -260,9 +260,9 @@ def worker_main(deadline, registry_path):
     module.RUNNER_HELPER = helper
     module.RUNNER_SHA256 = RUNNER_SHA256
     module.RUNNER_HELPER_SHA256 = HELPER_SHA256
-    module.CPUS = sorted(os.sched_getaffinity(0))[:2]
-    if len(module.CPUS) != 2:
-        raise RuntimeError("two CPU workers are not available")
+    module.CPUS = sorted(os.sched_getaffinity(0))[:16]
+    if len(module.CPUS) != 16:
+        raise RuntimeError("sixteen CPU workers are not available")
     module.RSS_SOFT_STOP_KB = RSS_SOFT_STOP_KB
     preparation_seconds = time.monotonic() - started
     module.MAX_WALL_SECONDS = MAX_TOTAL_WALL_SECONDS
@@ -279,11 +279,15 @@ def worker_main(deadline, registry_path):
                       "selection_seconds": selection_seconds,
                       "setup_seconds_before_analysis": preparation_seconds,
                       "overall_deadline_monotonic_seconds_remaining": remaining_seconds(deadline),
-                      "smoke_mode": "direct-per-region comparison; 8 frozen peak rows"})
+                      "workers": 16,
+                      "smoke_mode": "direct-per-region comparison; 8 frozen peak rows; scoring chunks 3/3/2"})
         return cpus, hashes, facts
 
     module.preflight = smoke_preflight
     os.environ["PRINT_DIRECT_COMPARE"] = "1"
+    for variable in ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS",
+                     "VECLIB_MAXIMUM_THREADS", "NUMEXPR_NUM_THREADS"):
+        os.environ[variable] = "1"
     sys.argv = [os.path.abspath(__file__)]
     remaining_seconds(deadline)
     status = module.main()
@@ -293,6 +297,16 @@ def worker_main(deadline, registry_path):
     if status == 0:
         if not os.path.isfile(report):
             sys.stderr.write("FAIL_CLOSED: direct comparison report missing\n")
+            return 3
+        completion_path = prefix + ".complete.tsv"
+        if not os.path.isfile(completion_path):
+            sys.stderr.write("FAIL_CLOSED: atomic completion manifest missing\n")
+            return 3
+        with open(completion_path, "r") as handle:
+            completion_lines = [line.rstrip("\n").split("\t") for line in handle]
+        if len(completion_lines) != 3 or completion_lines[0][0] != "radius" or \
+                [row[0] for row in completion_lines[1:]] != ["10", "20"]:
+            sys.stderr.write("FAIL_CLOSED: completion manifest does not cover r10/r20\n")
             return 3
         with open(report, "r") as handle:
             rows = [line for line in handle if line.strip()]
@@ -304,7 +318,7 @@ def worker_main(deadline, registry_path):
             remaining_seconds(deadline)
             json.dump({"status": "PASS", "direct_comparisons": 16,
                        "radii": [10, 20], "regions": 8,
-                       "workers": 2, "total_wall_cap_seconds": MAX_TOTAL_WALL_SECONDS,
+                       "workers": 16, "total_wall_cap_seconds": MAX_TOTAL_WALL_SECONDS,
                        "observed_total_wall_seconds": total_wall,
                        "rss_soft_stop_gib": 40,
                        "rss_soft_stop_is_hard_task_limit": False,

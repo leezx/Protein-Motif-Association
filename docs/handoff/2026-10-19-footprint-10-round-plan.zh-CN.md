@@ -10,7 +10,8 @@
 > 数据集。共同单位为预先冻结 CTCF motif 中心 20 bp；唯一主指标为四工具共同完整阈值前分数的 AP。
 > 不调用缺失分数填零，不用阈值事件替代。HINT/TraceBIND 若仍无完整连续分数，则四工具准确度比较
 > 即停止。若评估获准，四工具在同一 input/region list 各顺序运行一次，默认参数、最多 8 CPU、24 h、
-> 不可变 44-GiB `RLIMIT_AS`；记录墙钟、user/system CPU、进程树峰值 RSS、共享/专属预处理、片段量、
+> 不可变 44-GiB `RLIMIT_AS`；TraceBIND 必须标明当前 wrapper 的 **PRINT-bias reduced mode**（没有
+> mtDNA fine-tuning / mito-FDR），不能称为完整 TraceBIND 默认流程或完整模式耗时。记录墙钟、user/system CPU、进程树峰值 RSS、共享/专属预处理、片段量、
 > 评分位点数和退出状态。仅四项成功才作速度排名，否则只报观察值。是否允许在准确度资格失败后
 > 仍做 speed-only 运行，正在提交固定 PMA 对话审核。本段和设计文档当前版本尚未获 exact-head review；
 > 不据此启动 Argos。

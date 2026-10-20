@@ -30,15 +30,19 @@ only and does not authorize Argos access or execution.
    pairwise comparisons (2,000 paired resamples). Otherwise report APs and **no unique winner**.
 
 3. **One timing/resource matrix.** If the common HCT116 input and fixed region list are present, run
-   PRINT, TraceBIND, HINT, and TOBIAS once each, sequentially, on that identical input/region list,
-   using their documented default scientific settings. No parameter search, installation, retry,
+   the current repository wrappers for PRINT, TraceBIND, HINT, and TOBIAS once each, sequentially,
+   on that identical input/region list. The TraceBIND row is specifically the current
+   **PRINT-bias reduced mode**; it is not full mtDNA-fine-tuned / mito-FDR TraceBIND and must be
+   reported under that exact name. Do not call any observed time “full TraceBIND” runtime. No
+   parameter search, installation, retry,
    C/C++ work, or genome-wide cancer run is part of this assessment. Cap each job at 8 CPU, 24 h,
    and the existing immutable `pma_bg_gate_v2.sh` 44-GiB `RLIMIT_AS`; never raise the Argos ≤50-GB
    per-task limit. Report end-to-end wall time, user/system CPU, process-tree peak RSS, gate limit,
    shared preprocessing separately, tool-specific preparation, accepted/retained fragments,
    regions/sites scored, software/parameters, exit status, and failure stage. A completed runtime
    comparison requires four successful jobs; otherwise report only each observed time/status, with
-   no speed rank. Historical HINT/TOBIAS/PRINT/TraceBIND timings remain descriptive because their
+   no speed rank. Any winner applies only to these exact wrapper/mode combinations. Historical
+   HINT/TOBIAS/PRINT/TraceBIND timings remain descriptive because their
    inputs, filtering, thread counts, or completion status differed.
 
 4. **Stop rule.** First perform only the reviewed, read-only input/label/score-interface

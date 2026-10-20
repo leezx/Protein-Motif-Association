@@ -15,11 +15,15 @@ independent biological replicate, and tool-development-independence gates; one f
 20-bp score window; and AP only if all four tools provide complete threshold-free scores. No-call is
 not zero. Existing HINT and TraceBIND wrappers are threshold-truncated, so the known interface audit
 predicts **accuracy cannot be ranked** unless exact score outputs pass review. The proposed time matrix
-is one sequential run per tool on the same input/regions, at most 8 CPU, 24 h, and immutable 44-GiB
+is one sequential run per current wrapper on the same input/regions, at most 8 CPU, 24 h, and immutable 44-GiB
 `RLIMIT_AS`; report wall/CPU/process-tree peak RSS, preprocessing, fragments and scored sites. Historical
 times remain descriptive and are not directly comparable. The review request will explicitly ask
 whether speed-only jobs are allowed if accuracy qualification fails. No Argos, data read/download,
 caller, analysis, environment change, ChIP work, or merge has occurred in this update.
+
+**Mode limitation:** TraceBIND's current `run_tracebind.R` is PRINT-bias reduced mode without mtDNA
+fine-tuning or mito-FDR. Any timing must be labeled exactly “TraceBIND PRINT-bias reduced mode”; it
+does not estimate full TraceBIND runtime. This correction was requested in exact-head review.
 
 The operative short protocol is at the start of `docs/STEP4B_ATAC_FOOTPRINT_BENCHMARK_DESIGN.md` and
 in `docs/handoff/2026-10-19-footprint-10-round-plan.zh-CN.md`; it supersedes older multi-round

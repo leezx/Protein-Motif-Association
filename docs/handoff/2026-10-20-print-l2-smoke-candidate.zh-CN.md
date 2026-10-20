@@ -2,7 +2,7 @@
 
 时间：2026-10-20 10:01 EDT
 范围：PMA footprint PR #8；ChIP BED6 / PR #7 不在本任务内。
-状态：本地候选，等待固定 PMA 项目对话对当前 PR HEAD 做 L1/L2 审查；没有 Argos 访问或运行。
+状态：候选已推送至 PR #8，等待固定 PMA 项目对话对精确 HEAD 做 L1/L2 审查；没有 Argos 访问或运行。
 
 ## 为什么继续做小型集成验证
 
@@ -23,9 +23,11 @@ PR #8 的 variable-width 修复已获固定 PMA 对话对代码提交 `4d6bc6718
 
 代码文件 SHA-256：selector `7e2a67554e4d5c601cdb6c18a3758bb420520fa21d6324eff6f02d15c1dd5856`；runner `b3602e3ca4660a5feed4c8100f5bcbf6b024a9df8571b80d7e09acc1598b97cb`；helper `664d8ff626f903ae107759c4112aa7692061244795f374c1d562d0ce8e4453c6`；base supervisor `3c6ede01d5836dcdccbb1b579376557d0ea4934bb4cac36dc4e5532b0d220997`；smoke supervisor `084de78158ca9a44ecf96467335fd95fb11e9e171c39addc93bdbc6309946187`。这些是本 handoff 写入时的本地候选哈希；commit/push 后必须重新读取当前值。
 
+候选提交：`c76113871433d9b99c471f66814b401348b45252`。PR #8 当时为 OPEN/unmerged，review 目标就是这个完整 HEAD。
+
 ## 审核与运行门禁
 
-下一步先把候选推到同一个 PR #8，并在 PMA 项目的固定对话中请求对精确 HEAD 审核脚本、对照及资源守卫。用户此前明确要求降低资源并继续；该持续授权按当前范围用于审核后唯一一次 8-peak Argos smoke。V6 的单次授权已消耗，不能重用；若这次 smoke 失败，不自动重试。没有当前精确 HEAD 的 PMA 审核通过前，不做远端同步、Argos preflight 或计算。小型集成验证即使通过，也只支持所覆盖的实现路径；它不证明 159,628 peaks 的完整运行时间、全任务内存可行性或生物学准确度。全峰运行必须另行审核和授权。
+候选已推到同一个 PR #8，精确 HEAD `c76113871433d9b99c471f66814b401348b45252`；下一步在 PMA 项目的固定对话中请求对这个完整 HEAD 审核脚本、对照及资源守卫。用户此前明确要求降低资源并继续；该持续授权按当前范围用于审核后唯一一次 8-peak Argos smoke。V6 的单次授权已消耗，不能重用；若这次 smoke 失败，不自动重试。没有当前精确 HEAD 的 PMA 审核通过前，不做远端同步、Argos preflight 或计算。小型集成验证即使通过，也只支持所覆盖的实现路径；它不证明 159,628 peaks 的完整运行时间、全任务内存可行性或生物学准确度。全峰运行必须另行审核和授权。
 
 ## 当前可测进展
 

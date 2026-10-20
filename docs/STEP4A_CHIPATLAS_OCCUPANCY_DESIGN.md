@@ -449,3 +449,33 @@ top 5 proteins (CTCF and cohesin) have 73.5 %.
 - context-specific tracks;
 - hotspot clustering;
 - a comparison with ChIP-Atlas and ReMap functions (P1, desk review).
+
+## 12. RNA polymerase and chromatin accessibility tracks (user request 2026-10-20)
+
+**RNA polymerase.** All 4,448 ChIP-Atlas 'RNA polymerase' experiments carry two labels:
+RNA polymerase II (4,352) and RNA polymerase III (96).
+- Neither has an HGNC symbol, so they count in E and P only, each as one label in P, and in neither TF nor CAP.
+- Separate tracks, `tracks_rnapol/`:
+  - `rnapol2_experiments.bw`: Pol_II(x) = |{e : antigen(e) = RNA polymerase II, x ∈ peaks(e)}|;
+  - `rnapol3_experiments.bw`: the same for Pol III.
+- The protein tracks are unchanged.
+
+**Accessibility.** The ChIP-Atlas hg38 archive also holds ATAC-Seq (48,776 experiments, 772 M peaks) and DNase-seq
+(4,604 experiments, 130 M peaks).
+- Each assay gets an experiment-level BED6+18 from the same Step 4a pipeline (`PMA_OCC_CLASSES`), in
+  `atac_v1/` and `dnase_v1/`.
+- Two tracks per assay, assays not merged:
+  - `<assay>_experiments.bw`: A(x) = |{e : x ∈ peaks(e)}|;
+  - `<assay>_celltypes.bw`: C(x) = |{ChIP-Atlas cell type of e : x ∈ peaks(e)}|. This damps cell types with many
+    replicate experiments.
+- QC:
+  - C ≤ A;
+  - C > 0 ⇔ A > 0;
+  - the 300-position recount;
+  - blacklist split as in §11.
+
+Other ChIP-Atlas classes are not used:
+- Input control: controls.
+- Unclassified and No description: no usable target label.
+- Bisulfite-Seq: methylation, not in the peak archive.
+- Annotation tracks: not experiments.

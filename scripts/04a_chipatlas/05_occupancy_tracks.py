@@ -7,6 +7,11 @@ PMA_TRACK_MODE=protein (default) or histone. Histone mode: input = histone BED6+
   M(x) = |{m : x in peaks(m)}|            -> histone_modifications.bw
   H_m(x) = |{e : mark(e) = m, x in peaks(e)}| for H3K27ac, H3K4me3, H3K4me1, H3K27me3, H3K9me3, H3K36me3 -> histone_<m>.bw
 Histone QC: M <= H; M > 0 <=> H > 0 (same universe); H_m <= H; sum of core H_m <= H.
+PMA_TRACK_MODE=pol (input = v1 Output A, annotation '-'): rnapol2_experiments / rnapol3_experiments = distinct
+  experiments of ChIP-Atlas class 'RNA polymerase' with antigen RNA polymerase II / III. QC: recount only.
+PMA_TRACK_MODE=access (input = ATAC-Seq or DNase-seq BED6+18 from the Step 4a pipeline, annotation '-'),
+  PMA_TRACK_PREFIX = atac | dnase: <prefix>_experiments = distinct experiments, <prefix>_celltypes = distinct
+  ChIP-Atlas cell types (column 14). QC: celltypes <= experiments; celltypes > 0 <=> experiments > 0.
 Definitions, per base x, from experiment-level peaks of Output A (v1); p = target label (HGNC symbol, else the
 ChIP-Atlas antigen), class(p) from the annotation (labels without HGNC symbol: 'Non-gene label'):
   E(x)   = |{e : x in peaks(e)}|                          experiments.bw
@@ -34,14 +39,26 @@ from pathlib import Path
 CAP = {"Histone writer/eraser", "Histone reader", "Chromatin remodeler", "Architectural/cohesin"}
 MODE = os.environ.get("PMA_TRACK_MODE", "protein")
 CORE_MARKS = ("H3K27ac", "H3K4me3", "H3K4me1", "H3K27me3", "H3K9me3", "H3K36me3")
+PREFIX = os.environ.get("PMA_TRACK_PREFIX", "atac")
 if MODE == "histone":
     MAIN = ("histone_experiments", "histone_modifications") + tuple(f"histone_{m}" for m in CORE_MARKS)
+elif MODE == "pol":
+    MAIN = ("rnapol2_experiments", "rnapol3_experiments")
+elif MODE == "access":
+    MAIN = (f"{PREFIX}_experiments", f"{PREFIX}_celltypes")
 else:
     MAIN = ("experiments", "proteins", "tf", "cap")
 
 
 def row_items(f, cls):
     """(track, item) pairs a peak row contributes to, including QC-only class tracks in protein mode."""
+    if MODE == "pol":
+        if f[11] != "RNA polymerase":
+            return []
+        k = {"RNA polymerase II": "rnapol2_experiments", "RNA polymerase III": "rnapol3_experiments"}.get(f[7])
+        return [(k, f[3])] if k else []
+    if MODE == "access":
+        return [(MAIN[0], f[3]), (MAIN[1], f[13])]
     if MODE == "histone":
         m = cls.get("_".join(f[7].split()))  # canonical label of a validated modification, else None
         if m is None:
@@ -61,6 +78,11 @@ def row_items(f, cls):
 
 
 def identities(val):
+    if MODE == "pol":
+        return ()
+    if MODE == "access":
+        e, c = val[MAIN[0]], val[MAIN[1]]
+        return (("celltypes_gt_experiments", c <= e), ("celltypes_zero_experiments_pos", (c > 0) == (e > 0)))
     if MODE == "histone":
         h = val["histone_experiments"]; core = [val[f"histone_{m}"] for m in CORE_MARKS]
         return (("M_gt_H", val["histone_modifications"] <= h),
@@ -129,7 +151,7 @@ def run_chrom(args):
     p = subprocess.Popen(["tabix", bed, q], stdout=subprocess.PIPE, text=True, bufsize=1 << 20)
     rows = 0; prev = -1
     for line in p.stdout:
-        f = line.split("\t", 9)
+        f = line.split("\t", 14)  # fields 0-13 exact (cell type = 13)
         s, e = int(f[1]), int(f[2])
         if s < prev:
             raise RuntimeError(f"{chrom}: input not start-sorted")
@@ -228,7 +250,9 @@ def spot_check(bed, cls, out_dir, n=300, seed=20261020):
 
 def main(bed, ann, sizes_path, out, workers=6, region=None):
     sizes = {l.split("\t")[0]: int(l.split("\t")[1]) for l in Path(sizes_path).read_text().splitlines() if l}
-    if MODE == "histone":
+    if MODE in ("pol", "access"):
+        cls = {}
+    elif MODE == "histone":
         cls = {r["label"]: r["canonical_label"] for r in csv.DictReader(open(ann), delimiter="\t")
                if r["category"] == "histone_modification"}
     else:

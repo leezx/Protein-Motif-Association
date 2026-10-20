@@ -15,7 +15,7 @@ import sys
 import time
 
 
-RUN_ID = "BG_K562_PRINT_FULLPEAK_20261020_V1"
+RUN_ID = "BG_K562_PRINT_FULLPEAK_20261020_V2"
 RUNNER_SHA256 = "3b658a2021d13278f9b5e46e7aba2426613a1a53d71d52bd7fd6ee617489a966"
 BED_SHA256 = "c0c1d0b5350a962b9d7a7f1d2edef1ca98005029c79f07979533f3a14cb40945"
 FRAGS_SHA256 = "238367780a1b7a2a24595a4259bdbe91cb8be439c2e5fda210831ad60d77544f"
@@ -24,8 +24,8 @@ MODEL_SHA256 = {
     10: "c0cd01806684784abc0cb6894e6cfcd0234704f88baf3045121a2b6e07737414",
     20: "1413478ee5dfef1655a419adf67ef18b503d7bcd4c82273c4c5c0f485cf2d0b3",
 }
-ROOT = "/home/zz950/PMA_fetch/pma_print_fullpeak_rcapps3_20261020_v1"
-OUTPUT_DIR = "/home/zz950/DATA/2.PROJECTS/PMA/atac_footprint/processed/round1/runs_print_fullpeak_rcapps3_20261020_v1"
+ROOT = "/home/zz950/PMA_fetch/pma_print_fullpeak_rcapps3_20261020_v2"
+OUTPUT_DIR = "/home/zz950/DATA/2.PROJECTS/PMA/atac_footprint/processed/round1/runs_print_fullpeak_rcapps3_20261020_v2"
 PRINT_REPO = "/home/zz950/softwares/src/PRINT"
 PRINT_REPO_COMMIT = "8dad7317c3a640454a191dba2acd138e6edc54ac"
 PRINT_MODULE_SHA256 = {

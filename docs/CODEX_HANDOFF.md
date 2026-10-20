@@ -1,6 +1,14 @@
-# CURRENT OPERATIVE FOOTPRINT TASK — 2026-10-19 23:32 EDT
+# CURRENT OPERATIVE FOOTPRINT TASK — 2026-10-19 23:47 EDT
 
-## Latest execution gate — watchdog backend unavailable on rcapps3
+## Latest run — PRINT stopped safely before analysis
+
+The one exact-head-approved PRINT attempt was launched on `rcapps3` as `BG_K562_PRINT_FULLPEAK_20261020_V1` at 2026-10-19 23:40:59 EDT. Fresh node/R/package/input/module checks passed (x86_64, 72 CPUs, 957,550,508 kB MemAvailable, R 4.2.2; all frozen SHA256 values matched). The supervisor completed preflight in 155.02 s, then failed on its first process-group PSS sample: `sampler_cleanup_failed=true`, failure code `-7`; it terminated the caller group. Gate status is `EXIT=124` at 23:43:35 EDT with `stop_reason=pss_sampler_unreaped`; GNU-time summary shows caller exit `-15` after 0.341 s. No PRINT stage ran and no footprint files were produced; the newly created result directory is empty. Observed watchdog peak is 0 because no valid sample was accepted, not because memory use was zero. Read-only follow-up confirmed caller/sampler PIDs 19276/19277/19278 are gone and no residual process or output remains.
+
+The fixed PMA conversation diagnosed the most likely issue as duplicate helper communication: the first `communicate()` appeared to return successfully, then `finally` called it again on closed pipes and classified the resulting exception as an unreaped helper. The log does not preserve the actual exception, so this is a supported hypothesis, not a confirmed root cause. The same PR now has a minimal lifecycle fix: mark successful communication/reap, never communicate a second time after success, use bounded `wait()` after SIGKILL rather than re-reading closed pipes, close streams, and record cleanup error type/returncode/communication completion. Local in-memory syntax compilation and `git diff --check` pass; no remote diagnostic or rerun was performed. New supervisor SHA256: `7426bc50604a11fdd0dff0a620383026adbb69f4f3ecd3d0cb05fdc89a0796e6`. The prior approval covered one attempt and is consumed; **do not rerun automatically**. This implementation requires exact-head review in the same fixed PMA conversation, with explicit permission for a new single attempt. Keep the failed gate logs, summary, and empty output directory intact. No accuracy ranking, motif analysis, other caller, ChIP/PR #7 work, or merge occurred. PR #8 remains OPEN and unmerged.
+
+## Earlier execution gate — watchdog backend unavailable on rcapps3
+
+## Historical execution gate — watchdog backend unavailable on rcapps3
 
 The user-provided `/Volumes/Stelligen_SSD/Stelligen/computingResource.md` confirms that `rcapps3` and `rcapps8` are direct-login standalone nodes; this PRINT task is using `rcapps3` (not the Mac mini, GPU, or QSUB). Fresh SSH at 23:25 EDT resolved to `rcGPUs.dfci.harvard.edu`: x86_64, 72 CPUs, about 912 GiB available, load 52.33/51.59/51.40. The approved launcher then correctly failed closed because this host has no `/proc/self/smaps_rollup`. A read-only follow-up confirmed `/proc/self/smaps` is readable and has `Pss:` rows. No launcher/runner was copied, no output directory or caller was created, and no PRINT analysis ran.
 

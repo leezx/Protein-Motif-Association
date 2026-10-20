@@ -198,12 +198,12 @@ def kill_and_reap_sampler(sampler, timeout_seconds):
         except OSError:
             pass
     try:
-        sampler.communicate(timeout=timeout_seconds)
-        return True
+        sampler.wait(timeout=timeout_seconds)
+        return (sampler.poll() is not None, None)
     except subprocess.TimeoutExpired:
-        return False
-    except Exception:
-        return False
+        return (False, "TimeoutExpired")
+    except Exception as error:
+        return (False, type(error).__name__)
 
 
 def timed_group_pss(pgid, timeout_seconds):
@@ -212,12 +212,15 @@ def timed_group_pss(pgid, timeout_seconds):
     started = time.monotonic()
     sampler = None
     cleanup_failed = False
+    cleanup_error_type = None
+    communicate_completed = False
     result = ([], None, [-3], 0.0)
     try:
         sampler = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                    universal_newlines=True, start_new_session=True)
         try:
             stdout, stderr = sampler.communicate(timeout=timeout_seconds)
+            communicate_completed = True
         except subprocess.TimeoutExpired:
             result = ([], None, [-2], time.monotonic() - started)
         else:
@@ -240,13 +243,24 @@ def timed_group_pss(pgid, timeout_seconds):
     finally:
         if sampler is not None:
             try:
-                if sampler.poll() is None:
-                    cleanup_failed = not kill_and_reap_sampler(sampler, 0.5)
-                else:
-                    sampler.communicate(timeout=0.5)
-            except Exception:
+                # A successful communicate() already waited for and reaped the
+                # helper. Do not communicate a second time on its closed pipes.
+                if not communicate_completed and sampler.poll() is None:
+                    cleanup_failed, cleanup_error_type = kill_and_reap_sampler(sampler, 0.5)
+            except Exception as error:
                 cleanup_failed = True
-    return result + (sampler, cleanup_failed)
+                cleanup_error_type = type(error).__name__
+            finally:
+                for stream in (sampler.stdout, sampler.stderr):
+                    if stream is not None:
+                        try:
+                            stream.close()
+                        except Exception as error:
+                            cleanup_failed = True
+                            cleanup_error_type = type(error).__name__
+    return result + (sampler, cleanup_failed, cleanup_error_type,
+                     sampler.returncode if sampler is not None else None,
+                     communicate_completed)
 
 
 def terminate_group(pgid, log, reason):
@@ -435,8 +449,10 @@ def main():
                         break
                     sample_started = time.monotonic()
                     interval_overrun = sample_started - next_sample_due
-                    members, pss_kb, failures, sample_elapsed, sampler, sampler_cleanup_failed = timed_group_pss(
-                        pgid, SAMPLE_BUDGET_SECONDS)
+                    (members, pss_kb, failures, sample_elapsed, sampler,
+                     sampler_cleanup_failed, sampler_cleanup_error_type,
+                     sampler_returncode, sampler_communicate_completed) = timed_group_pss(
+                         pgid, SAMPLE_BUDGET_SECONDS)
                     next_sample_due += SAMPLE_SECONDS
                     if interval_overrun > MAX_SAMPLE_INTERVAL_OVERRUN_SECONDS:
                         failures.append(-5)  # fixed start-to-start cadence was missed
@@ -464,16 +480,24 @@ def main():
                                           "sample_elapsed_seconds": sample_elapsed,
                                           "sample_interval_overrun_seconds": interval_overrun,
                                           "sampler_cleanup_failed": sampler_cleanup_failed,
+                                          "sampler_cleanup_error_type": sampler_cleanup_error_type,
+                                          "sampler_returncode": sampler_returncode,
+                                          "sampler_communicate_completed": sampler_communicate_completed,
                                           "sample_failures": failures}) + "\n")
                     log.flush()
                     if sampler_cleanup_failed:
                         reason = "pss_sampler_unreaped"
                         terminate_group(pgid, log, reason)
                         cleanup_needed = False
-                        if sampler is not None and not kill_and_reap_sampler(sampler, 0.5):
+                        (sampler_reaped, sampler_reap_error_type) = (True, None)
+                        if sampler is not None:
+                            sampler_reaped, sampler_reap_error_type = kill_and_reap_sampler(sampler, 0.5)
+                        if not sampler_reaped:
                             try:
                                 log.write(json.dumps({"event": "sampler_reap_failed",
                                                       "sampler_pid": sampler.pid,
+                                                      "sampler_returncode": sampler.returncode,
+                                                      "sampler_cleanup_error_type": sampler_reap_error_type,
                                                       "time_epoch": time.time()}) + "\n")
                                 log.flush()
                             except Exception:

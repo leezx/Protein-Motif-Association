@@ -15,8 +15,9 @@ import sys
 import time
 
 
-RUN_ID = "BG_K562_PRINT_FULLPEAK_20261020_V6"
-RUNNER_SHA256 = "3b658a2021d13278f9b5e46e7aba2426613a1a53d71d52bd7fd6ee617489a966"
+RUN_ID = "BG_K562_PRINT_FULLPEAK_20261020_V7"
+RUNNER_SHA256 = "6b820bd2fd608cdbf71aeac93b9bf5e113c600dc39f14a6f5697a1937ad606bd"
+RUNNER_HELPER_SHA256 = "ef0cb4dafbf883e6ac61dfe1ab0ad97f91cd92aafe51abab2132ada5f9cb0835"
 BED_SHA256 = "c0c1d0b5350a962b9d7a7f1d2edef1ca98005029c79f07979533f3a14cb40945"
 FRAGS_SHA256 = "238367780a1b7a2a24595a4259bdbe91cb8be439c2e5fda210831ad60d77544f"
 BIAS_H5_SHA256 = "574140487a0a829c7a59735e0e7a64a3f3a227a7e5ceb8ea5f355f7cc3289402"
@@ -24,8 +25,8 @@ MODEL_SHA256 = {
     10: "c0cd01806684784abc0cb6894e6cfcd0234704f88baf3045121a2b6e07737414",
     20: "1413478ee5dfef1655a419adf67ef18b503d7bcd4c82273c4c5c0f485cf2d0b3",
 }
-ROOT = "/home/zz950/PMA_fetch/pma_print_fullpeak_rcapps3_20261020_v6"
-OUTPUT_DIR = "/home/zz950/DATA/2.PROJECTS/PMA/atac_footprint/processed/round1/runs_print_fullpeak_rcapps3_20261020_v6"
+ROOT = "/home/zz950/PMA_fetch/pma_print_fullpeak_rcapps3_20261020_v7"
+OUTPUT_DIR = "/home/zz950/DATA/2.PROJECTS/PMA/atac_footprint/processed/round1/runs_print_fullpeak_rcapps3_20261020_v7"
 PRINT_REPO = "/home/zz950/softwares/src/PRINT"
 PRINT_REPO_COMMIT = "8dad7317c3a640454a191dba2acd138e6edc54ac"
 PRINT_MODULE_SHA256 = {
@@ -38,6 +39,7 @@ SHARED = "/home/zz950/DATA/2.PROJECTS/PMA/atac_footprint/processed/round1/print_
 BED = "/home/zz950/DATA/2.PROJECTS/PMA/atac_footprint/raw/2026-10-19/encode_k562/ENCSR868FGK/ENCFF993BAP.bed.gz"
 FRAGS = "/home/zz950/DATA/2.PROJECTS/PMA/atac_footprint/processed/round1/frags/k562_speed.frags.tsv.gz"
 RUNNER = os.path.join(ROOT, "run_print.R")
+RUNNER_HELPER = os.path.join(ROOT, "print_variable_width.R")
 RSCRIPT = "/home/zz950/softwares/miniconda3/envs/r4p3/bin/Rscript"
 RLIBS = ":".join(("/home/zz950/PMA_fetch/pma_r_print_overlay_v1/lib",
                    "/home/zz950/softwares/R_lib_tracebind",
@@ -355,6 +357,7 @@ def preflight():
     require_file(BED)
     require_file(FRAGS)
     require_file(RUNNER)
+    require_file(RUNNER_HELPER)
     require_file(RSCRIPT)
     require_file(os.path.join(SHARED, "precomputedTn5Bias", "hg38Tn5Bias.h5"))
     for radius in (10, 20):
@@ -365,6 +368,8 @@ def preflight():
         raise RuntimeError("frozen peak BED SHA-256 mismatch")
     if sha256(RUNNER) != RUNNER_SHA256:
         raise RuntimeError("reviewed run_print.R SHA-256 mismatch")
+    if sha256(RUNNER_HELPER) != RUNNER_HELPER_SHA256:
+        raise RuntimeError("reviewed PRINT variable-width helper SHA-256 mismatch")
     commit = subprocess.check_output(["git", "-C", PRINT_REPO, "rev-parse", "HEAD"],
                                      universal_newlines=True).strip()
     dirty = subprocess.check_output(["git", "-C", PRINT_REPO, "status", "--porcelain"],
@@ -391,6 +396,7 @@ def preflight():
             raise RuntimeError("frozen dispersion model SHA-256 mismatch at radius %d" % radius)
     frozen_hashes = {"bed_sha256": BED_SHA256, "fragments_sha256": fragment_hash,
                      "runner_sha256": sha256(RUNNER),
+                     "runner_helper_sha256": sha256(RUNNER_HELPER),
                      "print_repo_commit": commit, "print_module_sha256": module_hashes,
                      "bias_h5_sha256": bias_hash,
                      "dispersion_model_sha256": model_hashes}
@@ -566,6 +572,7 @@ def main():
                        "preflight_seconds": preflight_seconds,
                        "caller_wall_seconds_including_time_wrapper": caller_elapsed,
                        "bed_path": BED, "fragments_path": FRAGS, "runner_path": RUNNER,
+                       "runner_helper_path": RUNNER_HELPER,
                        "output_prefix": prefix, "output_dir": OUTPUT_DIR,
                        "watchdog_path": log_path, "gnu_time_path": time_path,
                        "caller_stdout_path": stdout_path,

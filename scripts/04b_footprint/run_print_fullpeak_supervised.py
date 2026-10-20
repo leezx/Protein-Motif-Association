@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""One-shot, fixed-input PRINT run with an aggregate-PSS process-group watchdog."""
+"""One-shot PRINT run with a sampled process-group VmRSS soft-stop watchdog."""
 from __future__ import print_function
 
 import glob
@@ -15,7 +15,7 @@ import sys
 import time
 
 
-RUN_ID = "BG_K562_PRINT_FULLPEAK_20261020_V2"
+RUN_ID = "BG_K562_PRINT_FULLPEAK_20261020_V3"
 RUNNER_SHA256 = "3b658a2021d13278f9b5e46e7aba2426613a1a53d71d52bd7fd6ee617489a966"
 BED_SHA256 = "c0c1d0b5350a962b9d7a7f1d2edef1ca98005029c79f07979533f3a14cb40945"
 FRAGS_SHA256 = "238367780a1b7a2a24595a4259bdbe91cb8be439c2e5fda210831ad60d77544f"
@@ -24,8 +24,8 @@ MODEL_SHA256 = {
     10: "c0cd01806684784abc0cb6894e6cfcd0234704f88baf3045121a2b6e07737414",
     20: "1413478ee5dfef1655a419adf67ef18b503d7bcd4c82273c4c5c0f485cf2d0b3",
 }
-ROOT = "/home/zz950/PMA_fetch/pma_print_fullpeak_rcapps3_20261020_v2"
-OUTPUT_DIR = "/home/zz950/DATA/2.PROJECTS/PMA/atac_footprint/processed/round1/runs_print_fullpeak_rcapps3_20261020_v2"
+ROOT = "/home/zz950/PMA_fetch/pma_print_fullpeak_rcapps3_20261020_v3"
+OUTPUT_DIR = "/home/zz950/DATA/2.PROJECTS/PMA/atac_footprint/processed/round1/runs_print_fullpeak_rcapps3_20261020_v3"
 PRINT_REPO = "/home/zz950/softwares/src/PRINT"
 PRINT_REPO_COMMIT = "8dad7317c3a640454a191dba2acd138e6edc54ac"
 PRINT_MODULE_SHA256 = {
@@ -43,7 +43,7 @@ RLIBS = ":".join(("/home/zz950/PMA_fetch/pma_r_print_overlay_v1/lib",
                    "/home/zz950/softwares/R_lib_tracebind",
                    "/home/zz950/softwares/R_lib_4"))
 CPUS = list(range(16))
-PSS_LIMIT_KB = 100 * 1024 * 1024
+RSS_SOFT_STOP_KB = 100 * 1024 * 1024
 MAX_WALL_SECONDS = 24 * 60 * 60
 SAMPLE_SECONDS = 2
 SAMPLE_BUDGET_SECONDS = 1.5
@@ -114,25 +114,28 @@ def validate_event_bed(path):
     return rows
 
 
+def read_proc_stat(pid):
+    with open("/proc/%d/stat" % pid, "r") as handle:
+        raw = handle.read()
+    close = raw.rfind(")")
+    if close < 0:
+        raise ValueError("malformed proc stat")
+    fields = raw[close + 2:].split()
+    if len(fields) < 20:
+        raise ValueError("short proc stat")
+    # fields begin at proc stat field 3: state, ppid, pgrp, ..., starttime.
+    return fields[0], int(fields[2]), int(fields[19])
+
+
 def group_members(pgid):
     result = []
     failures = []
     for stat_path in glob.glob("/proc/[0-9]*/stat"):
         pid = int(stat_path.split("/")[2])
         try:
-            with open(stat_path, "r") as handle:
-                raw = handle.read()
-            close = raw.rfind(")")
-            if close < 0:
-                failures.append(pid)
-                continue
-            fields = raw[close + 2:].split()
-            if len(fields) < 3:
-                failures.append(pid)
-                continue
-            # fields begin with state (proc stat field 3); pgrp is field 5.
-            if int(fields[2]) == pgid:
-                result.append((pid, fields[0]))
+            state, process_group, starttime = read_proc_stat(pid)
+            if process_group == pgid:
+                result.append((pid, state, starttime))
         except (IOError, OSError):
             # /proc/<pid> disappearing during enumeration is an expected race.
             if os.path.exists("/proc/%d" % pid):
@@ -143,49 +146,61 @@ def group_members(pgid):
     return result, failures
 
 
-def parse_pss_kb(lines):
+def parse_vmrss_kb(lines):
     total = 0
     rows = 0
     for line in lines:
-        if line.startswith("Pss:"):
+        if line.startswith("VmRSS:"):
             fields = line.split()
-            if len(fields) != 3 or fields[2] != "kB":
-                raise ValueError("malformed Pss row")
+            if len(fields) != 3 or fields[2] != "kB" or rows:
+                raise ValueError("malformed or duplicate VmRSS row")
             value = int(fields[1])
             if value < 0:
-                raise ValueError("negative Pss row")
+                raise ValueError("negative VmRSS row")
             total += value
             rows += 1
     if rows == 0:
-        raise ValueError("no Pss rows")
+        raise ValueError("no VmRSS row")
     return total
 
 
-def group_pss(pgid):
+def group_vmrss(pgid):
     members, scan_failures = group_members(pgid)
     total = 0
     failures = list(scan_failures)
-    for pid, state in members:
+    sampled_identities = set()
+    for pid, state, starttime in members:
         if state == "Z":
             continue
         try:
-            # This host exposes smaps but not smaps_rollup. Sum every Pss: row
-            # to preserve the same accounting field; never accept a partial
-            # read as a complete sample.
-            with open("/proc/%d/smaps" % pid, "r") as handle:
-                pss = parse_pss_kb(handle)
-            total += pss
+            before = read_proc_stat(pid)
+            if before[1] != pgid or before[2] != starttime:
+                failures.append(pid)
+                continue
+            with open("/proc/%d/status" % pid, "r") as handle:
+                rss = parse_vmrss_kb(handle)
+            after = read_proc_stat(pid)
+            if after[1] != pgid or after[2] != starttime:
+                failures.append(pid)
+                continue
+            sampled_identities.add((pid, starttime))
+            total += rss
         except (IOError, OSError, ValueError):
-            # A process that vanished between the /proc scans is a harmless race.
+            # A vanished process is harmless only if its PID is truly gone.
             if os.path.exists("/proc/%d" % pid):
                 failures.append(pid)
-    return members, total, failures
+    members_after, scan_failures_after = group_members(pgid)
+    failures.extend(scan_failures_after)
+    if any((pid, starttime) not in sampled_identities and state != "Z"
+           for pid, state, starttime in members_after):
+        failures.append(-8)  # membership changed; never accept an incomplete snapshot
+    return members_after, total, failures
 
 
 def sample_helper(pgid):
-    """One bounded helper process reads a complete process-group PSS snapshot."""
-    members, pss_kb, failures = group_pss(pgid)
-    sys.stdout.write(json.dumps({"members": members, "pss_kb": pss_kb,
+    """One bounded helper reads a sampled process-group VmRSS sum."""
+    members, rss_kb, failures = group_vmrss(pgid)
+    sys.stdout.write(json.dumps({"members": members, "rss_kb": rss_kb,
                                  "failures": failures}) + "\n")
     sys.stdout.flush()
     return 0
@@ -206,8 +221,8 @@ def kill_and_reap_sampler(sampler, timeout_seconds):
         return (False, type(error).__name__)
 
 
-def timed_group_pss(pgid, timeout_seconds):
-    """Run smaps scanning out-of-process so a blocked read cannot stall cleanup."""
+def timed_group_vmrss(pgid, timeout_seconds):
+    """Bound status-file sampling in a helper so it cannot stall the caller."""
     command = [sys.executable, os.path.abspath(__file__), "--sample-pgid", str(pgid)]
     started = time.monotonic()
     sampler = None
@@ -230,12 +245,13 @@ def timed_group_pss(pgid, timeout_seconds):
             else:
                 try:
                     payload = json.loads(stdout)
-                    members = [(int(pid), str(state)) for pid, state in payload["members"]]
-                    pss_kb = int(payload["pss_kb"])
+                    members = [(int(pid), str(state), int(starttime))
+                               for pid, state, starttime in payload["members"]]
+                    rss_kb = int(payload["rss_kb"])
                     failures = [int(pid) for pid in payload["failures"]]
-                    if pss_kb < 0:
-                        raise ValueError("negative aggregate PSS")
-                    result = (members, pss_kb, failures, elapsed)
+                    if rss_kb < 0:
+                        raise ValueError("negative aggregate VmRSS")
+                    result = (members, rss_kb, failures, elapsed)
                 except (ValueError, TypeError, KeyError, IndexError):
                     result = ([], None, [-4], elapsed)
     except Exception:
@@ -284,7 +300,7 @@ def terminate_group(pgid, log, reason):
             # Even a failed membership poll must not prevent the final KILL.
             time.sleep(1)
             continue
-        if not scan_failures and (not members or all(state == "Z" for _, state in members)):
+        if not scan_failures and (not members or all(state == "Z" for _, state, _ in members)):
             return
         time.sleep(1)
     try:
@@ -325,10 +341,10 @@ def preflight():
     if os.uname()[4] != "x86_64":
         raise RuntimeError("the prepared R runtime requires x86_64")
     try:
-        with open("/proc/self/smaps", "r") as handle:
-            parse_pss_kb(handle)
+        with open("/proc/self/status", "r") as handle:
+            parse_vmrss_kb(handle)
     except (IOError, OSError, ValueError) as error:
-        raise RuntimeError("aggregate-PSS watchdog unavailable: " + str(error))
+        raise RuntimeError("process-group VmRSS monitor unavailable: " + str(error))
     allowed = sorted(os.sched_getaffinity(0))
     if len(allowed) < len(CPUS):
         raise RuntimeError("fewer than 16 CPUs are available to this process")
@@ -385,9 +401,10 @@ def preflight():
     preflight_facts = {"mem_available_kb": int(mem_available[0].split()[1]),
                        "load_average": list(os.getloadavg()),
                        "allowed_cpu_ids": allowed,
-                       "pss_backend": "/proc/<pid>/smaps Pss rows summed to EOF",
-                       "pss_sample_interval_seconds": SAMPLE_SECONDS,
-                       "pss_sample_deadline_seconds": SAMPLE_BUDGET_SECONDS}
+                       "rss_backend": "/proc/<pid>/status VmRSS summed across sampled process-group members",
+                       "rss_is_approximate_soft_stop_not_hard_limit": True,
+                       "rss_sample_interval_seconds": SAMPLE_SECONDS,
+                       "rss_sample_deadline_seconds": SAMPLE_BUDGET_SECONDS}
     preflight_facts["r_version"] = subprocess.check_output(
         [RSCRIPT, "--version"], stderr=subprocess.STDOUT,
         universal_newlines=True).strip()
@@ -412,7 +429,7 @@ def main():
         pgid = None
         cleanup_needed = False
         reason = "normal_exit"
-        peak_pss = 0
+        peak_rss = 0
         try:
             if STOP_REQUESTED:
                 raise RuntimeError("stop requested before preflight")
@@ -438,7 +455,7 @@ def main():
                 caller_started = time.time()
                 pgid = process.pid
                 cleanup_needed = True
-                peak_pss = 0
+                peak_rss = 0
                 failures_in_row = 0
                 reason = "normal_exit"
                 next_sample_due = time.monotonic()
@@ -450,34 +467,35 @@ def main():
                         break
                     sample_started = time.monotonic()
                     interval_overrun = sample_started - next_sample_due
-                    (members, pss_kb, failures, sample_elapsed, sampler,
+                    (members, rss_kb, failures, sample_elapsed, sampler,
                      sampler_cleanup_failed, sampler_cleanup_error_type,
-                     sampler_returncode, sampler_communicate_completed) = timed_group_pss(
+                     sampler_returncode, sampler_communicate_completed) = timed_group_vmrss(
                          pgid, SAMPLE_BUDGET_SECONDS)
                     next_sample_due += SAMPLE_SECONDS
                     if interval_overrun > MAX_SAMPLE_INTERVAL_OVERRUN_SECONDS:
                         failures.append(-5)  # fixed start-to-start cadence was missed
-                        pss_kb = None
+                        rss_kb = None
                     if sample_elapsed > SAMPLE_BUDGET_SECONDS:
                         failures.append(-6)  # a late helper result is not a valid sample
-                        pss_kb = None
+                        rss_kb = None
                     if sampler_cleanup_failed:
                         failures.append(-7)  # helper still alive after bounded cleanup
-                        pss_kb = None
+                        rss_kb = None
                     if process.poll() is None and not members:
                         failures.append(-1)  # process group vanished while caller is alive
-                    elif process.poll() is None and process.pid not in {pid for pid, _ in members}:
+                    elif process.poll() is None and process.pid not in {pid for pid, _, _ in members}:
                         failures.append(process.pid)  # cannot account for the group leader
                     if failures:
                         failures_in_row += 1
                     else:
                         failures_in_row = 0
-                    if pss_kb is not None and not failures:
-                        peak_pss = max(peak_pss, pss_kb)
+                    if rss_kb is not None and not failures:
+                        peak_rss = max(peak_rss, rss_kb)
                     log.write(json.dumps({"event": "sample", "time_epoch": time.time(),
-                                          "pgid": pgid, "pids": [p for p, _ in members],
-                                          "pss_kb": pss_kb, "peak_pss_kb": peak_pss,
-                                          "pss_backend": "smaps:Pss-sum",
+                                          "pgid": pgid, "pids": [p for p, _, _ in members],
+                                          "rss_kb": rss_kb, "peak_rss_kb": peak_rss,
+                                          "rss_backend": "status:VmRSS-sum",
+                                          "rss_soft_stop_not_hard_limit": True,
                                           "sample_elapsed_seconds": sample_elapsed,
                                           "sample_interval_overrun_seconds": interval_overrun,
                                           "sampler_cleanup_failed": sampler_cleanup_failed,
@@ -487,7 +505,7 @@ def main():
                                           "sample_failures": failures}) + "\n")
                     log.flush()
                     if sampler_cleanup_failed:
-                        reason = "pss_sampler_unreaped"
+                        reason = "rss_sampler_unreaped"
                         terminate_group(pgid, log, reason)
                         cleanup_needed = False
                         (sampler_reaped, sampler_reap_error_type) = (True, None)
@@ -504,12 +522,12 @@ def main():
                             except Exception:
                                 pass
                         break
-                    if pss_kb is not None and pss_kb >= PSS_LIMIT_KB:
-                        reason = "aggregate_pss_limit_100_gib"
+                    if rss_kb is not None and rss_kb >= RSS_SOFT_STOP_KB:
+                        reason = "process_group_sampled_vmrss_soft_stop_100_gib"
                         terminate_group(pgid, log, reason)
                         break
                     if failures_in_row >= 3:
-                        reason = "three_consecutive_pss_sampling_failures"
+                        reason = "three_consecutive_rss_sampling_failures"
                         terminate_group(pgid, log, reason)
                         break
                     if time.time() - started >= MAX_WALL_SECONDS:
@@ -523,7 +541,7 @@ def main():
                             terminate_group(pgid, log, reason)
                             cleanup_needed = False
                             break
-                        if not members or all(state == "Z" for _, state in members):
+                        if not members or all(state == "Z" for _, state, _ in members):
                             cleanup_needed = False
                             break
                         reason = "orphaned_process_group_after_main_exit"
@@ -539,8 +557,11 @@ def main():
             summary = {"run_id": RUN_ID, "host": socket.gethostname(),
                        "architecture": os.uname()[4], "cpus": cpus, "workers": 16,
                        "radii_bp": [10, 20], "caller_exit": return_code,
-                       "stop_reason": reason, "watchdog_peak_pss_kb": peak_pss,
-                       "watchdog_limit_gib": 100, "wall_limit_hours": 24,
+                       "stop_reason": reason,
+                       "watchdog_peak_sampled_process_group_vmrss_kb": peak_rss,
+                       "watchdog_soft_stop_gib": 100,
+                       "watchdog_is_hard_task_memory_limit": False,
+                       "wall_limit_hours": 24,
                        "preflight_seconds": preflight_seconds,
                        "caller_wall_seconds_including_time_wrapper": caller_elapsed,
                        "bed_path": BED, "fragments_path": FRAGS, "runner_path": RUNNER,

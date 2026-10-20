@@ -1,4 +1,32 @@
-# 最新阶段：单样本全局可及窗口运行时间（2026-10-19 22:22 EDT）
+# 最新阶段：PRINT 全部原始 ATAC peaks 的两尺度运行（2026-10-19 22:43 EDT）
+
+用户把 ChIP BED6 交给 Claude；本 handoff 只推进 Step 4b footprint。用户已把即时目标收敛为：选择一个 ATAC 样本，在其同样本完整 peak BED 区间上运行 PRINT 的 motif-independent footprint calling，记录计算时间/资源与输出统计。不是逐碱基扫描全 hg38；不评准确度、不找 motif、不优化/移植代码、不运行其他 caller、不合并 PR。
+
+## 目前已核实
+
+- 样本：K562 `ENCSR868FGK`，ATAC BAM `ENCFF534DCE.bam`；用户只要求本次计算时间/资源，K562 的 ENCODE nucleosome-free-fraction 警告意味着不得把本次结果写成准确度证据。
+- 同样本官方 peak 输入：`ENCFF993BAP.bed.gz`，Argos path `/home/zz950/DATA/2.PROJECTS/PMA/atac_footprint/raw/2026-10-19/encode_k562/ENCSR868FGK/ENCFF993BAP.bed.gz`。固定 PMA 对话明确批准有限只读核验：压缩字节数、SHA-256、流式记录数；并另批准只输出区间长度总和和重叠合并后覆盖量，不输出坐标、不写解压文件。
+- 核验结果：159,628 条原始 peak；压缩文件 3,651,342 bytes；SHA-256 `c0c1d0b5350a962b9d7a7f1d2edef1ca98005029c79f07979533f3a14cb40945`；原始区间长度总和 150,359,120 bp；合并重叠后的唯一覆盖 55,114,693 bp。用户估计的 20–40 万不是输入门槛；不得为凑数量换文件或扩展 peaks。
+- 全部原始区间都应保留；不可替换为先前 77,668 个 1-kb 窗口，也不对原始区间去重/裁切。由于区间重叠，摘要必须区分 interval-width sum 和 union coverage。
+- PRINT 输入 bias HDF5 存在，12,838,026,244 bytes。dispersion model 有 99 个半径文件，2–100 bp。固定 PMA 对话明确：不可据文件存在就跑 99 个，也不可结果后选尺度；本次采用当前 wrapper 已有的 `10,20` 两尺度参数，必须如实标成“两尺度”，不是完整 99 尺度。
+- 本地 `scripts/04b_footprint/run_print.R` SHA-256 `cae788b22dfb8ffc6006bae168b356909b3082036faa4a73e853c496ce717abf`。wrapper 接收 peak BED、fragment table、核数、radius list；每尺度生成逐位点 `track.tsv.gz` 与 PRINT 原生 event BED，另有阶段 `timing.tsv`，不直接生成 BigWig。Argos 只读元数据检查看到 `/usr/bin/Rscript` 与外部 `cladoRcpp` overlay `/home/zz950/PMA_fetch/pma_r_print_overlay_v1/lib`。文件/路径存在不代表依赖已加载或调用成功；不运行 R/caller 作验证。
+- 固定 PMA 对话确认 PRINT 原始 footprint calculation 不需要 motif/ChIP；“全局”在本任务中特指同一样本完整可及 peak 区间。
+
+## 资源阻塞与下一门槛
+
+用户授权在 Argos 用 QSUB 申请 16 核、80–100 GB；不使用 standalone gate。但最新只读检查显示：`normal.q` avail 0/32；`normal.q@rcGPUs` 为 E/QERROR（jobs 85/86）；`qconf -spl` 没有任何 PE。此前 queue config 查询还显示 `h_vmem`/`h_rss` 无界，h_vmem non-consumable，没有任务级内存预留/硬限制证据。节点总内存不能代替作业资源分配。**当前无可验证且可运行的 16核 + 80–100GB QSUB 命令；未提交作业，未运行 PRINT。**
+
+需 Argos 管理员先恢复队列、提供单节点 PE 与 slot 语义，并提供覆盖主进程和全部 R workers 的 job-total 内存预约和强制上限。然后在同一 PR 写入确切 qsub 参数、16-worker 命令、wall limit、日志/输出路径和 preflight，固定 PMA 对话 exact-head APPROVE 后，才能提交唯一的 PRINT 任务。用户的执行授权不绕过该资源门槛/PR 审核。
+
+PR #8 分支 `task_20261019_hint_overlay_smoke`，核对前 live HEAD `60a56d3974d92dd2301756d26acc4e10736b454e`，base `6c2e323fc80cc3e05f9de05282d1bbce49ba98fa`，OPEN、未合并。此处更新后待同步的新 HEAD/审查状态以 GitHub 为准。此前的四工具 / 77,668 窗口计划均为历史材料，不是当前运行范围。
+
+## 2026-10-19 22:43 EDT — 证据来源与审查范围
+
+固定 `PMA｜固定阶段审核` 对话依次批准：PRINT 在所有原始峰区间的任务定义；ENCFF993BAP 的 hash/bytes/records 只读核验；仅聚合区间宽度总和与 overlap-merged coverage 的只读核验；`10,20` 两尺度边界（非 99 尺度全跑）。上述审查均未放行 caller 或 QSUB 提交。队列/QSUB 查询仍是只读。
+
+论文与官方实现：Hu et al., *Nature* 2025, [PRINT multiscale footprint paper](https://www.nature.com/articles/s41586-024-08443-4); [official PRINT repository](https://github.com/buenrostrolab/PRINT)。论文描述 footprint windows 覆盖 4–200 bp，原始 PRINT footprint 分析以 ATAC cut sites 和偏差校正为输入；seq2PRINT 是下游解释。本任务仅执行原始 footprint caller。
+
+# 历史阶段：单样本全局可及窗口运行时间（2026-10-19 22:22 EDT）
 
 用户已把 ChIP BED6 交给 Claude；本轮只做 footprint 计算时间/资源测量，不评准确度，不做 motif，不涉及 ChIP/PR #7 或合并。用户明确放行此 runtime-only 阶段，PR #8 exact-head GPT 审核仍是 Argos 运行前门禁。
 

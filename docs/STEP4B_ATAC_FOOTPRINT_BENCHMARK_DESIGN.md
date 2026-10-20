@@ -1,67 +1,55 @@
 # Step 4b — Genome-wide, motif-free ATAC-seq footprinting: benchmark design
 
-## Current operative plan — blocked pending a task-level Argos memory cap (2026-10-19)
+## Current operative plan — PRINT on the complete same-sample peak set (2026-10-19 22:43 EDT)
 
-This short plan is the sole execution path for the user's current request. It supersedes the older
-accuracy-first and multi-round run plans for this assessment. Do not add accuracy scoring, datasets,
-optimization, or more rounds. The fixed PMA reviewer approved read-only inspection of the existing
-gate, K562 launch scripts/meta, runtime paths and current CPU/memory controls. That inspection found
-no enforceable task-wide 50-GB memory limit in the current Argos session. **Fail closed: do not start
-any caller or timing task until Argos provides a verifiable task-level memory boundary and the exact
-launch command is reviewed at the current PR HEAD.** The user's stage release does not waive either
-the GPT review or resource-limit gate.
+This is the sole immediate execution scope. The user now wants one practical **PRINT-only** runtime
+measurement over the sample's own complete ATAC peak intervals, not a four-tool comparison and not
+base-by-base scanning of hg38. PRINT's native footprint calculation is motif-independent; motifs
+and ChIP are outside this run. This is a two-scale operational run, not the full 99-scale spectrum.
+Do not score accuracy, discover motifs, optimize/port code, change samples, or work on ChIP BED6/PR #7.
 
-1. **One sample and one fixed search space.** Reuse the already integrity-checked K562 ATAC
-   `ENCSR868FGK` / `ENCFF534DCE.bam` and same-sample frozen `k562_speed_1kb.bed`: 77,668 nonoverlap
-   1-kb windows (75,668 peak-centered accessible windows plus 2,000 seeded off-peak controls),
-   totaling 77.668 Mb. “Genome-wide” here means all frozen accessible windows, not every hg38 base.
-   K562 is a runtime input only; ENCODE's nucleosome-free-fraction warning bars biological accuracy
-   claims. ChIP BED6/PR #7 remains out of scope.
+1. **Frozen sample and complete peak input.** Use the same-sample K562 `ENCSR868FGK` ATAC BAM
+   `ENCFF534DCE.bam` and original ENCODE IDR peak file `ENCFF993BAP.bed.gz`. The fixed PMA
+   conversation approved metadata-only checks and a streaming aggregate over its first three BED
+   columns. Verified peak input: 3,651,342 compressed bytes; SHA-256
+   `c0c1d0b5350a962b9d7a7f1d2edef1ca98005029c79f07979533f3a14cb40945`; 159,628 records; sum of
+   interval widths 150,359,120 bp; union coverage after merging overlaps 55,114,693 bp. These are
+   all original peak intervals; do not filter, summit-trim, merge, or pad them to reach the user's
+   estimate of 200–400k. The verified count is 159,628. Report interval-width sum separately from
+   unique covered bp because the original peaks overlap. K562 is timing-only due to ENCODE's
+   nucleosome-free-fraction warning.
 
-2. **Proposed runs, not released.** If a task-level limit becomes available and is reviewed, run
-   current wrappers once each on the
-   same sample and BED: HINT with 16 independent chunks; PRINT with 16 R workers; TOBIAS with 16
-   cores; and **TraceBIND PRINT-bias reduced mode** with 16 R workers (no mtDNA fine-tuning or
-   mito-FDR). Run callers sequentially: each tool may use 16-way internal parallelism, total active
-   CPU stays at 16, and high-memory callers do not compete. Each task has 24 hours, the immutable
-   `pma_bg_gate_v2.sh` 44-GiB per-process `RLIMIT_AS`, and an independently enforced task-wide cap
-   below 50 GB. CPU only, no
-   GPU. Before each run, fail closed if an exact input, existing runtime, or required installed
-   dependency is missing. Do not install, tune, retry, optimize, or change algorithms. A missing or
-   failed tool is reported with its status/time; no substitution. A complete four-tool runtime
-   comparison is claimed only if all four finish.
+2. **PRINT scales and outputs.** Use the existing runner's radius list `10,20` (two fixed scales),
+   after its radius/model meaning and exact parameters are recorded in this PR. The official paper
+   describes PRINT footprints across 4–200 bp windows; the 99 local dispersion files at radii
+   2–100 bp do not justify running all 99 or selecting scales after seeing output. This run must be
+   labelled “PRINT radii 10 and 20 only,” not a complete 99-scale atlas. Existing
+   `scripts/04b_footprint/run_print.R` outputs one per-position score track per radius, PRINT native
+   event BED per radius, and a stage timing TSV; it does not emit BigWig. Keep the original peak
+   intervals and preserve native output/count/hash evidence. Any derived input must retain all
+   records and may not silently substitute the old 77,668 1-kb speed windows.
 
-3. **Timing and output.** For each task record wall time, GNU `time -v` user/system CPU and max RSS
-   (label its scope exactly), gate limit, 16-core setting, versions/mode, output counts and hashes,
-   exit/failure stage, and effective fragment denominator. HINT and TOBIAS consume the verified BAM.
-   PRINT and TraceBIND consume the existing K562 fragment table derived from that BAM; report its
-   BAM-to-fragment preparation time separately and include it in their from-BAM totals. The table
-   has 110,891,807 rows versus 110,891,952 under an independent filter count: retain both definitions
-   and do not use the mismatch for throughput normalization. Report caller-only and from-BAM wall
-   separately. Primary outputs are each caller's native footprint track/event BED across all frozen
-   windows; count and hash them, but do not infer accuracy from event totals.
+3. **Resources and exact gate.** Target one Argos QSUB job using 16 CPU workers and 80–100 GB
+   task-wide memory as requested by the user, CPU-only/no GPU. The current `normal.q` is QERROR
+   (`rcGPUs` instance E due jobs 85/86); the latest read-only `qstat -g c` reports 0/32 available,
+   and `qconf -spl` reports no parallel environment. Earlier read-only configuration found
+   `h_vmem`/`h_rss` unbounded and `h_vmem` non-consumable; no reliable job-total memory reservation
+   or enforcement has been shown. Therefore **no valid exact QSUB command exists yet** and no job
+   has been submitted. Do not use the standalone gate. A launch remains blocked until Argos
+   administrators restore queue health, provide a working one-node PE with clear slot semantics,
+   and document a job-total memory reservation plus hard limit covering the parent and all workers.
+   Then write the exact qsub resources, 16-worker command, wall limit, log/result paths and fail-closed
+   preflight into this PR and obtain exact-head PMA review before submission.
 
-4. **Stop rule.** This is runtime/resource measurement only. Do not score accuracy, select an
-   accuracy winner, discover motifs, start another sample, or optimize/port code. After exact-head
-   review, run only the reviewed existing wrappers once under these limits. No merge is authorized.
+4. **Timing record and stop rule.** After those resource and review gates, run PRINT once. Record
+   QSUB job ID/exit state; wall, user/system CPU, scheduler memory and `/usr/bin/time -v` maximum RSS
+   with their scopes; worker count; input and runner hashes; peak count and covered bases; per-scale
+   track/event row counts and hashes; and caller-only/from-BAM preparation times separately. Existing
+   BAM-to-fragment conversion time may be reported only with its exact input/output hashes verified.
+   This run reports computation time/resources and native output statistics only. No accuracy claim,
+   cross-tool rank, motif finding, retry, algorithm change, C/C++ optimization, or merge.
 
-**Current status (2026-10-19 22:31 EDT; PR #8 HEAD `e3f4035822f91b21a7c8a65ab2910989df1529f1`).** The fixed PMA conversation approved this exact-head documentation/resource-gate record only; that approval does not release computation. The read-only resource audit is recorded in the current
-handoff. Gate SHA-256 is `3776778b950be90cad124c04937eee422c81466154eccdadfe9e57d58224253c`.
-It sets `ulimit -Sv/-Hv 46137344` KB per process and `NSLOTS=1`; it does not limit aggregate
-process-tree memory or CPU. The visible SSH cgroup-v1 hierarchy reported CPU quota `-1`, memory
-limit `9223372036854771712` bytes (effectively unlimited), and memory usage `48031723520` bytes;
-the account cannot write the current cpu/memory/cpuset cgroup files, and no user systemd bus socket
-is present. `taskset`, `timeout`, and `systemd-run` binaries exist, but their presence does not
-establish a usable delegated task cgroup. Consequently, the ≤50-GB whole-task condition is **not
-verified or enforceable from this session** and no run is released. The wrapper source hashes and
-current paths are recorded in the dated handoff; prior commands are templates only and are not
-launchable under the current memory control.
-
-Existing exact-sample observations are not a matched runtime
-comparison: HINT used 32 chunks, TOBIAS used 16 cores, and PRINT failed after 36:19.75 due to a
-worker package error; the available TraceBIND record is reduced PRINT-bias mode. This proposal
-repeats one run per caller at 16 cores over the identical K562 sample and frozen windows. Exact-head
-review and a fail-closed check of existing dependencies precede execution. No new run has started.
+**Current status (2026-10-19 22:43 EDT; PR #8 HEAD `60a56d3974d92dd2301756d26acc4e10736b454e`).** The fixed PMA conversation approved the PRINT-on-all-original-peaks task definition, read-only peak count/hash/size, and aggregate interval/union coverage computation. It did not approve computation or QSUB submission. Peak metadata/aggregates are recorded above. A fresh read-only queue check still finds QERROR and no PE. No PRINT caller or QSUB task has run. The previous 77,668-window multi-tool proposal is superseded for the immediate task.
 
 **Status.** The earlier benchmark design was approved by ChatGPT on 2026-10-17 with revisions.
 That approval does not cover material Section 4 revisions. The current read-only qualification is

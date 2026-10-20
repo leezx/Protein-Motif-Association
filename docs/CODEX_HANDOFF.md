@@ -1,4 +1,26 @@
-# CURRENT OPERATIVE FOOTPRINT TASK — 2026-10-20 10:53 EDT
+# CURRENT OPERATIVE FOOTPRINT TASK — 2026-10-20 11:10 EDT
+
+## V3 PRINT 8-peak smoke completed
+
+Footprinting only; Claude owns ChIP BED6/PR #7. PR #8 remains OPEN/unmerged at the code HEAD that received fixed-PMA exact-head approval. The approved one-shot `BG_K562_PRINT_INTEGRATION_SMOKE_20261020_V3` ran once through the immutable Argos gate on `rcGPUs` and exited 0 at 11:08:36 EDT. No retry occurred.
+
+The actual caller command was the staged `run_print.R` with the PRINT checkout, the frozen 8-peak BED, the verified K562 fragments, two workers and radii 10/20. The gate's `.meta` defaults say `GROUP=ctrl TOOL=hint` because the gate call supplied only ID and script; those labels are not the executed caller identity. Preserve this metadata mismatch explicitly and pass explicit labels on any future gate invocation after fresh review. The caller command, output prefix, R timing, and generated `print.*` outputs independently identify PRINT.
+
+Observed result: `smoke_completion.json` reports PASS, 8 regions, 16 direct comparisons, two workers, radii 10/20, total gate-to-completion wall 424.117 s (7:04.1). GNU time for the PRINT caller reports 5:37.52 wall, 166.10 user CPU seconds + 21.84 system CPU seconds, 55% CPU utilization against the two-CPU affinity, and 17,920,756 KiB maximum RSS (about 17.09 GiB). The watchdog sampled the caller process group 170 times and observed the same 17.091-GiB peak; the 40-GiB sampled RSS soft stop did not trigger. Each process was subject to RLIMIT_AS 44 GiB; that is not an aggregate task hard cap. Preflight plus selection and setup are included in the 424.117-s end-to-end wall and excluded from GNU caller timing.
+
+The output timing table reports 202.696 s counts, 114.317 s footprint group work (r10 53.975 s; r20 59.972 s), 4.261 s direct comparison, and 0.676/0.634 s track writes. Two tracks were written (12,795 rows each). The 16/16 bias comparisons matched exactly; the two native event BEDs contain 31 events total. Outputs and evidence remain outside the repository under:
+
+- run root: `/home/zz950/PMA_fetch/pma_print_integration_smoke_rcapps3_20261020_v3/`
+- scientific output: `/home/zz950/DATA/2.PROJECTS/PMA/atac_footprint/processed/round1/runs_print_integration_smoke_rcapps3_20261020_v3/`
+- gate status: `/home/zz950/PMA_fetch/pma_bg_pr8_20261019/BG_K562_PRINT_INTEGRATION_SMOKE_20261020_V3.status`
+
+Evidence SHA-256: completion `b78d652484b6dbf88bb351d318bb90b20ea3706338c9a63eadb29af434d7b158`; selection manifest `ca2dc5f440fd5277b7935d1eb37ad408cf0fa6de1da358a00ef72cad9521fbc2`; watchdog samples `1182307a2fd0426578ebfa641a150fc7ead6448572e221722e0ada64bae9f903`; GNU-time log `21a82bcea8e04ba63aca9164b5d04584b2996eb91291bfeeadfe35205338891d`; timing table `b5d75bb05d5cde9208420faca102335d03bcc5692c659b13e8f2ebf40a8a12fd`; direct comparison `9ea154be823bc29a28a75b4c66ca5fc930184406d80d8dce2d4d6044976b5399`; r10 track `135b6a053013c19701d67daef37c0a8425dea1c30f2faecf9039fc453b025576`; r20 track `c67429ee81867f70c9410af744087806ed3bdcd9de8bfe69f61331e479857825`; r10 native events `30aedcd7843e947164290335cdfaff61b33338f7b44e7c6ebb887394d4fa66c8`; r20 native events `b18d8916b5df3ade276e1f6f50628a9b82bf34b6b4741acb6ae552dbf4b8ad72`.
+
+Important boundary: this is a successful integration smoke, not a full-peak benchmark or an accuracy assessment. It supports the claim that PRINT's pinned bias/count/footprint path produces tracks and direct comparisons on this 8-peak input within ~7 minutes and ~17.1 GiB sampled peak RSS. It does not justify linear extrapolation to 159,628 peaks, an accuracy ranking, or any claim that the 31 native events are all true footprints. GNU time notes 14 R warnings but the run log did not retain their individual messages; flag this for reviewer triage rather than silently treating them as harmless. L2 for tool accuracy remains BLOCKED / UNVERIFIED-critical.
+
+The fixed PMA project conversation must review these exact run results and warnings before dependent scaling work. V3 one-shot authorization is consumed. Do not start a full-peak or larger pilot, alter the environment, or merge PR #8 without a new, scope-specific approval and execution release. No footprint accuracy ground truth is established by this run.
+
+## Previous snapshot — 2026-10-20 10:53 EDT
 
 ## Live status — V2 one-shot failed before PRINT analysis
 

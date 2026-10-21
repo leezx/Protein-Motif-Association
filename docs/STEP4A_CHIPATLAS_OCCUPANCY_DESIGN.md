@@ -801,3 +801,14 @@ The distributions are continuous with no natural cut, so the thresholds are oper
   - promoter versus distal strata;
   - GC/CpG- and accessibility-matched backgrounds;
   - dominance of single studies or cell types.
+
+### 18.2 v2: four tiers (user request 2026-10-21)
+
+The user asked for two looser tiers. Tiers are now named by percentile and are nested:
+top1 ⊂ top5 ⊂ top10 ⊂ top20, i.e. Q0.99 / Q0.95 / Q0.90 / Q0.80 among positive bins.
+
+All other rules are unchanged from §18.1. v1 `high` and `extreme` equal v2 `top5` and `top1`.
+
+The `tier` column now holds the strictest tier that any bin of the region reaches.
+
+Output goes to `result/hotspot_regions_v2/`. v1 is kept unchanged.

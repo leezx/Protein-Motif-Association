@@ -3,16 +3,16 @@
 usage: 25_hotspot_beds.py <bins500.npz> <chrom.sizes> <out_dir> [atac_n=18651] [dnase_n=2086]
 
 Definitions (quantiles over bins with value > 0 in that track, 500 bp bins from 23_hotspot_bins.py):
-  protein  high    : P_b >= Q0.95(P | P>0)        extreme: P_b >= Q0.99(P | P>0)
-  open     high    : A_b >= Q0.95(A | A>0)  AND  D_b >= Q0.95(D | D>0)
-           extreme : A_b >= Q0.99(A | A>0)  AND  D_b >= Q0.99(D | D>0)
+  tiers   : top20 / top10 / top5 / top1 = Q0.80 / Q0.90 / Q0.95 / Q0.99 (v2; v1 had only top5 = "high", top1 = "extreme")
+  protein : P_b >= Q_t(P | P>0)
+  open    : A_b >= Q_t(A | A>0)  AND  D_b >= Q_t(D | D>0)
 P = distinct non-histone proteins, A / D = ATAC / DNase experiments with a peak (bin maximum).
-Tiers are nested (extreme ⊂ high). Passing bins that touch on the same chromosome are merged into one region;
+Tiers are nested (top1 ⊂ top5 ⊂ top10 ⊂ top20). Passing bins that touch on the same chromosome are merged into one region;
 regions are annotation units, not independent motif sites. The per-assay tiers go to per_assay/.
 
 BED6+6: chrom start end name score strand n_bins max_proteins max_atac_frac max_dnase_frac tier overlap_other
   score   = 1000 × ECDF rank of the region maximum among positive bins (open: the smaller of the ATAC and DNase ranks)
-  tier    = extreme if any bin of the region passes the extreme rule, else high
+  tier    = strictest tier reached by any bin of the region (top1 < top5 < top10 < top20)
   overlap_other = fraction of the region's bins passing the other class at the same tier (protein ↔ open)
 """
 import json
@@ -22,7 +22,8 @@ from pathlib import Path
 import numpy as np
 
 BIN = 500
-TIERS = {"high": 0.95, "extreme": 0.99}
+TIERS = {"top20": 0.80, "top10": 0.90, "top5": 0.95, "top1": 0.99}  # loosest first
+NAMES = ["none"] + list(TIERS)
 AS = """table hotspot
 "PMA ChIP-Atlas hotspot region (500 bp bins merged)"
 (
@@ -36,7 +37,7 @@ uint nBins; "Number of 500 bp bins"
 uint maxProteins; "Max distinct proteins in a bin"
 float maxAtacFrac; "Max fraction of ATAC experiments with a peak"
 float maxDnaseFrac; "Max fraction of DNase experiments with a peak"
-string tier; "high or extreme"
+string tier; "strictest tier reached: top1, top5, top10 or top20"
 float overlapOther; "Fraction of bins passing the other class at the same tier"
 )
 """
@@ -58,18 +59,18 @@ def regions(mask, offs, nb):
     return idx, starts, ends
 
 
-def write_bed(path, prefix, mask, ext_mask, other, offs, nb, chroms, sizes, P, A, D, rank):
+def write_bed(path, prefix, mask, level, other, offs, nb, chroms, sizes, P, A, D, rank):
     idx, s, e = regions(mask, offs, nb)
     ci = np.searchsorted(offs, idx[s], side="right") - 1 if idx.size else idx
     red = lambda x, f: f.reduceat(x[idx], s) if idx.size else np.array([])
     mP, mA, mD, mR = red(P, np.maximum), red(A, np.maximum), red(D, np.maximum), red(rank, np.maximum)
-    ext = red(ext_mask.astype(np.int8), np.maximum); ov = red(other.astype(np.int64), np.add)
+    lev = red(level, np.maximum); ov = red(other.astype(np.int64), np.add)
     lines = []
     for k in range(s.size):
         c = chroms[ci[k]]; b0 = idx[s[k]] - offs[ci[k]]; n = int(e[k] - s[k])
         st, en = int(b0 * BIN), int(min((b0 + n) * BIN, sizes[c]))
         lines.append(f"{c}\t{st}\t{en}\t{prefix}_{k + 1:06d}\t{int(round(1000 * mR[k]))}\t.\t{n}\t{int(mP[k])}\t"
-                     f"{mA[k]:.4f}\t{mD[k]:.4f}\t{'extreme' if ext[k] else 'high'}\t{ov[k] / n:.3f}\n")
+                     f"{mA[k]:.4f}\t{mD[k]:.4f}\t{NAMES[lev[k]]}\t{ov[k] / n:.3f}\n")
     Path(path).write_text("".join(lines))
     L = (e - s) * BIN if idx.size else np.array([0])
     return {"bins": int(mask.sum()), "Mb": mask.sum() * BIN / 1e6, "regions": int(s.size),
@@ -98,17 +99,18 @@ def main(npz, sizes_path, out, *opts):
             M[f"{name}_{t}"] = m
     for t in TIERS:
         M[f"open_{t}"] = M[f"atac_{t}"] & M[f"dnase_{t}"]
+    LV = {c: sum(M[f"{c}_{t}"].astype(np.int8) for t in TIERS) for c in ("protein", "open", "atac", "dnase")}
     rP, rA, rD = ecdf_rank(z["proteins"]), ecdf_rank(z["atac_experiments"]), ecdf_rank(z["dnase_experiments"])
     rO = np.minimum(rA, rD)
     summ = {"definition": __doc__.split("\n\n")[1], "thresholds": thr, "files": {}, "overlap": {}}
     for t in TIERS:
         for cls, rank, other in (("protein", rP, "open"), ("open", rO, "protein")):
             f = f"PMA_hotspot_{cls}_{t}.bed"
-            summ["files"][f] = write_bed(out / f, f"{cls}HOT_{t}", M[f"{cls}_{t}"], M[f"{cls}_extreme"], M[f"{other}_{t}"],
+            summ["files"][f] = write_bed(out / f, f"{cls}HOT_{t}", M[f"{cls}_{t}"], LV[cls], M[f"{other}_{t}"],
                                           offs, nb, chroms, sizes, P, A, D, rank)
         for a, rank in (("atac", rA), ("dnase", rD)):
             f = f"per_assay/PMA_hotspot_{a}_{t}.bed"
-            summ["files"][f] = write_bed(out / f, f"{a}HOT_{t}", M[f"{a}_{t}"], M[f"{a}_extreme"], M[f"protein_{t}"],
+            summ["files"][f] = write_bed(out / f, f"{a}HOT_{t}", M[f"{a}_{t}"], LV[a], M[f"protein_{t}"],
                                           offs, nb, chroms, sizes, P, A, D, rank)
         a, d, p, op = M[f"atac_{t}"], M[f"dnase_{t}"], M[f"protein_{t}"], M[f"open_{t}"]
         summ["overlap"][t] = {"atac_bins": int(a.sum()), "dnase_bins": int(d.sum()), "atac_and_dnase": int(op.sum()),

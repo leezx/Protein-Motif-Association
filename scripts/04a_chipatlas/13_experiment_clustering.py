@@ -111,7 +111,7 @@ def main(bed, exp_tab, counts, ann, blp, sizes_path, out, workers=4):
         for chrom, path, b, c in pool.imap_unordered(scan_chrom, [(c, offs[c]) for c in chroms]):
             paths.append(path); bins.append(b); cnts.append(c)
     b = np.concatenate(bins); c = np.concatenate(cnts)
-    cand = b[(c >= 20) & ~np.isin(b, bl)]
+    cand = np.sort(b[(c >= 20) & ~np.isin(b, bl)])  # sorted: sampling independent of worker completion order
     rng = np.random.default_rng(20261021)
     feat = np.sort(rng.choice(cand, size=min(500000, len(cand)), replace=False))
     rows, cols = [], []

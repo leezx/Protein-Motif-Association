@@ -560,3 +560,65 @@ protein-class colour bar.
 - `proteins.tsv`, `pair_similarity.tsv.gz`, `linkage.tsv`;
 - `heatmap_jaccard.png`, `heatmap_log2oe.png`;
 - `benchmark.json`, `complex_recovery.tsv`.
+
+## 14. Experiment-level clustering (user request 2026-10-20)
+
+**Question.** Is variation in genome-wide DBP binding patterns driven mainly by protein identity, by cell context or
+by technical factors? Large experiment clusters are not interpreted biologically until this is answered.
+
+**Data.**
+- v1 protein experiments (TF + Pol) with at least 1,000 peaks.
+- Features: 500-bp non-blacklist bins occupied by at least 20 experiments. A fixed random 500,000 of them (seed
+  20261021) keeps the matrix tractable while preserving pairwise structure.
+- An experiment occupies a bin if any of its peaks overlaps it.
+
+**Representation.**
+- TF-IDF on the binary experiments × bins matrix, then truncated SVD (50 components).
+- The correlation of each component with log10 peak count is reported. Components with |r| > 0.7 are dropped as
+  depth axes.
+- Rows are L2-normalised.
+
+**Attribution.** In the 10-nearest-neighbour graph (cosine), for each factor:
+- the observed fraction of neighbours sharing the label, against the expectation Σ p_label²;
+- AMI between 50 k-means clusters and the label.
+
+Factors:
+- protein (HGNC symbol, else antigen);
+- protein class;
+- cell type;
+- tissue;
+- peak-count decile (technical);
+- antibody status (technical).
+
+**Controlled views.**
+- Within K-562 and within Hep G2: does protein identity or class organise the experiments?
+- Within CTCF and within the next most profiled HGNC proteins: does cell type or tissue organise them?
+
+**Outputs:** `result/experiment_clustering_v1/`
+- `attribution.tsv`, `clusters.tsv` (experiment → cluster plus metadata);
+- `svd_depth_correlation.tsv`;
+- `tsne.png`, coloured by class and by the top cell types;
+- `controlled.tsv`.
+
+## 15. Region-level occupancy classes (user request 2026-10-20)
+
+**Question.** Which combinations of DBPs recur at the same genomic regions (occupancy grammar)? Classes are
+descriptive. They depend on which proteins were profiled.
+
+**Data.** The protein × bin occupancy of §13 (context `all`: same proteins, k_p rule and blacklist removal). Regions
+are 500-bp bins occupied by at least 3 selected proteins.
+
+**Method.**
+- TF-IDF on bins × proteins, truncated SVD (30 components), L2-normalise.
+- MiniBatch k-means for k = 10, 20 and 30; the silhouette on a 50,000-bin sample is reported, and k = 20 is used
+  unless the silhouette clearly prefers another k.
+
+**Per class:**
+- number of bins and median proteins per bin;
+- the HOT fraction (top 1 % of bins by protein count);
+- protein-class composition;
+- the 15 most enriched proteins (in-class occupancy ÷ overall occupancy, at least 10 % in-class occupancy).
+
+**Outputs:** `result/region_classes_v1/`
+- `classes.tsv`, `class_proteins.tsv`, `silhouette.tsv`;
+- `region_classes.bed.gz` (+ `.tbi`, `.bb`; name = class) for IGV.

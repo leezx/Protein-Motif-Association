@@ -80,12 +80,13 @@ Argos 运行方式：
 | 三层聚类 v1（蛋白共占据、实验、区域 20 类） | `cooccupancy_v1/{all,K_562,Hep_G2}`、`experiment_clustering_v1`、`region_classes_v1` | 完成；GPT 审阅为 REVISE |
 | v1 报告 | `docs/reports/STEP4A_CHIPATLAS_CLUSTERING_REPORT_2026-10-20.zh-CN.md` | 已送 GPT |
 | v1.1 验证门（研究来源、广度匹配 + FDR、同蛋白集合比较、留一研究、实验混杂敏感性） | `validation_v1_1/` | 完成，本地 sha256 已核对 |
-| v1.1 审计报告 | `docs/reports/STEP4A_CHIPATLAS_CLUSTERING_V1_1_AUDIT_2026-10-21.zh-CN.md` | 待用户决定是否送 GPT |
+| v1.1 审计报告 | `docs/reports/STEP4A_CHIPATLAS_CLUSTERING_V1_1_AUDIT_2026-10-21.zh-CN.md` | 已送 GPT：REVISE（局部），批准开始 L2 |
+| v1.2（v1.1 修订 + 核心 L2：区间大小/阈值、区域稳定性、研究影响度、分层、按条件的期望） | `validation_v1_2/`；报告 `docs/reports/STEP4A_CHIPATLAS_CLUSTERING_V1_2_REPORT_2026-10-21.zh-CN.md`；设计 §17 | 完成，本地 sha256 已核对；待用户决定是否送 GPT |
 
-脚本：`12_cooccupancy.py`、`13_experiment_clustering.py`、`14_region_classes.py`、`16_cooccupancy_validation.py`、`17_experiment_sensitivity.py`、`18_pair_loso_diagnostic.py`。作业脚本和日志在 Argos 的 `/home/zz950/PMA_fetch/claude_sge_20261020/`。
+脚本：`12_cooccupancy.py`（`PMA_BIN`、`PMA_KFRAC`）、`13_experiment_clustering.py`、`14_region_classes.py`、`16_cooccupancy_validation.py`、`17_experiment_sensitivity.py`、`18_pair_loso_diagnostic.py`、`19_protein_sensitivity.py`、`20_study_influence.py`、`21_region_stability.py`。v1.2 的作业在 `claude_sge_20261020/v12/`，由 `sub_v12.sh test|full` 提交。作业脚本和日志在 Argos 的 `/home/zz950/PMA_fetch/claude_sge_20261020/`。
 
 **接着做：**
-1. 用户决定是否把 v1.1 审计报告送到 PMA 项目的 GPT 对话“聚类分析意义”。
+1. 用户决定是否把 v1.2 报告送到 PMA 项目的 GPT 对话“聚类分析意义”。
 2. 不经用户批准不开始：L2（bin/阈值敏感性、区域类稳定性、Complex Portal 审核）、新模块提名、SRP158854 的处理、分支合并。
 
 ## 5. 关键发现

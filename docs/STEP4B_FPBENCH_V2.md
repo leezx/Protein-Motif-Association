@@ -29,7 +29,74 @@ Callers and scores:
 | HINT-ATAC | RGT 1.0.2, `--atac-seq --paired-end` | footprint BED score; 0 outside calls (thresholded caller) |
 | PRINT | buenrostrolab/PRINT `8dad731`, upstream R functions unmodified, precomputed hg38 Tn5 bias | −log10 p, radius 10 (primary) and 20 |
 | TraceBIND | 0.1.0, PRINT Tn5 CNN bias (no mtDNA fine-tuning / mito-FDR) | max −log10 BH p over footprint widths 10–40 bp |
-| scPrinter | GitHub main, CPU | −log10 p, modes 10 and 20 |
+| scPrinter | GitHub main `ed7cafba`, CPU, PRINT hg38 bias h5 | −log10 p, modes 10 and 20 |
+
+## Results (2026-10-21)
+
+All five callers finished on all 14,437 windows with exit code 0. Site coverage ≥ 98 % for every score.
+
+### Accuracy, 146 TFs, 761,832 sites
+
+| Method | median AUROC | median AUPR | AUROC within access quintiles | TFs > access (stratified) | median CV gain over access |
+|---|---|---|---|---|---|
+| access (baseline) | **0.806** | **0.341** | **0.591** | — | — |
+| TOBIAS | 0.798 | 0.323 | 0.575 | 35 | −0.0007 |
+| HINT-ATAC | 0.632 | 0.251 | 0.540 | 23 | +0.0005 |
+| TraceBIND | 0.560 | 0.187 | 0.522 | 14 | −0.0002 |
+| scPrinter r10 | 0.558 | — | 0.524 | 18 | −0.0002 |
+| PRINT r10 | 0.537 | 0.125 | 0.522 | 17 | −0.0002 |
+| scPrinter r20 | 0.522 | — | 0.515 | 19 | −0.0002 |
+| PRINT r20 | 0.514 | 0.133 | 0.511 | 17 | −0.0002 |
+| naive_fp (−FOS) | 0.492 | 0.126 | 0.503 | 11 | −0.0005 |
+
+- Stratified AUROC: within-TF accessibility quintiles, weighted by bound × unbound per stratum (strata need ≥ 10 of each).
+  Added after the first TOBIAS/access scores were seen; disclosed as post hoc.
+- CV gain (`05_added_value.py`): per-TF 5-fold CV logistic regression AUROC of access + caller minus access alone,
+  same folds, rank-normalised features. Also post hoc.
+- No caller beats the accessibility baseline for the median TF, on any metric.
+  TOBIAS tracks accessibility (per-TF Spearman with access 0.76); PRINT, scPrinter and TraceBIND do not (≤ 0.16), and
+  PRINT and scPrinter agree with each other (ρ 0.94).
+- Footprint signal beyond accessibility is real but confined to a few long-residence TFs:
+
+| TF | access | TOBIAS | HINT | PRINT r20 | scPrinter r20 | TraceBIND |
+|---|---|---|---|---|---|---|
+| CTCF AUROC | 0.653 | 0.710 | 0.733 | 0.844 | **0.848** | 0.795 |
+| CTCF stratified | 0.546 | 0.722 | 0.641 | 0.831 | **0.834** | 0.770 |
+| CTCF CV gain | — | +0.119 | +0.108 | +0.199 | **+0.201** | +0.134 |
+| NFIX CV gain | — | +0.010 | — | +0.087 | +0.078 | +0.057 |
+
+  JUNB (+0.02–0.03) and MAFK (+0.015–0.025) are the only other TFs with a gain ≥ 0.01 shared across PRINT-family callers.
+
+### Resources (rcapps3, 16 cores, one caller at a time)
+
+| Caller | wall | CPU h | avg busy cores | peak PSS | full-genome wall at 16 cores (linear) |
+|---|---|---|---|---|---|
+| HINT-ATAC | 3.7 min | 0.57 ¹ | 9.4 | 2.6 GB | 0.33 h |
+| scPrinter | 5.9 min ² | 0.85 ³ | 1.1 | 24.4 GB | 0.52 h |
+| TOBIAS | 11.1 min | 2.23 ¹ | 12.1 | 2.3 GB | 0.98 h |
+| PRINT | 23.8 min | 1.95 ⁴ | 4.9 | 38.4 GB | 2.10 h |
+| TraceBIND | 363.7 min | 80.1 | 13.2 | 36.1 GB | 32.1 h |
+
+1. rusage of reaped children (run before the per-process sampler); consistent with the busy-core average.
+2. Excludes this benchmark's own bedgraph writer (2,553 s of Python formatting, harness code). scPrinter itself:
+   fragment import 172 s, footprinting 126 s.
+3. Includes the export step.
+4. From the `print_cpu` rerun (same inputs, wall 23.7 min); the first run's rusage missed forked workers.
+
+- Full genome = 76,558 windows (factor 5.30). Fixed costs (bias load, imports) make this an upper estimate.
+- PRINT stages: bias 81 s, counts 286 s, radius 10 458 s, radius 20 463 s. Peak memory is the genome-wide bias load.
+- TraceBIND stages: bias 3,683 s, counts 320 s, footprint 17,752 s. Its first hour overlapped short smoke tests and
+  scoring on the same host.
+- Speed gate from the v1 design (100 M fragments ≤ 4 h on 32 CPUs within 40 GiB), judged from the
+  linear full-peak-set estimate at 16 cores (this run: 21.5 M fragments on chr1–2):
+  HINT, TOBIAS, scPrinter pass; PRINT passes on time but sits at 34–38 GB; TraceBIND fails (~32 h at 16 cores).
+
+### Conclusion
+
+- On ChIP-labelled motif sites, accessibility alone is the best predictor of occupancy for 146 K562 TFs.
+  TOBIAS reproduces it; the PRINT family and TraceBIND discard it by design and add almost nothing for the median TF.
+- If a footprint caller is needed for CTCF-like TFs, scPrinter is the pick: best CTCF accuracy (= PRINT, ρ 0.94),
+  ~4× faster than PRINT and ~60× faster than TraceBIND. A C port of PRINT is not justified by these data.
 
 ## Limits
 
@@ -38,5 +105,9 @@ Callers and scores:
   equally for every caller. Unbound sites may hold undetected binders.
 - K562 ATAC `ENCSR868FGK` carries an ENCODE nucleosome-free-fraction warning.
 - No naked-DNA specificity layer in this round.
+- TraceBIND ran without mtDNA bias fine-tuning or its mito-FDR, so its native calls are not at full strength.
+- The scores reward occupancy, which correlates with accessibility; a caller that removes accessibility on purpose
+  is judged by the stratified AUROC and CV gain, not the raw AUROC.
 
-Code: `scripts/04b_fpbench/`. Results (Argos): `DATA/2.PROJECTS/PMA/atac_footprint/result/fpbench_k562_v1/`.
+Code: `scripts/04b_fpbench/` (`00`–`05`, `measure.py`, `run_*`). Tables: `eval/summary.tsv`, `per_tf_metrics.tsv`,
+`added_value_*.tsv`, `resources.tsv`. Results (Argos): `DATA/2.PROJECTS/PMA/atac_footprint/result/fpbench_k562_v1/`.

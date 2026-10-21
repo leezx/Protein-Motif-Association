@@ -234,22 +234,29 @@ def main(bed, ann, blp, sizes_path, cp, hgnc, out, context="all", workers=5):
         ii = [idx[g] for g in gs]
         sub = J[np.ix_(ii, ii)][np.triu_indices(len(ii), 1)]
         subo = oe[np.ix_(ii, ii)][np.triu_indices(len(ii), 1)]
-        null = []
+        null_o, null_j = [], []
         for _ in range(1000):
             rr = rng.choice(len(names), len(ii), replace=False)
-            null.append(np.median(oe[np.ix_(rr, rr)][np.triu_indices(len(rr), 1)]))
-        null = np.array(null); med = float(np.median(subo))
-        rec.append(dict(complex=nm, n_members_present=len(gs), members=";".join(gs), median_jaccard=round(float(np.median(sub)), 4),
-                        median_log2oe=round(med, 3), null_median_log2oe=round(float(np.median(null)), 3),
-                        empirical_p=round(float((1 + (null >= med).sum()) / 1001), 4)))
-    rec.sort(key=lambda x: (not x["complex"].startswith("named:"), x["empirical_p"]))
+            tri = np.triu_indices(len(rr), 1)
+            null_o.append(np.median(oe[np.ix_(rr, rr)][tri])); null_j.append(np.median(J[np.ix_(rr, rr)][tri]))
+        null_o = np.array(null_o); null_j = np.array(null_j)
+        med_o = float(np.median(subo)); med_j = float(np.median(sub))
+        rec.append(dict(complex=nm, n_members_present=len(gs), members=";".join(gs),
+                        median_jaccard=round(med_j, 4), null_median_jaccard=round(float(np.median(null_j)), 4),
+                        empirical_p_jaccard=round(float((1 + (null_j >= med_j).sum()) / 1001), 4),
+                        median_log2oe=round(med_o, 3), null_median_log2oe=round(float(np.median(null_o)), 3),
+                        empirical_p_log2oe=round(float((1 + (null_o >= med_o).sum()) / 1001), 4)))
+    rec.sort(key=lambda x: (not x["complex"].startswith("named:"), x["empirical_p_jaccard"]))
     with open(out / "complex_recovery.tsv", "w") as w:
         w.write("\t".join(rec[0]) + "\n")
         for x in rec:
             w.write("\t".join(map(str, x.values())) + "\n")
-    ps = np.array([x["empirical_p"] for x in rec if not x["complex"].startswith("named:")])
-    bench["complexes_tested"] = int(len(ps)); bench["complexes_p_le_0.05"] = int((ps <= 0.05).sum())
-    bench["named"] = {x["complex"]: {k: x[k] for k in ("n_members_present", "median_jaccard", "median_log2oe", "empirical_p")}
+    real = [x for x in rec if not x["complex"].startswith("named:")]
+    bench["complexes_tested"] = len(real)
+    for m in ("jaccard", "log2oe"):
+        bench[f"complexes_p_le_0.05_{m}"] = sum(x[f"empirical_p_{m}"] <= 0.05 for x in real)
+    bench["named"] = {x["complex"]: {k: x[k] for k in ("n_members_present", "median_jaccard", "null_median_jaccard",
+                                                       "empirical_p_jaccard", "median_log2oe", "empirical_p_log2oe")}
                       for x in rec if x["complex"].startswith("named:")}
     (out / "benchmark.json").write_text(json.dumps(bench, indent=1) + "\n")
     with open(out / "proteins.tsv", "w") as w:

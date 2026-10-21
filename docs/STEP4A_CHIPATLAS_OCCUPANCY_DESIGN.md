@@ -548,7 +548,10 @@ protein-class colour bar.
 **Benchmark** (independent reference: Complex Portal human, 2026-10-21, UniProt → HGNC).
 - Pairs of selected proteins that share a complex versus all other pairs:
   - AUROC of J and of log2 O/E;
-  - the median within-complex similarity against 1,000 size-matched random sets.
+  - the median within-complex similarity against 1,000 size-matched random sets, tested on both Jaccard and log2 O/E.
+  - Jaccard is the primary metric. log2 O/E penalises broadly occupied proteins: CTCF and cohesin have the highest
+    Jaccard (0.585) but no O/E excess. Genome-wide AUROC is Jaccard 0.76 (0.81 without HOT bins) against O/E 0.59
+    (0.78).
 - Named checks, which are expectations to test, not results:
   - cohesin (RAD21, SMC1A, SMC3, STAG1/2) and CTCF;
   - BAF (SMARCA4, SMARCC1/2, SMARCB1, ARID1A/B);

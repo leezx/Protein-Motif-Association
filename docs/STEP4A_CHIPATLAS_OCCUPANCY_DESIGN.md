@@ -625,3 +625,63 @@ are 500-bp bins occupied by at least 3 selected proteins.
 **Outputs:** `result/region_classes_v1/`
 - `classes.tsv`, `class_proteins.tsv`, `silhouette.tsv`;
 - `region_classes.bed.gz` (+ `.tbi`, `.bb`; name = class) for IGV.
+
+## 16. v1.1 validation gate (GPT review of §13–§15, 2026-10-20: REVISE)
+
+Scope is limited to the four L1 items. No new features. Novel-module nomination waits for this gate.
+
+**L1-a Study provenance** (`study_provenance.tsv`).
+- Source: the ENA portal API (`read_experiment`). It gives the SRA study for every hg38 ChIP-Atlas experiment of
+  class TF / Pol / Histone / ATAC / DNase: `secondary_study_accession` (SRP/ERP/DRP) and `study_accession` (PRJ).
+- The study unit is the SRA study, which normally maps one-to-one to a GEO series.
+- Experiments without an ENA record become their own singleton study and are flagged.
+- Limitation: reuse of the same raw reads under different studies cannot be detected from these fields.
+
+**L1-b Complex recovery validation** (`complex_recovery_validation.tsv`, `benchmark_validation.json`). All on the
+non-HOT Jaccard.
+- Breadth-matched null. Each complex member is replaced by a random protein from the same occupancy-breadth decile
+  (|occupied bins|), 10,000 draws, giving p = (1 + #null ≥ obs) / (1 + n). BH-FDR is applied over all complexes and
+  separately over distinct member sets. The unadjusted size-matched p of v1 is kept.
+- Pair-level metrics: AUROC and PR-AUC (average precision), each with a 95 % CI from a protein-level bootstrap
+  (1,000 resamples of proteins). Pairs are not independent, so proteins are resampled.
+- Matched universe: K-562 and Hep G2 are recomputed on the proteins present in both contexts.
+- Per-complex coverage:
+  - members in Complex Portal (HGNC-mapped) versus members in the PMA set;
+  - experiments and studies per member.
+- Physical versus functional. Cohesin core (RAD21, SMC1A, SMC3, STAG1, STAG2) is a physical complex. CTCF–cohesin
+  pairs are scored separately as a known functional association.
+
+**L1-c Study-level leave-one-out** (`pair_study_validation.tsv`).
+- Candidate pairs:
+  - all Complex Portal same-complex pairs;
+  - the top 300 non-Complex-Portal pairs by non-HOT Jaccard in context `all`.
+- For each pair:
+  - studies per protein and studies shared by both;
+  - LOSO Jaccard: remove every experiment of one study at a time, recompute both occupancies, and report the
+    minimum;
+  - cross-study Jaccard: A's experiments from studies that did not profile B, against B's experiments from studies
+    that did not profile A.
+- Thresholds are recomputed on each subset: k = max(min(2, n), ⌈0.05 n⌉).
+- Status:
+  - `insufficient_independent_evidence` if either protein comes from a single study or the cross-study sets are
+    empty;
+  - `study_robust` if the cross-study Jaccard is at least half of the full Jaccard and at least the 95th percentile
+    of all pairs' non-HOT Jaccard;
+  - otherwise `study_dependent`.
+
+**L1-d Experiment-level confounder sensitivity** (`experiment_confounder_sensitivity.tsv`). The same TF-IDF/SVD
+embedding as §14 is evaluated under five variants:
+- V0 raw;
+- V1 without SVD component 1;
+- V2 neighbours restricted to the same peak-count decile;
+- V3 neighbours restricted to other studies;
+- V4 = V2 + V3.
+
+For protein, cell type, protein class and tissue, each variant reports the observed and expected same-label
+fraction, the fold enrichment, and κ = (obs − exp) / (1 − exp). κ is used to compare factors, because fold
+enrichment is not comparable across label sets with different numbers and frequencies of levels. Within-cell-type
+and within-protein views are repeated under V4.
+
+**Provenance note.** The Complex Portal file sits in `raw/2026-10-21/` because the directory was named after the UTC
+date. It was downloaded on 2026-10-20 at 21:30 EDT (2026-10-21 01:30 UTC). Raw stays append-only, so this is recorded
+in a provenance note rather than by renaming. The seed value 20261021 is an arbitrary fixed constant.

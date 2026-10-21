@@ -40,6 +40,12 @@ CAP = {"Histone writer/eraser", "Histone reader", "Chromatin remodeler", "Archit
 MODE = os.environ.get("PMA_TRACK_MODE", "protein")
 CORE_MARKS = ("H3K27ac", "H3K4me3", "H3K4me1", "H3K27me3", "H3K9me3", "H3K36me3")
 PREFIX = os.environ.get("PMA_TRACK_PREFIX", "atac")
+# PMA_EXCLUDE_TSV: experiment filter table of 11_experiment_filter.py; rows with include == False are skipped
+EXCLUDE = set()
+if os.environ.get("PMA_EXCLUDE_TSV"):
+    with open(os.environ["PMA_EXCLUDE_TSV"]) as _f:
+        next(_f)
+        EXCLUDE = {l.split("\t", 4)[0] for l in _f if l.split("\t", 4)[3] == "False"}
 if MODE == "histone":
     MAIN = ("histone_experiments", "histone_modifications") + tuple(f"histone_{m}" for m in CORE_MARKS)
 elif MODE == "pol":
@@ -52,6 +58,8 @@ else:
 
 def row_items(f, cls):
     """(track, item) pairs a peak row contributes to, including QC-only class tracks in protein mode."""
+    if f[3] in EXCLUDE:
+        return []
     if MODE == "pol":
         if f[11] != "RNA polymerase":
             return []
@@ -286,7 +294,8 @@ def main(bed, ann, sizes_path, out, workers=6, region=None):
     for r in res:
         viol.update(r["qc_violations"]); [ex.setdefault(k, v) for k, v in r["qc_examples"].items()]
     spot = spot_check(bed, cls, out)
-    qc = dict(rows=sum(r["rows"] for r in res), chromosomes=len(res),
+    qc = dict(rows=sum(r["rows"] for r in res), chromosomes=len(res), excluded_experiments=len(EXCLUDE),
+              exclude_tsv=os.environ.get("PMA_EXCLUDE_TSV", ""),
               covered_bp=sum(r["covered_bp"] for r in res),
               max={t: max(r["max"].get(t, 0) for r in res) for t in MAIN},
               segments={t: sum(r["segments"][t] for r in res) for t in MAIN},

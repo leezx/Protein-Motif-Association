@@ -479,3 +479,32 @@ Other ChIP-Atlas classes are not used:
 - Unclassified and No description: no usable target label.
 - Bisulfite-Seq: methylation, not in the peak archive.
 - Annotation tracks: not experiments.
+
+**Experiment filter** (user decision 2026-10-20; `11_experiment_filter.py`,
+`light_v1/PMA_chipatlas_hg38_experiment_filter.tsv`). Applies to the accessibility tracks and the histone tracks;
+protein and Pol tracks are unchanged, because their single-cell keyword hits were false positives such as
+"VP16(10x)" and "SC" for Santa Cruz.
+
+Exclusion rules:
+- `single_cell`: the experiment metadata mention single-cell / single-nucleus, sc/snATAC, sci-ATAC, 10x / Chromium,
+  multiome, SHARE/SNARE-seq or scCUT&Tag. Study-level wording also counts, so this rule is conservative.
+- `non_accessibility` (ATAC/DNase only): the title core names another assay or a control. Examples:
+  - RNA-seq or ChIP-seq mislabelled as ATAC;
+  - histone marks;
+  - IgG or input;
+  - KAS-seq / KAS-ATAC;
+  - deproteinized-DNA DNase background.
+- `low_peaks` (ATAC/DNase only): fewer than 10,000 peaks in the q < 1e-5 archive.
+
+Why 10,000 rather than 100,000:
+- This archive uses q < 1e-5 MACS2 calls. ATAC has a median of 3,427 peaks per experiment and only 644 of 48,776
+  experiments reach 100,000.
+- A 100,000 floor would keep 10 % of ATAC peaks; 10,000 keeps 92 %.
+
+| Class | Experiments | Included | Peaks included |
+|---|---|---|---|
+| ATAC-Seq | 48,776 | 18,651 | 92.1 % |
+| DNase-seq | 4,604 | 2,086 | 99.1 % |
+| Histone | 40,444 | 37,762 | 2,682 single-cell iCELL8 CUT&Tag removed, ~2,700 peaks |
+
+The pre-filter tracks are kept under `light_v1/preFilter/` for comparison.

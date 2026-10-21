@@ -60,7 +60,9 @@
 - **组蛋白：** 只统计已确认的修饰。H 为实验数，M 为不同修饰数，H_m 为单个修饰的实验数。6 个核心修饰分 4 个功能组，不相加。
 
 Argos 运行方式：
-- SLURM 不可用，所有任务在 argos-qsub1 上用 nohup 后台运行，单进程 `ulimit -v 16G`。
+- **不要在登录节点（argos-qsub1）运行任何任务。** 2026-10-20 用户明确要求，此前用 nohup 在登录节点跑的做法作废。
+- Argos 用 SGE：先执行 `set +u; source /opt/sge/default/common/settings.sh`，再用 `qsub -q all.q -pe smp N -l h_vmem=<每核>G` 提交。h_vmem 按每核计算，核数 × h_vmem 不超过 50G。有依赖的步骤用 `-hold_jid`。作业里要设 `OPENBLAS_NUM_THREADS=$NSLOTS`（OMP、MKL 同样设置）。
+- 2026-10-20 晚起的作业脚本和日志都在 `/home/zz950/PMA_fetch/claude_sge_20261020/`，查状态用 `qstat -u zz950` 和 `*.status`。
 - 代码先 clone 固定的 commit 到 `/home/zz950/PMA_fetch/claude_tracks_<commit>/` 再运行。
 - 日志和状态文件放在 `/home/zz950/PMA_fetch/claude_light_logs/`。
 

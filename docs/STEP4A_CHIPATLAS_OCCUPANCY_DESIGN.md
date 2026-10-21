@@ -757,3 +757,26 @@ SRP158854 and the Hep G2 BAF experiments are flagged, not removed.
 
 Compute: SGE `all.q`, 8 slots, h_vmem = 48G, chained with `-hold_jid` where outputs are shared. Outputs go to
 `result/validation_v1_2/{protein,sensitivity/<variant>,experiment,region,study}`.
+
+## 18. Hotspot and open-region thresholds, then motif enrichment (user request 2026-10-21)
+
+**Request.** Which motifs are enriched in the hotspot regions, ranked by significance. Before that, show the
+per-region distributions of (a) distinct ChIP-seq proteins (histone excluded) and (b) ATAC and DNase open-chromatin
+evidence, so that the user can set the thresholds that define "hotspot binding" and "open" regions.
+
+**Step 1 — distributions (this round).**
+- Unit: 500 bp genome bins (chr1–22, X, Y), the same bin as §13–§15.
+- Inputs: the blacklist-masked evidence tracks (`tracks_noBlacklist/proteins`, `tracks_atac_noBlacklist/atac_{experiments,celltypes}`,
+  `tracks_dnase_noBlacklist/dnase_{experiments,celltypes}`), i.e. after the §12 experiment filter
+  (ATAC 18,651, DNase 2,086 experiments).
+- Per-bin value = maximum of the track inside the bin (`23_hotspot_bins.py`). Proteins = distinct protein labels
+  (TF, CAP, Pol and other non-histone targets).
+- Outputs: histograms and survival curves (bins ≥ x), quantile and threshold tables, and the joint relation of
+  protein count with ATAC/DNase fraction (`24_hotspot_distribution_panels.py`).
+- QC: chr21 brute-force check on 300 non-zero and 300 zero bins per track; per-track max equals the bedGraph max.
+
+**Step 2 — motif enrichment (after the user fixes the thresholds; not run yet).** Hotspot set = bins at or
+above the protein threshold, merged; background = bound or open bins below the threshold, matched for GC and
+open-chromatin level, so that the enrichment is not driven by promoter GC or accessibility alone. Motifs from
+`motif_reference` (Step 3 clustered set); test with a standard enrichment tool (e.g. SEA/HOMER), ranked by
+adjusted p. The exact design is fixed once the thresholds are chosen.

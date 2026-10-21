@@ -812,3 +812,44 @@ All other rules are unchanged from §18.1. v1 `high` and `extreme` equal v2 `top
 The `tier` column now holds the strictest tier that any bin of the region reaches.
 
 Output goes to `result/hotspot_regions_v2/`. v1 is kept unchanged.
+
+### 18.3 Motif enrichment in hotspot regions (user request 2026-10-21)
+
+**Question.** Which known motifs are enriched in each hotspot set, ranked by significance?
+
+**Sequence units.**
+- One 500 bp sequence per hotspot region: the region's summit bin.
+  - Protein hotspots: the bin with the most proteins.
+  - Open-chromatin hotspots: the bin with the highest mean ATAC/DNase rank.
+- This avoids counting long merged regions more than once.
+- Regions are sampled at random (seed 1) down to at most 50,000 per set. This bounds run time; the effect sizes
+  are already precise at that size.
+
+**Controls.** Built with HOMER 5.1 `homer2 bg`, at the user's suggestion. It selects genomic sequences that match
+the targets in GC content and k-mer composition.
+- **G (genome-matched):** sampled from blacklist-free bins outside the top20 hotspot set of the same class. All
+  8 sets (2 classes × 4 tiers) get this control.
+- **A (accessibility-matched, protein hotspots only):**
+  - Candidate bins come from outside the protein top20 set.
+  - They are stratified on the mean ATAC/DNase rank into 20 strata, defined by the target's quantiles, with 5
+    candidates per target bin in each stratum.
+  - `homer2 bg -bg` then picks the GC/k-mer-matched subset.
+  - This answers which motifs mark protein hotspots beyond what openness alone explains. How well the matching
+    succeeds is reported.
+- **S (promoter / distal strata):** for top5 of both classes, target and control are split into promoter (TSS
+  ±1 kb, GENCODE v32 transcripts from the 10x GRCh38-2020-A genes.gtf) and distal sets, each with a G control
+  drawn from the same stratum.
+- Control size = min(2 × targets, 100,000).
+
+**Motif libraries.**
+1. JASPAR 2026 CORE vertebrates non-redundant: 1,019 motifs, from the PMA v0.3 raw layer.
+2. The PMA Step 3B consensus representatives at three tiers: HIGH (2,059 clusters), MEDIUM (995) and LOW (542).
+   The three tiers are clustering resolutions, not quality grades.
+
+**Test.** MEME 5.5.9 SEA with the HOMER control (`--n`), reporting all motifs. Motifs are ranked by SEA q-value
+(log scale), with the enrichment ratio, TP% and FP% reported alongside.
+
+**Reading the results.**
+- Motif enrichment is a property of the sequences: it shows which motif classes these regions carry.
+- It does not show which protein binds there.
+- Promoter-associated GC-rich motifs are expected to dominate control G. Controls A and S are the checks on that.

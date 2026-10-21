@@ -692,3 +692,68 @@ that profiled both proteins. It misses a single study that dominates one protein
 from 0.366 to 0.025 (`18_pair_loso_diagnostic.py`). The strict tier `study_robust_loso` therefore also requires
 LOSO-min Jaccard ≥ 0.5 × the full Jaccard. It is a filter on `pair_study_validation.tsv`, not a recomputation. The
 pre-registered `study_robust` counts are still reported.
+
+## 17. v1.2: v1.1 revisions and core L2 sensitivity (GPT review of v1.1, 2026-10-21: REVISE, L2 approved)
+
+Scope: the four items GPT asked for. High-confidence novel-module nomination stays closed. No data are deleted:
+SRP158854 and the Hep G2 BAF experiments are flagged, not removed.
+
+**A. Study independence** (`20_study_influence.py`).
+- Provenance coverage is reported for the protein input itself. All 39,099 protein experiments are mapped; 8 are
+  singleton studies.
+- Robustness tiers per candidate pair, from `pair_study_validation.tsv`:
+  - `tier1_high`: cross-study robust (§16) and LOSO-min ≥ 0.5 × full;
+  - `tier2_moderate`: cross-study robust, but sensitive to one study;
+  - `insufficient_coverage`;
+  - `study_dependent`.
+- Context replication, a separate dimension from study robustness. For each cell type with experiments for both
+  proteins, recompute the cross-study Jaccard inside that cell type: A from studies that did not profile B in that
+  cell type, and vice versa. Thresholds use the within-context floor of 1 (§13). The pair is `context_replicated`
+  if, in at least one cell type, this Jaccard is ≥ 0.5 × the full Jaccard and ≥ the 95th percentile of all pairs.
+- Study influence per protein. For every protein with ≥ 2 studies and every one of its studies s, recompute the
+  occupied bins without s (threshold recomputed on n − n_s). Report:
+  - `influence = 1 − Jaccard(occ_full, occ_without_s)`;
+  - the most influential study and the change in the number of occupied bins.
+
+  Proteins with maximum influence ≥ 0.5 are flagged. This is provenance QC, not a filter.
+- Targeted QC, metadata only, no deletion:
+  - SRP158854: per-experiment cell type, antibody, peak count and title;
+  - Hep G2 BAF (SMARCA4, SMARCC2, SMARCE1): experiments, studies, peak counts, occupied bins and pairwise
+    experiment-level Jaccard, against K-562.
+
+**B. Statistical additions.**
+- Complex recovery (`19_protein_sensitivity.py`):
+  - The representative of each distinct member set is now its minimum-p entry. v1.1 used the first entry in
+    Complex Portal order; both are reported. BH is then rerun over the distinct sets.
+  - HOT/null decomposition on the same complexes:
+    - all bins + size-matched null;
+    - non-HOT + size-matched null;
+    - non-HOT + breadth-matched null.
+  - The CI is labelled "protein-resampling CI". The FDR is labelled "breadth-matched empirical FDR".
+- Matched universe (K-562 / Hep G2): precision at the top 20 and top 50 pairs, and the overlap of the top-50 pair
+  sets between the two cell types.
+- Experiment level (`17_experiment_sensitivity.py` v1.2):
+  - Expected same-label fraction conditioned on each anchor's eligible-neighbour set. V0/V1 use all other
+    experiments; V2 the same peak decile; V3 other studies; V4 both. The expectation is averaged over anchors, and
+    κ is recomputed from it.
+  - Empirical p from 200 label permutations within peak-decile strata, with the neighbour graphs fixed.
+  - For each view, the number of anchors with a full set of 10 eligible neighbours.
+
+**C. Core L2 sensitivity.**
+- Bin size and threshold (`19_protein_sensitivity.py`, `PMA_BIN`, `PMA_KFRAC`). Context `all` is rerun at:
+  - 250 / 500 / 1000 bp with k = 5 %;
+  - 500 bp with k = 2.5 % and 10 %.
+
+  Each variant reports AUROC and PR-AUC (protein-resampling CI), FDR counts, and the named physical complexes.
+  A conclusion is stable if the AUROC CI overlaps the 500-bp/5 % CI and the named complexes keep FDR ≤ 0.05.
+- Region classes (`21_region_stability.py`, on the §15 matrix):
+  - cross-resolution agreement for k = 10/20/30 (ARI, NMI and best-match overlap per k = 20 class);
+  - 5 seeds at k = 20 (ARI against seed 20261021);
+  - 5 × 80 % bin subsamples (ARI on shared bins);
+  - non-HOT re-clustering (ARI on shared bins);
+  - per-class stability as the median best-match Jaccard across reruns.
+
+  C07 (HMGA1) and C09 (PPARA) are checked against the study-influence table.
+
+Compute: SGE `all.q`, 8 slots, h_vmem = 48G, chained with `-hold_jid` where outputs are shared. Outputs go to
+`result/validation_v1_2/{protein,sensitivity/<variant>,experiment,region,study}`.

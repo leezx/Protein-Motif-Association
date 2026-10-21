@@ -830,12 +830,14 @@ the targets in GC content and k-mer composition.
 - **G (genome-matched):** sampled from blacklist-free bins outside the top20 hotspot set of the same class. All
   8 sets (2 classes × 4 tiers) get this control.
 - **A (accessibility-matched, protein hotspots only):**
-  - Candidate bins come from outside the protein top20 set.
+  - Candidate bins come from outside the same-tier protein set. A chr21 test showed that bins outside protein top20 are
+    almost never as open as the targets (pool shortfall 60–90%), so the control for tier t is bins with fewer
+    proteins than tier t at matched openness.
   - They are stratified on the mean ATAC/DNase rank into 20 strata, defined by the target's quantiles, with 5
     candidates per target bin in each stratum.
   - `homer2 bg -bg` then picks the GC/k-mer-matched subset.
-  - This answers which motifs mark protein hotspots beyond what openness alone explains. How well the matching
-    succeeds is reported.
+  - Control size = min(targets, pool / 2). How well the matching succeeds (shortfall, median open score) is reported.
+  - This answers which motifs mark protein hotspots beyond what openness alone explains.
 - **S (promoter / distal strata):** for top5 of both classes, target and control are split into promoter (TSS
   ±1 kb, GENCODE v32 transcripts from the 10x GRCh38-2020-A genes.gtf) and distal sets, each with a G control
   drawn from the same stratum.

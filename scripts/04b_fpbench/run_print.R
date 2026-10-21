@@ -23,7 +23,7 @@ regionRanges(project) <- regions
 t0 <- tic()
 project <- getPrecomputedBias(project, nCores = nCores)
 timing$bias <- tic() - t0; t0 <- tic()
-barcodeGroups <- data.frame(barcode = "K562", group = "all")
+barcodeGroups <- data.frame(barcode = fread(cmd = paste("zcat", frags, "| head -1"), header = FALSE)$V4, group = "all")
 project <- getCountTensor(project, frags, barcodeGroups, returnCombined = TRUE, chunkSize = 2000, nCores = nCores)
 groups(project) <- "all"
 groupCellType(project) <- "all"

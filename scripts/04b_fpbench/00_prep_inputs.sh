@@ -3,9 +3,10 @@
 # - filtered BAM (MAPQ>=30, proper pair, no dup/secondary/supplementary/unmapped) on the benchmark chromosomes
 # - Tn5-shifted fragments (+4/-5) from that same BAM, bgzip + tabix
 # - non-overlapping fixed 1-kb windows around IDR peak summits (greedy by signalValue), on the same chromosomes
-# usage: 00_prep_inputs.sh <env_bin> <atac.bam> <idr_peaks.narrowPeak.gz> <outdir> <threads> <chrom,chrom,...>
+# usage: 00_prep_inputs.sh <env_bin> <atac.bam> <idr_peaks.narrowPeak.gz> <outdir> <threads> <chrom,chrom,...> [sample]
+#   sample is the fragment barcode (one pseudobulk), default K562
 set -euo pipefail
-B=$1; BAM=$2; PEAKS=$3; O=$4; T=$5; CHROMS=$6
+B=$1; BAM=$2; PEAKS=$3; O=$4; T=$5; CHROMS=$6; SAMPLE=${7:-K562}
 mkdir -p "$O"
 export PATH="$B:$PATH"
 IFS=, read -r -a CH <<< "$CHROMS"
@@ -17,7 +18,7 @@ samtools flagstat -@ "$T" "$O/atac.filt.bam" > "$O/atac.filt.flagstat.txt"
 
 # Fragments: one row per properly paired fragment, taken from the leftmost mate (TLEN > 0).
 samtools view -@ "$T" "$O/atac.filt.bam" \
-  | awk 'BEGIN{OFS="\t"} $9 > 0 {s = $4 - 1 + 4; e = $4 - 1 + $9 - 5; if (e > s) print $3, s, e, "K562", 1}' \
+  | awk -v smp="$SAMPLE" 'BEGIN{OFS="\t"} $9 > 0 {s = $4 - 1 + 4; e = $4 - 1 + $9 - 5; if (e > s) print $3, s, e, smp, 1}' \
   | sort -k1,1 -k2,2n -S 8G --parallel="$T" \
   | bgzip -@ "$T" > "$O/atac.frags.tsv.gz"
 tabix -p bed "$O/atac.frags.tsv.gz"

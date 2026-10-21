@@ -22,18 +22,20 @@ MODES = [10, 20]
 def main():
     frags, bed, out, n, bias, fa, bl = sys.argv[1:8]
     n = int(n)
+    with gzip.open(frags, "rt") as f:
+        bc = f.readline().split("\t")[3]  # one pseudobulk barcode
     os.makedirs(out, exist_ok=True)
     timing = {}
     # gff (gencode v41, fetched by scPrinter) is only used for its TSS-enrichment QC at import
     genome = Genome("hg38", GRCh38.chrom_sizes, GRCh38.gff_file, fa, bias, bl, GRCh38.bg, None)
     t0 = time.time()
-    printer = scp.pp.import_fragments(path_to_frags=frags, barcodes=["K562"], savename=f"{out}/printer.h5ad",
+    printer = scp.pp.import_fragments(path_to_frags=frags, barcodes=[bc], savename=f"{out}/printer.h5ad",
                                       genome=genome, plus_shift=4, minus_shift=-5, auto_detect_shift=False)
     timing["import_fragments"] = time.time() - t0
     t0 = time.time()
     regions = pd.read_csv(bed, sep="\t", header=None).iloc[:, :3]
     regions.columns = ["chrom", "start", "end"]
-    scp.tl.get_footprint_score(printer, cell_grouping=[["K562"]], group_names=["K562"], regions=regions,
+    scp.tl.get_footprint_score(printer, cell_grouping=[[bc]], group_names=[bc], regions=regions,
                                     region_width=1000, modes=MODES, n_jobs=n, save_key="fp", backed=False,
                                     overwrite=True)
     timing["footprint"] = time.time() - t0

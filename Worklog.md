@@ -142,3 +142,71 @@ For Step 3: F16 read collection-specific quality from the membership
 table; F17 experiment count is not cluster size.
 
 **Next**: PR #3 merged 2026-10-16 (a19666f) on user confirmation; Step 3 design on v0.2.1.
+
+
+## 2026-10-21 EDT — 热点区域、热点 motif 富集、公共 footprint 数据库轨道（会话总结）
+
+**做了什么**
+
+1. **热点分布与阈值**
+   - 分支 `task_20261020_chipatlas_light_bed`，脚本 `23`–`25`。
+   - 全基因组切成 6,176,550 个 500 bp 区间，每个区间统计非组蛋白蛋白数、ATAC 实验数、DNase 实验数，并画出分布图。
+   - 按分位数分 4 层，层层嵌套：top20、top10、top5、top1（阈值是事先定好的分位数，不是显著性）。
+2. **热点 BED（v2）**
+   - 两类热点：蛋白结合热点，以及开放染色质热点（ATAC 层与 DNase 层取交集）。
+   - 4 层 × 2 类，共 8 个 BED，放在 `occupancy_chipatlas/result/hotspot_regions_v2/`。
+   - 已复制到 `Figures/Tables/`。
+   - 结果文档：`Figures/Figure1/Figure1.hotspot_regions.result.md` v0.2。
+3. **热点 motif 富集**
+   - 脚本 `26`–`28`，结果在 `result/hotspot_motif_v1/`。
+   - 对照序列：HOMER 5.1 `homer2 bg` 生成 GC/k-mer 匹配的对照，分三种：G（全基因组）、A（再匹配开放程度）、S（按启动子和远端分层）。
+   - 富集：SEA 分别跑 4 个 motif 库：JASPAR 2026，以及 PMA 的 HIGH、MEDIUM、LOW 三层。
+   - 主要发现：
+     - 远端区域以 AP-1 为主；
+     - CTCF 的富集倍数最高；
+     - 启动子区域和 top1 以 ETS/NRF1/ZBTB 为主。
+   - 显著性普遍饱和，所以按富集倍数和排名解读。
+   - 结果文档：`Figure1.hotspot_motif.result.md` v0.1。
+4. **公共 footprint 数据库**
+   - 分支 `task_20261021_footprint_db_tracks`，head bbc3b8a，脚本 `scripts/04c_footprint_db/`。
+   - 调研了 8 个来源，其中 Vierstra 2020、Funk 2020、Neph 2012（hg19→hg38）、Boyle 2011（hg18→hg38）有逐样本数据。
+   - 生成 8 条样本数 bigWig，全部通过 QC；整合文件单独存放；PRINT 只保存原始文件（hg38）。
+   - liftover 产物都带 `liftedFrom<Build>` 和 `LIFTOVER_NOTICE.txt`。
+   - bigWig 已拷回 Mac，MD5 一致。
+   - 结果文档：`Figures/Footprint_atlas/Footprint_public_db_tracks.result.md` v0.1。
+5. **登记**
+   - 5 个 footprint 数据集各写了 `link.md`。
+   - 更新了 `DATA/dataset.index.md`、`DATA/2.PROJECTS/PMA/README.md`、工作区 `HANDOFF.md`、`SOFTWARES/TOOL_INDEX.md`（Argos liftOver v369）。
+
+**遇到的问题**
+- `homer2 bg -bgr` 对全基因组运行时内存爆掉，改为先抽样候选区间。
+- HOMER 会把每个 GC 区间都裁到最小区间的数量，导致对照序列太少。改为只排除同一层的区间，并对对照偏少的比较标记 SMALL_CONTROL。
+- SEA 太慢：把目标序列上限设为 1 万条，motif 库拆成 8 份并行，q 值在整个库上重新计算。
+- Argos 环境：glibc 太旧，改用 liftOver v369；计算节点访问 UCSC 的 curl TLS 失败、conda 源连不上；scp 失败，改用 `tar | ssh`。
+
+**进度**
+- 项目整体估算：`20% → 36%（+16%，相对 2026-10-16 Step 2b 的记录）`。按章程权重估算：
+
+  | 部分 | 权重 | 估算完成度 | 说明 |
+  |---|---|---|---|
+  | motif reference | 25% | 约 18% | Step 1–3b 已完成，尚未冻结 |
+  | occupancy / footprint reference | 20% | 约 14% | ChIP-Atlas v1、light BED、轨道、热点、公共 footprint 轨道已完成；自建 ATAC footprint atlas 仍在试运行 |
+  | 关联统计 | 25% | 约 2% | 热点 motif 富集属于探索性分析，统计框架还没开始 |
+  | 证据分级 | 15% | 0 | 未开始 |
+  | 图与发布 | 15% | 约 2% | 结果文档已起草 |
+
+- 这些数字说明工程和数据资产在推进，不代表蛋白–motif 关联结论已经成立。
+
+**卡点**
+- 各 PMA 分支都没有合并，每个 PR 需要用户分别确认：
+  - `task_20261020_chipatlas_light_bed`
+  - `task_20261019_bed6_independent_verify`
+  - `task_20261021_repo_data_links`
+  - `task_20261021_footprint_db_tracks`
+- GPT 审阅尚未发送（需要用户批准）。
+
+**下一步**
+1. 用户决定是否合并各分支，以及是否送 GPT 审阅。
+2. 在 `task_20261021_repo_data_links` 分支的仓库 `LINKS.md` 里补上 footprint 条目。
+3. 处理 Step 3 的 CTCF consensus 冗余（CTCF 被拆成约 10 个 LOW 层级的 cluster）。
+4. 自建 ATAC footprint atlas 跑完后，与公共 footprint 轨道做一致性比较，然后做 footprint × motif。

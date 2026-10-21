@@ -32,7 +32,7 @@ plt.rcParams.update({"font.size": 7})
 
 def label(r):
     if r.library.startswith("JASPAR"):
-        return str(r.label)
+        return f"{r.label} [{str(r.motif_id).split('_', 1)[-1]}]"
     fam = "" if pd.isna(r.tf_family) else str(r.tf_family)
     tfs = "" if pd.isna(r.candidate_tfs) or r.candidate_tfs == "NA" else ",".join(t.split(":")[0] for t in str(r.candidate_tfs).split(";")[:2])
     return f"{r.motif_id} {fam}{' (' + tfs + ')' if tfs else ''}"

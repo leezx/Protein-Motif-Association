@@ -134,8 +134,8 @@ def heatmap(mat, names, cls, order, path, title, vmin, vmax, cmap):
     fig.savefig(path, dpi=200); plt.close(fig)
 
 
-def main(bed, ann, blp, sizes_path, cp, hgnc, out, context="all", workers=5):
-    out = Path(out) / re.sub(r"[^A-Za-z0-9]+", "_", context); out.mkdir(parents=True, exist_ok=True)
+def build_occupancy(bed, ann, blp, sizes_path, context="all", workers=5):
+    """Protein x 500-bp-bin occupancy (design §13): returns X (csr), genes, cls, n_exp, floor, offs, sizes."""
     cls = {r["gene"]: r["Class"] for r in csv.DictReader(open(ann, encoding="utf-8-sig")) if r["Class"] in CLASSES}
     # experiments per protein in this context (from the BED annotation via the experiments table next to v1)
     exp_tab = Path(bed).with_name("PMA_chipatlas_hg38_experiments.tsv.gz")
@@ -174,6 +174,12 @@ def main(bed, ann, blp, sizes_path, cp, hgnc, out, context="all", workers=5):
     size = np.asarray(X.sum(axis=1)).ravel()
     keep = np.where(size >= 500)[0]
     X = X[keep]; genes = [genes[i] for i in keep]; size = size[keep]
+    return X, genes, cls, n_exp, floor, offs, sizes
+
+
+def main(bed, ann, blp, sizes_path, cp, hgnc, out, context="all", workers=5):
+    out = Path(out) / re.sub(r"[^A-Za-z0-9]+", "_", context); out.mkdir(parents=True, exist_ok=True)
+    X, genes, cls, n_exp, floor, offs, sizes = build_occupancy(bed, ann, blp, sizes_path, context, workers)
     colsum = np.asarray(X.sum(axis=0)).ravel()
     universe = colsum > 0
     hot_cut = np.quantile(colsum[universe], 0.99)

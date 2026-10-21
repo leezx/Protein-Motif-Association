@@ -24,7 +24,8 @@ def main():
     n = int(n)
     os.makedirs(out, exist_ok=True)
     timing = {}
-    genome = Genome("hg38", GRCh38.chrom_sizes, "", fa, bias, bl, GRCh38.bg, None)
+    # gff (gencode v41, fetched by scPrinter) is only used for its TSS-enrichment QC at import
+    genome = Genome("hg38", GRCh38.chrom_sizes, GRCh38.gff_file, fa, bias, bl, GRCh38.bg, None)
     t0 = time.time()
     printer = scp.pp.import_fragments(path_to_frags=frags, barcodes=["K562"], savename=f"{out}/printer.h5ad",
                                       genome=genome, plus_shift=4, minus_shift=-5, auto_detect_shift=False)
@@ -32,10 +33,11 @@ def main():
     t0 = time.time()
     regions = pd.read_csv(bed, sep="\t", header=None).iloc[:, :3]
     regions.columns = ["chrom", "start", "end"]
-    fp = scp.tl.get_footprint_score(printer, cell_grouping=[["K562"]], group_names=["K562"], regions=regions,
+    scp.tl.get_footprint_score(printer, cell_grouping=[["K562"]], group_names=["K562"], regions=regions,
                                     region_width=1000, modes=MODES, n_jobs=n, save_key="fp", backed=False,
                                     overwrite=True)
     timing["footprint"] = time.time() - t0
+    fp = printer.footprintsadata["fp"]  # obs = groups, obsm[region] = groups x modes x width
     t0 = time.time()
     files = {m: gzip.open(f"{out}/scprinter_r{m}.bedgraph.gz", "wt", compresslevel=3) for m in MODES}
     for rid in fp.obsm.keys():  # one entry per region, keyed "chrom:start-end"

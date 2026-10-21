@@ -26,6 +26,9 @@ for tool in "${T[@]}"; do
     hint)   "$E/python" "$C/measure.py" "$O/resource.json" -- bash "$C/run_hint.sh" "$HINT_BIN" "$BAM" "$BED" "$O" "$N" ;;
     print)  "$E/python" "$C/measure.py" "$O/resource.json" -- "$RSCRIPT" "$C/run_print.R" "$PRINT_REPO" "$PRINT_SHARED" "$BED" "$FRAGS" "$O" "$N" 10,20 > "$O/print.log" 2>&1 ;;
     tracebind) "$E/python" "$C/measure.py" "$O/resource.json" -- bash "$C/run_tracebind.sh" "$BED" "$FRAGS" "$FA" "$PRINT_SHARED" "$O" "$N" > "$O/tracebind.log" 2>&1 ;;
+    # second PRINT run, only to record CPU time with the per-process sampler (first run predates it)
+    print_cpu) "$E/python" "$C/measure.py" "$O/resource.json" -- "$RSCRIPT" "$C/run_print.R" "$PRINT_REPO" "$PRINT_SHARED" "$BED" "$FRAGS" "$O" "$N" 10,20 > "$O/print.log" 2>&1 ;;
+    scprinter) OMP_NUM_THREADS=1 "$E/python" "$C/measure.py" "$O/resource.json" -- /home/zz950/softwares/miniforge3/envs/scprinter/bin/python "$C/run_scprinter.py" "$FRAGS" "$BED" "$O" "$N" "$R/scprinter_ref/hg38Tn5Bias.h5" "$FA" "$BL" > "$O/scprinter.log" 2>&1 ;;
     *) echo "unknown tool $tool"; continue ;;
   esac
   echo "[$(date -Is)] end $tool exit=$?"

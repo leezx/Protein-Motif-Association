@@ -88,11 +88,13 @@ def main():
         scores["tobias"] = max_over(arr, sites)
         del arr
 
-    for rad in (10, 20):
-        p = f"{R}/callers/print/print_r{rad}.bedgraph.gz"
+    bedgraphs = {f"print_r{r}": f"{R}/callers/print/print_r{r}.bedgraph.gz" for r in (10, 20)}
+    bedgraphs.update({f"scprinter_r{r}": f"{R}/callers/scprinter/scprinter_r{r}.bedgraph.gz" for r in (10, 20)})
+    bedgraphs["tracebind"] = f"{R}/callers/tracebind/tracebind_tf.bedgraph.gz"
+    for name, p in bedgraphs.items():
         if os.path.exists(p):
             arr = bedgraph_arrays(p, sizes)
-            scores[f"print_r{rad}"] = max_over(arr, sites)
+            scores[name] = max_over(arr, sites)
             del arr
 
     p = f"{R}/callers/hint/hint_footprints.bed"
@@ -151,6 +153,7 @@ def main():
         tf_beats_access_auroc=("auroc_minus_access", lambda x: int((x > 0).sum())),
         median_auroc_access_strat=("auroc_access_strat", "median"),
         n_tf_access_strat=("auroc_access_strat", lambda x: int(x.notna().sum())),
+        tf_access_strat_ge_0_6=("auroc_access_strat", lambda x: int((x >= 0.6).sum())),
     ).reset_index()
     summ["site_coverage"] = summ.method.map(coverage)
     summ.sort_values("median_auroc", ascending=False).to_csv(f"{R}/eval/summary.tsv", sep="\t", index=False)

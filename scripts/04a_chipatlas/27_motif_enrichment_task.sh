@@ -3,6 +3,7 @@
 # usage: 27_motif_enrichment_task.sh <prep_dir> <genome.fa> <row number in manifest.tsv, 1-based; default $SGE_TASK_ID>
 # Needs homer2, sea and samtools on PATH. Writes <prep_dir>/runs/<comparison>/{hb.*,sea_<library>.tsv,task.json}.
 set -euo pipefail
+ulimit -c 0
 PREP=$1; G=$2; ROW=${3:-$SGE_TASK_ID}
 IFS=$'\t' read -r CMP TGT MODE POOL N < <(sed -n "$((ROW + 1))p" "$PREP/manifest.tsv")
 OUT=$PREP/runs/$CMP; mkdir -p "$OUT"; cd "$OUT"

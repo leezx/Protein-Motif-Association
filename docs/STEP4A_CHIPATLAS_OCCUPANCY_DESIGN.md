@@ -842,6 +842,9 @@ the targets in GC content and k-mer composition.
   ±1 kb, GENCODE v32 transcripts from the 10x GRCh38-2020-A genes.gtf) and distal sets, each with a G control
   drawn from the same stratum.
 - Control size = min(2 × targets, 100,000).
+- Implementation note (first run): `homer2 bg -bgr` over the whole eligible genome needed about 40 GB and
+  failed with bad_alloc. G controls therefore use explicit candidates: up to 500,000 random eligible 500 bp bins
+  per class/stratum (separate RNG), passed with `-bg`, the same mode as A.
 
 **Motif libraries.**
 1. JASPAR 2026 CORE vertebrates non-redundant: 1,019 motifs, from the PMA v0.3 raw layer.

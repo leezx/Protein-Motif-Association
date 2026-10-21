@@ -6,7 +6,9 @@ Env: PMA_MOTIF_CAP (50000), PMA_MOTIF_SEED (1), PMA_ATAC_N (18651), PMA_DNASE_N 
 
 Writes to out_dir:
   targets/<class>_<tier>[_<stratum>].bed   one 500 bp summit bin per region, sampled down to the cap
-  pools/G_<class>[_<stratum>].bed           candidate regions for homer2 bg -bgr (bins outside the class top20 set)
+  pools/G_<class>[_<stratum>].bed           candidate 500 bp bins for homer2 bg -bg: up to PMA_G_POOL (500,000) bins
+                                            sampled from blacklist-free bins outside the class top20 set (own RNG,
+                                            seed + 100). -bgr over the whole genome ran out of memory (§18.3).
   pools/A_protein_<tier>.bed                accessibility-stratified candidate bins outside the same-tier protein set
                                             (homer2 bg -bg); N for A = min(targets, pool // 2)
   motifs/{JASPAR2026_CORE_vert_nr,PMA_HIGH,PMA_MEDIUM,PMA_LOW}.meme and motif_annotation.tsv
@@ -24,7 +26,7 @@ import pandas as pd
 BIN = 500
 TIERS = ["top20", "top10", "top5", "top1"]
 CAP = int(os.environ.get("PMA_MOTIF_CAP", "50000")); SEED = int(os.environ.get("PMA_MOTIF_SEED", "1"))
-NSTRATA = 20; POOL_PER_TARGET = 5; PROM_FLANK = 1000
+NSTRATA = 20; POOL_PER_TARGET = 5; PROM_FLANK = 1000; G_POOL = int(os.environ.get("PMA_G_POOL", "500000"))
 
 
 def ecdf_rank(v):
@@ -53,17 +55,6 @@ def bins_bed(path, idx, offs, chroms, sizes, names=None):
     Path(path).write_text("".join(rows))
 
 
-def merged_bed(path, mask, offs, chroms, sizes):
-    idx = np.flatnonzero(mask); ci = np.searchsorted(offs, idx, side="right") - 1
-    brk = np.flatnonzero((np.diff(idx) != 1) | (np.diff(ci) != 0)) + 1
-    s = np.concatenate([[0], brk]); e = np.concatenate([brk, [idx.size]])
-    with open(path, "w") as w:
-        for a, b in zip(s, e):
-            c = chroms[ci[a]]; st = (idx[a] - offs[ci[a]]) * BIN; en = min((idx[b - 1] - offs[ci[a]] + 1) * BIN, sizes[c])
-            w.write(f"{c}\t{st}\t{en}\n")
-    return int(s.size)
-
-
 def read_regions(path):
     return pd.read_csv(path, sep="\t", header=None, usecols=[0, 1, 2], names=["c", "s", "e"])
 
@@ -90,7 +81,7 @@ def main(npz, hsdir, blpath, gtf, meta, rawmeme, tiersdir, sizes_path, out):
     out = Path(out)
     for d in ("targets", "pools", "motifs"):
         (out / d).mkdir(parents=True, exist_ok=True)
-    rng = np.random.default_rng(SEED)
+    rng = np.random.default_rng(SEED); rng_g = np.random.default_rng(SEED + 100)
     z = np.load(npz); chroms = [str(c) for c in z["chrom"]]; offs = z["offset"]; NB = z["n_bins"]; nbin = int(sum(NB))
     cidx = {c: i for i, c in enumerate(chroms)}
     sizes = {l.split()[0]: int(l.split()[1]) for l in open(sizes_path) if l.strip()}
@@ -123,7 +114,10 @@ def main(npz, hsdir, blpath, gtf, meta, rawmeme, tiersdir, sizes_path, out):
         top20 = hs_mask(cls, "top20")
         elig = ~black & ~top20
         for name, m in (("", elig), ("_promoter", elig & prom), ("_distal", elig & ~prom)):
-            summ["pools"][f"G_{cls}{name}"] = {"bins": int(m.sum()), "regions": merged_bed(out / "pools" / f"G_{cls}{name}.bed", m, offs, chroms, sizes)}
+            cand = np.flatnonzero(m)
+            gp = np.sort(rng_g.choice(cand, G_POOL, replace=False)) if cand.size > G_POOL else cand
+            bins_bed(out / "pools" / f"G_{cls}{name}.bed", gp, offs, chroms, sizes)
+            summ["pools"][f"G_{cls}{name}"] = {"eligible_bins": int(cand.size), "bins": int(gp.size), "pct_promoter": float(100 * prom[gp].mean())}
         for tier in TIERS:
             reg = read_regions(Path(hsdir) / f"PMA_hotspot_{cls}_{tier}.bed")
             sb = summit_bins(reg, offs, cidx, score[cls])
@@ -132,7 +126,7 @@ def main(npz, hsdir, blpath, gtf, meta, rawmeme, tiersdir, sizes_path, out):
             summ["targets"][tid] = {"regions": len(reg), "sequences": int(sb.size), "pct_promoter": float(100 * prom[sb].mean()),
                                     "median_proteins": float(np.median(P[sb])), "median_openscore": float(np.median(openscore[sb]))}
             nbg = min(2 * sb.size, 100000)
-            manifest.append({"comparison": f"G_{tid}", "target": f"targets/{tid}.bed", "mode": "bgr", "pool": f"pools/G_{cls}.bed", "N": nbg})
+            manifest.append({"comparison": f"G_{tid}", "target": f"targets/{tid}.bed", "mode": "bg", "pool": f"pools/G_{cls}.bed", "N": nbg})
             if cls == "protein":  # accessibility-matched pool
                 edges = np.unique(np.quantile(openscore[sb], np.linspace(0, 1, NSTRATA + 1)))
                 st_t = np.clip(np.searchsorted(edges, openscore[sb], side="right") - 1, 0, len(edges) - 2)
@@ -156,7 +150,7 @@ def main(npz, hsdir, blpath, gtf, meta, rawmeme, tiersdir, sizes_path, out):
                 for name, m in (("promoter", prom), ("distal", ~prom)):
                     s2 = sb[m[sb]]; t2 = f"{tid}_{name}"; bins_bed(out / "targets" / f"{t2}.bed", s2, offs, chroms, sizes)
                     summ["targets"][t2] = {"sequences": int(s2.size)}
-                    manifest.append({"comparison": f"S_{t2}", "target": f"targets/{t2}.bed", "mode": "bgr",
+                    manifest.append({"comparison": f"S_{t2}", "target": f"targets/{t2}.bed", "mode": "bg",
                                      "pool": f"pools/G_{cls}_{name}.bed", "N": min(2 * s2.size, 100000)})
     pd.DataFrame(manifest).to_csv(out / "manifest.tsv", sep="\t", index=False)
 

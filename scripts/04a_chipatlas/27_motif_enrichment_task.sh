@@ -10,19 +10,32 @@ OUT=$PREP/runs/$CMP; mkdir -p "$OUT"; cd "$OUT"
 echo "comparison=$CMP target=$TGT mode=$MODE pool=$POOL N=$N host=$(hostname) start=$(date -Is)"
 if [ "$N" -lt 50 ]; then echo "skip: N=$N"; echo "{\"comparison\":\"$CMP\",\"status\":\"skipped_small\"}" > task.json; exit 0; fi
 NN=$(( N * 20 > 200000 ? N * 20 : 200000 ))
-if [ "$MODE" = bgr ]; then
+if [ -s hb.bg.sequences.fasta ] && [ -s hb.info.txt ]; then
+  echo "reusing existing HOMER control"
+elif [ "$MODE" = bgr ]; then
   homer2 bg -p "$PREP/$TGT" -g "$G" -bgr "$PREP/$POOL" -N "$N" -NN "$NN" -seed 1 -o hb > hb.log 2>&1
 else
   homer2 bg -p "$PREP/$TGT" -g "$G" -bg "$PREP/$POOL" -N "$N" -seed 1 -o hb > hb.log 2>&1
 fi
 tail -3 hb.log
-pids=()
+# SEA per motif chunk, in parallel. Per-motif p-values do not depend on the other motifs in the file; E- and
+# q-values are recomputed over the whole library by 28_motif_enrichment_collect.py.
+K=${PMA_SEA_CHUNKS:-8}; NP=${NSLOTS:-8}; rm -rf chunks; mkdir chunks
 for M in "$PREP"/motifs/*.meme; do
   L=$(basename "$M" .meme)
-  sea --p hb.target.sequences.fasta --n hb.bg.sequences.fasta --m "$M" --thresh 1e9 --text > "sea_$L.tsv" 2> "sea_$L.log" &
-  pids+=($!)
+  awk -v K="$K" -v pre="chunks/$L" '
+    /^MOTIF/ {n++; c = n % K} 
+    n == 0 {hdr = hdr $0 "\n"; next}
+    {f = pre "." c ".meme"; if (!(f in seen)) {printf "%s", hdr > f; seen[f] = 1}; print > f}' "$M"
 done
-for p in "${pids[@]}"; do wait "$p"; done
+ls chunks/*.meme | xargs -P "$NP" -I{} sh -c 'sea --p hb.target.sequences.fasta --n hb.bg.sequences.fasta --m "$1" --thresh 1e9 --text > "${1%.meme}.tsv" 2> "${1%.meme}.log"' _ {}
+for M in "$PREP"/motifs/*.meme; do
+  L=$(basename "$M" .meme); first=1
+  for f in chunks/$L.*.tsv; do
+    if [ $first = 1 ]; then grep -v '^#' "$f"; first=0; else grep -v '^#' "$f" | tail -n +2; fi
+  done > "sea_$L.tsv"
+  test "$(grep -c '^MOTIF' "$M")" -eq "$(( $(wc -l < "sea_$L.tsv") - 1 ))" || echo "WARNING: $L motif count mismatch"
+done
 NT=$(grep -c '^>' hb.target.sequences.fasta); NB=$(grep -c '^>' hb.bg.sequences.fasta)
 echo "{\"comparison\":\"$CMP\",\"status\":\"ok\",\"n_target\":$NT,\"n_bg\":$NB,\"freq_diff\":\"$(sed -n 's/^frequency difference = //p' hb.info.txt)\"}" > task.json
 rm -f hb.target.sequences.fasta.fai

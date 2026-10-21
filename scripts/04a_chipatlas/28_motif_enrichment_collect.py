@@ -8,7 +8,8 @@ Writes:
   top_motifs.tsv                  top 20 per comparison × library
   runs_summary.tsv                target/control sizes and HOMER frequency difference per comparison
   Motif_A_<library>.png/.pdf      log2 enrichment heatmap of the top motifs across comparisons
-Ranking is by significance (SEA q-value); significant = q < 0.05 and enrichment ratio > 1.
+Ranking is by significance (BH q over the library, recomputed from SEA p-values because SEA ran per motif chunk);
+significant = q < 0.05 and enrichment ratio > 1.
 """
 import json
 import sys
@@ -57,7 +58,15 @@ def main(prep, out):
     pd.DataFrame(runs).to_csv(out / "runs_summary.tsv", sep="\t", index=False)
     A = pd.concat(rows, ignore_index=True)
     A = A.rename(columns={"ID": "motif_id", "TP%": "TP_pct", "FP%": "FP_pct"})
-    A["log10_p"] = A.LOG_PVALUE / LN10; A["log10_q"] = A.LOG_QVALUE / LN10; A["log10_E"] = A.LOG_EVALUE / LN10
+    # SEA ran per motif chunk: recompute E (p × motifs in library) and BH q over the whole library, in log10.
+    A["log10_p"] = A.LOG_PVALUE / LN10
+    parts = []
+    for _, g in A.groupby(["comparison", "library"], sort=False):
+        g = g.sort_values("log10_p"); m = len(g); r = np.arange(1, m + 1)
+        g = g.assign(log10_E=g.log10_p + np.log10(m),
+                     log10_q=np.minimum(np.minimum.accumulate((g.log10_p + np.log10(m) - np.log10(r)).to_numpy()[::-1])[::-1], 0))
+        parts.append(g)
+    A = pd.concat(parts, ignore_index=True)
     A = A.merge(ann, on=["library", "motif_id"], how="left")
     A["motif_label"] = [label(r) for r in A.itertuples()]
     A["significant"] = (A.log10_q < np.log10(0.05)) & (A.ENR_RATIO > 1)

@@ -30,7 +30,7 @@ User request (2026-10-21):
 - One track per source/variant, never mixed:
   - `vierstra2020_fpr0.001`, `vierstra2020_fpr0.01`;
   - `funk2020_{dnase,faire}_{hint,wellington}`;
-  - `neph2012_fdr0.01`.
+  - `neph2012_fdr0.01_liftedFromHg19`, `boyle2011_liftedFromHg18`.
 - Blacklist split as for the ChIP-Atlas tracks (`04a_chipatlas/10_mask_blacklist.py`).
 - QC (`02_footprint_track_qc.py`):
   - sum(value × bp) equals total footprint bp;
@@ -60,3 +60,9 @@ footprints.
 | Vierstra 2020 | `consensus.index/consensus_footprints_and_collapsed_motifs_hg38.bed.gz`, plus the other consensus files | native |
 | Neph 2012 | `combined.fps.gz` (8.37 M combined footprints, 41 cell types) | hg19 → hg38 |
 | Boyle 2011 | `Combined_GM_footprints_hg18.bed` | hg18 → hg38 |
+
+## Labelling of lifted data (user rule, 2026-10-21)
+
+Any output converted with liftOver carries `liftedFrom<Build>` in its file and track names, and sits next to a
+`LIFTOVER_NOTICE.txt` that gives the source build, chain and mapped/unmapped counts. `03_lift_bed.sh` refuses
+an output name without `liftedFrom`. Native hg38 sources (Vierstra, Funk) never carry the tag.

@@ -14,6 +14,7 @@ import importlib.util
 import json
 import math
 import multiprocessing as mp
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -235,8 +236,17 @@ def main(bed, ann, blp, sizes_path, cp, hgnc, study_tsv, out, workers=6):
                 named[nm] = dict(members=g2, median_jaccard=round(float(np.median(Jc[np.ix_(pp, pp)][tt])), 4),
                                  context_median_all_pairs=round(float(np.median(Jc[np.ix_(pos, pos)][np.triu_indices(len(pos), 1)])), 4))
         bench["matched_universe"][c]["named"] = named
+    (out / "benchmark_validation.json").write_text(dumps(bench) + "\n")  # checkpoint before the slow study scan
     # ---------- study-level LOSO / cross-study for candidate pairs ----------
-    exps_sorted = None
+    # PMA_VAL_REUSE_PAIRS=1 reuses an existing pair_study_validation.tsv (the scan uses no RNG, so results are identical)
+    pairs_tsv = out / "pair_study_validation.tsv"
+    iu = np.triu_indices(len(names), 1)
+    p95 = float(np.quantile(J[iu], 0.95))
+    if os.environ.get("PMA_VAL_REUSE_PAIRS") == "1" and pairs_tsv.exists():
+        with open(pairs_tsv) as f:
+            out_rows = list(csv.DictReader(f, delimiter="\t"))
+        finish(bench, out_rows, p95, out)
+        return
     exp_ids = []; exp_index = {}
     with gzip.open(exp_tab, "rt") as f:
         for r in csv.DictReader(f, delimiter="\t"):
@@ -252,8 +262,6 @@ def main(bed, ann, blp, sizes_path, cp, hgnc, study_tsv, out, workers=6):
     valid = nohot.copy()
     e_prot = np.array([idx[p] for _, p in exp_ids]); e_study = np.array([study.get(e, "single:" + e) for e, _ in exp_ids])
     studies_of = {i: sorted(set(e_study[e_prot == i])) for i in range(len(names))}
-    iu = np.triu_indices(len(names), 1)
-    vals = J[iu]; p95 = float(np.quantile(vals, 0.95))
     nonc = [(i, j) for i, j in zip(*iu) if (i, j) not in same]
     nonc.sort(key=lambda x: -J[x])
     cand = [(i, j, "complex_portal") for i, j in sorted(same)] + [(i, j, "top_non_complex") for i, j in nonc[:300]]
@@ -282,15 +290,23 @@ def main(bed, ann, blp, sizes_path, cp, hgnc, study_tsv, out, workers=6):
                              n_studies_a=len(si), n_studies_b=len(sj), shared_studies=len(shared),
                              loso_min_jaccard=round(min(loso), 4) if loso else "", cross_study_jaccard=round(cross, 4) if not math.isnan(cross) else "",
                              cross_n_exp_a=ni, cross_n_exp_b=nj, status=status))
-    with open(out / "pair_study_validation.tsv", "w") as w:
+    with open(pairs_tsv, "w") as w:
         cols = list(out_rows[0]); w.write("\t".join(cols) + "\n")
         for r in out_rows:
             w.write("\t".join(str(r[c]) for c in cols) + "\n")
+    finish(bench, out_rows, p95, out)
+
+
+def dumps(obj, **kw):
+    return json.dumps(obj, indent=1, default=lambda o: o.item() if hasattr(o, "item") else str(o), **kw)
+
+
+def finish(bench, out_rows, p95, out):
     st = collections.Counter((r["kind"], r["status"]) for r in out_rows)
     bench["pair_study_status"] = {f"{k}|{s}": v for (k, s), v in sorted(st.items())}
     bench["pair_jaccard_p95"] = round(p95, 4)
-    (out / "benchmark_validation.json").write_text(json.dumps(bench, indent=1) + "\n")
-    print(json.dumps(bench)[:4000])
+    (out / "benchmark_validation.json").write_text(dumps(bench) + "\n")
+    print(dumps(bench)[:4000])
 
 
 if __name__ == "__main__":

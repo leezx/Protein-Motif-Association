@@ -31,6 +31,9 @@ architecture pilot (`docs/STEP1_MOTIF_PILOT_DESIGN.md`).
 and docs only. PMA data root: `$BIO_DATA/2.PROJECTS/PMA/` (paths set in
 `config/pma_env.sh`).
 
+**Dataset ↔ code ↔ docs map:** [`LINKS.md`](LINKS.md). The data side links back from
+`DATA/2.PROJECTS/PMA/README.md` and from each dataset's `link.md`.
+
 ## Layout
 
 - `config/pma_env.sh`: data and tool paths, built on the workspace `setup_env.sh`

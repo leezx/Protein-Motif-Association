@@ -780,3 +780,24 @@ above the protein threshold, merged; background = bound or open bins below the t
 open-chromatin level, so that the enrichment is not driven by promoter GC or accessibility alone. Motifs from
 `motif_reference` (Step 3 clustered set); test with a standard enrichment tool (e.g. SEA/HOMER), ranked by
 adjusted p. The exact design is fixed once the thresholds are chosen.
+
+### 18.1 Frozen hotspot definition (user decision 2026-10-21, after GPT review)
+
+The distributions are continuous with no natural cut, so the thresholds are operational, pre-specified quantiles
+(not significance levels: top 5% ≠ p < 0.05). They are frozen before any motif analysis.
+- Two tiers, nested: **high** = top 5%, **extreme** = top 1%. Each quantile is computed among bins with value > 0 in
+  that track.
+- **Protein binding hotspot:** P_b = max distinct non-histone proteins in the bin ≥ Q(P | P > 0).
+- **Open-chromatin hotspot:** the ATAC tier and the DNase tier are computed separately, and a bin must pass both
+  (cross-assay concordance). The per-assay sets are kept in `per_assay/`.
+- Adjacent passing bins on a chromosome are merged into regions. These are annotation units, not independent
+  motif sites.
+- Record the absolute thresholds with the data version; they will shift when ChIP-Atlas grows.
+- Code: `25_hotspot_beds.py`. The result is in `result/hotspot_regions_v1/` (4 BEDs + bigBed + summary.json).
+- Names: "ChIP-derived protein occupancy hotspot" and "cross-experiment accessibility hotspot". They are not a
+  measure of binding strength, of co-binding in one cell, or of function.
+- Sensitivity checks to follow:
+  - motif results under both tiers;
+  - promoter versus distal strata;
+  - GC/CpG- and accessibility-matched backgrounds;
+  - dominance of single studies or cell types.

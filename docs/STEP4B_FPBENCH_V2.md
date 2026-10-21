@@ -98,9 +98,36 @@ All five callers finished on all 14,437 windows with exit code 0. Site coverage 
 - If a footprint caller is needed for CTCF-like TFs, scPrinter is the pick: best CTCF accuracy (= PRINT, ρ 0.94),
   ~4× faster than PRINT and ~60× faster than TraceBIND. A C port of PRINT is not justified by these data.
 
+## Independent validation: GM12878 (2026-10-21)
+
+Pre-specified replication: every step, threshold and metric is the one fixed on K562; only the fragment barcode
+became a parameter. Driver `scripts/04b_fpbench/run_replicate_cell.sh`, comparison `06_compare_cells.py`.
+
+- Input: ENCODE `ENCSR637XSC`, rep 1 filtered alignments `ENCFF981FXV` and IDR peaks `ENCFF914YHG` (md5 checked;
+  Argos `raw/2026-10-21/encode_gm12878/ENCSR637XSC/`). chr1–2, 16.7 M fragments, 15,708 × 1 kb windows.
+- Truth: 75 TFs with GM12878 ENCODE conservative IDR ChIP and a JASPAR motif; 63 pass the ≥ 30 bound / ≥ 30 unbound
+  filter (258,642 sites, 40,802 bound). 43 TFs are scored in both cell lines.
+- Results (`result/fpbench_gm12878_v1/eval/`; median over 63 TFs):
+
+| method | AUROC K562 → GM12878 | stratified AUROC | median CV gain | CTCF CV gain K562 / GM12878 |
+|---|---|---|---|---|
+| access | 0.806 → 0.845 | 0.591 → 0.603 | — | — |
+| TOBIAS | 0.798 → 0.837 | 0.575 → 0.593 | −0.001 / −0.001 | +0.119 / +0.169 |
+| HINT-ATAC | 0.632 → 0.660 | 0.540 → 0.560 | 0.000 / −0.000 | +0.108 / +0.121 |
+| TraceBIND | 0.560 → 0.562 | 0.522 → 0.536 | −0.000 / −0.001 | +0.134 / +0.216 |
+| scPrinter r20 | 0.522 → 0.542 | 0.515 → 0.534 | −0.000 / −0.000 | +0.201 / +0.262 |
+| PRINT r20 | 0.514 → 0.536 | 0.511 → 0.528 | −0.000 / −0.000 | +0.199 / +0.264 |
+| naive FOS | 0.492 → 0.493 | 0.503 → 0.497 | −0.001 / −0.000 | +0.038 / +0.051 |
+
+- The method ranking and the null median gain replicate; the CTCF gain replicates for every caller and is larger.
+- Per-TF gains across the 43 shared TFs agree poorly (Spearman ρ −0.02 HINT to 0.53 TOBIAS; TraceBIND 0.30). Only CTCF
+  (all callers) and REST (TOBIAS, HINT) gain ≥ 0.01 in both lines; the small gains of other TFs are noise.
+- GM12878 runtimes are not resource data (TraceBIND ran alongside the other callers); resources come from K562 only.
+- Figure and write-up: `PR/Protein–Motif-Association/Figures/Footprint_benchmark/` (panel f; `Fig_fpbench_k562.result.md` v0.3).
+
 ## Limits
 
-- One cell line, two chromosomes. Runtime extrapolation to all 159,628 peaks is linear in windows and labelled as such.
+- Two cell lines (K562 discovery, GM12878 replication), two chromosomes each. Runtime extrapolation to all 159,628 peaks is linear in windows and labelled as such.
 - ChIP overlap is occupancy, not base-level footprint truth; indirect binding and motif-less peaks add label noise
   equally for every caller. Unbound sites may hold undetected binders.
 - K562 ATAC `ENCSR868FGK` carries an ENCODE nucleosome-free-fraction warning.
@@ -110,4 +137,4 @@ All five callers finished on all 14,437 windows with exit code 0. Site coverage 
   is judged by the stratified AUROC and CV gain, not the raw AUROC.
 
 Code: `scripts/04b_fpbench/` (`00`–`05`, `measure.py`, `run_*`). Tables: `eval/summary.tsv`, `per_tf_metrics.tsv`,
-`added_value_*.tsv`, `resources.tsv`. Results (Argos): `DATA/2.PROJECTS/PMA/atac_footprint/result/fpbench_k562_v1/`.
+`added_value_*.tsv`, `resources.tsv`. Results (Argos): `DATA/2.PROJECTS/PMA/atac_footprint/result/fpbench_k562_v1/` and `fpbench_gm12878_v1/`.

@@ -26,7 +26,6 @@ E=$FPATLAS_ENV; P=$FPATLAS_PMAFP; H=$FPATLAS_HINT; REF=$FPATLAS_REF
 FA=$REF/hg38_primary.fa; IDX=$REF/hg38_primary.chromap.index; BL=$REF/hg38-blacklist.v2.bed
 mkdir -p "$OUT"
 SCR=$(mktemp -d "${FPATLAS_SCRATCH:-${TMPDIR:-/tmp}}/fp_${SRX}_XXXX")
-# on failure, print the tails of the tool logs (stderr goes to the persistent job log) before scratch is removed
 mon=
 # on failure, print the tails of the tool logs (stderr goes to the persistent job log) before scratch is removed
 trap 'rc=$?; [ -n "$mon" ] && kill "$mon" 2>/dev/null; if [ $rc -ne 0 ]; then for l in aria.log chromap.log macs.log; do [ -s "$SCR/$l" ] && { echo "--- $l" >&2; tail -n 30 "$SCR/$l" >&2; }; done; fi; rm -rf "$SCR"' EXIT

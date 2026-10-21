@@ -685,3 +685,10 @@ and within-protein views are repeated under V4.
 **Provenance note.** The Complex Portal file sits in `raw/2026-10-21/` because the directory was named after the UTC
 date. It was downloaded on 2026-10-20 at 21:30 EDT (2026-10-21 01:30 UTC). Raw stays append-only, so this is recorded
 in a provenance note rather than by renaming. The seed value 20261021 is an arbitrary fixed constant.
+
+**Addendum after the run (2026-10-21; post hoc, declared as such).** The cross-study criterion only excludes studies
+that profiled both proteins. It misses a single study that dominates one protein's occupancy. For example, SRP158854
+(58 ESR1 experiments, no CTCF) supplies half of ESR1's occupied bins, and dropping it lowers the CTCF–ESR1 Jaccard
+from 0.366 to 0.025 (`18_pair_loso_diagnostic.py`). The strict tier `study_robust_loso` therefore also requires
+LOSO-min Jaccard ≥ 0.5 × the full Jaccard. It is a filter on `pair_study_validation.tsv`, not a recomputation. The
+pre-registered `study_robust` counts are still reported.

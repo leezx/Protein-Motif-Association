@@ -1,8 +1,8 @@
 # ChIP-Atlas 统一 BED、轻量 BED 与占据证据轨道：交接
 
-更新时间：2026-10-20 16:50 EDT（Claude）
+更新时间：2026-10-21 03:30 EDT（Claude）
 代码分支：`task_20261020_chipatlas_light_bed`（基于 `step4a-chipatlas-occupancy`，已推送，**未合并**）
-设计文档：`docs/STEP4A_CHIPATLAS_OCCUPANCY_DESIGN.md` §10（轻量 BED）、§11（证据轨道）
+设计文档：`docs/STEP4A_CHIPATLAS_OCCUPANCY_DESIGN.md` §10（轻量 BED）、§11（证据轨道）、§12（Pol、开放染色质、实验过滤）、§13–§15（三层聚类）、§16（v1.1 验证门）
 
 ## 1. 目标（PI 方向）
 
@@ -26,8 +26,12 @@
 | 轻量组蛋白 BED（name 用 ChIP-Atlas 修饰名） | `light_v1/histone/` | 1,599 万个区域，144 个标签，`.bb` 161 MB | PASS，已拷回本地 |
 | 蛋白 BED 按类别拆分（8 类） | `light_v1/protein_by_class/` | 合计 7,088 万行 | PASS，已拷回本地 |
 | 蛋白证据轨道：experiments / proteins / tf / cap | `light_v1/tracks/` | 覆盖 20.1 亿 bp | 恒等式 QC 和 300 个位点复算都 PASS，已拷回本地 |
-| 组蛋白证据轨道：experiments / modifications / 6 个核心修饰 | `light_v1/tracks_histone/` | — | **运行中**（见 §4） |
-| 黑名单拆分版：`*_noBlacklist`、`*_blacklistOnly` | `light_v1/tracks*_{noBlacklist,blacklistOnly}/` | — | **运行中**（见 §4） |
+| 组蛋白证据轨道：experiments / modifications / 6 个核心修饰（已按实验过滤表排除单细胞实验） | `light_v1/tracks_histone/` | 37,762 个实验 | PASS，已拷回本地 |
+| RNA 聚合酶轨道：rnapol2 / rnapol3 | `light_v1/tracks_rnapol/` | — | PASS，已拷回本地 |
+| 开放染色质轨道：ATAC、DNase 的 experiments / celltypes（已过滤） | `light_v1/tracks_atac/`、`tracks_dnase/` | ATAC 18,651 个实验，DNase 2,086 个 | PASS，已拷回本地 |
+| 实验过滤表（单细胞、非开放染色质测序、peak 数 < 1 万） | `light_v1/PMA_chipatlas_hg38_experiment_filter.tsv` | ATAC、DNase、组蛋白 | 已拷回本地 |
+| 黑名单拆分版：上述所有轨道的 `*_noBlacklist`、`*_blacklistOnly` | `light_v1/tracks*_{noBlacklist,blacklistOnly}/` | — | 全部 PASS，已拷回本地（每个目录有 `SHA256SUMS`） |
+| 过滤前的旧版 DNase / 组蛋白轨道 | 本地 `light_v1/preFilter/`，Argos `light_v1/preFilter/` | — | 保留备查，不再使用 |
 | 示例区间 chr4:15,966,228–16,085,729 | 本地 `light_v1/examples/` | BED 文本和轨道 | 完成 |
 | IGV session（原始 / noBlacklist / blacklistOnly 三套） | 本地 `light_v1/*.igv_session.xml` | 相对路径 | 等数据拷全后才能打开 |
 
@@ -53,6 +57,9 @@
 | `08_histone_labels.py` | 组蛋白标签分类（规则固定、可复现） |
 | `09_igv_session.py out.xml [locus] [variant]` | IGV session：每条轨道独立 y 轴，配色固定 |
 | `10_mask_blacklist.py` + `run_tracks.sh 2 mask_protein\|mask_histone` | 在 ENCODE v2 黑名单边界上按碱基切开，分成 noBlacklist 和 blacklistOnly 两份；守恒 QC |
+| `05_occupancy_tracks.py` 的 `pol`、`access` 模式 + `run_tracks.sh [N] pol\|atac\|dnase\|filter\|mask_<kind>` | RNA 聚合酶轨道和 ATAC/DNase 开放染色质轨道；`PMA_EXCLUDE_TSV` 按过滤表跳过实验 |
+| `11_experiment_filter.py` | 生成实验过滤表：单细胞、非开放染色质测序（按标题判断）、peak 数 < 1 万 |
+| `12`–`14`、`16`–`18` | 三层聚类、v1.1 验证、单对留一诊断（见 §4） |
 | `verify_unique_bed6.py`（分支 `task_20261019_bed6_independent_verify`） | 坐标去重 BED6 的独立核验：结构检查，并与 v1 逐个实验对账 |
 
 轨道的数学定义、QC 恒等式和组蛋白统计口径都写在设计文档 §11。要点：
@@ -61,28 +68,30 @@
 
 Argos 运行方式：
 - **不要在登录节点（argos-qsub1）运行任何任务。** 2026-10-20 用户明确要求，此前用 nohup 在登录节点跑的做法作废。
-- Argos 用 SGE：先执行 `set +u; source /opt/sge/default/common/settings.sh`，再用 `qsub -q all.q -pe smp N -l h_vmem=<每核>G` 提交。h_vmem 按每核计算，核数 × h_vmem 不超过 50G。有依赖的步骤用 `-hold_jid`。作业里要设 `OPENBLAS_NUM_THREADS=$NSLOTS`（OMP、MKL 同样设置）。
+- Argos 用 SGE：先执行 `set +u; source /opt/sge/default/common/settings.sh`，再用 `qsub -q all.q -pe smp 8 -l h_vmem=48G` 提交。Argos 的 h_vmem 实际按整个作业的总 vmem 执行，不是每核；用户要求按上限申请（48G，低于 50G 的上限）。有依赖的步骤用 `-hold_jid`。作业里要设 `OPENBLAS_NUM_THREADS=$NSLOTS`（OMP、MKL 同样设置）。
 - 2026-10-20 晚起的作业脚本和日志都在 `/home/zz950/PMA_fetch/claude_sge_20261020/`，查状态用 `qstat -u zz950` 和 `*.status`。
 - 代码先 clone 固定的 commit 到 `/home/zz950/PMA_fetch/claude_tracks_<commit>/` 再运行。
 - 日志和状态文件放在 `/home/zz950/PMA_fetch/claude_light_logs/`。
 
-## 4. 交接时仍在运行的任务（2026-10-20 16:46）
+## 4. 三层聚类与 v1.1 验证门（2026-10-20 晚 – 10-21）
 
-| 任务 | 启动脚本 | 完成标志 | 输出 |
-|---|---|---|---|
-| 组蛋白轨道 | `claude_light_logs/tracks_histone.sh`（代码 `claude_tracks_4e289e9`） | `tracks_histone.status` 中 `EXIT=0` | `light_v1/tracks_histone/`，`qc.json` 状态为 PASS |
-| 黑名单拆分：先蛋白，再组蛋白 | `claude_light_logs/mask.sh`（代码 `claude_tracks_7a1b5f3`） | `mask_protein.status`、`mask_histone.status` | `light_v1/tracks{,_histone}_{noBlacklist,blacklistOnly}/`，`mask_qc.json` |
+| 内容 | 位置（Argos 和本地 `result/` 下） | 状态 |
+|---|---|---|
+| 三层聚类 v1（蛋白共占据、实验、区域 20 类） | `cooccupancy_v1/{all,K_562,Hep_G2}`、`experiment_clustering_v1`、`region_classes_v1` | 完成；GPT 审阅为 REVISE |
+| v1 报告 | `docs/reports/STEP4A_CHIPATLAS_CLUSTERING_REPORT_2026-10-20.zh-CN.md` | 已送 GPT |
+| v1.1 验证门（研究来源、广度匹配 + FDR、同蛋白集合比较、留一研究、实验混杂敏感性） | `validation_v1_1/` | 完成，本地 sha256 已核对 |
+| v1.1 审计报告 | `docs/reports/STEP4A_CHIPATLAS_CLUSTERING_V1_1_AUDIT_2026-10-21.zh-CN.md` | 待用户决定是否送 GPT |
+
+脚本：`12_cooccupancy.py`、`13_experiment_clustering.py`、`14_region_classes.py`、`16_cooccupancy_validation.py`、`17_experiment_sensitivity.py`、`18_pair_loso_diagnostic.py`。作业脚本和日志在 Argos 的 `/home/zz950/PMA_fetch/claude_sge_20261020/`。
 
 **接着做：**
-1. 查状态：`ssh argos.dfci.harvard.edu 'cat /home/zz950/PMA_fetch/claude_light_logs/*.status'`。
-2. 确认 `tracks_histone/qc.json`，以及两份 `mask_qc.json`（都在 `*_noBlacklist/` 里），状态都是 PASS。
-3. 把 `tracks_histone/` 和 4 个拆分目录拷回本地 `light_v1/`。rsync 和 scp 在这台机器上不可用，用 `ssh ... "cat 文件" > 文件`，再用 `shasum -a 256 -c` 和远端 `sha256sum` 的结果核对。拷完后对本地 `.tbi` 执行 `touch`，避免 tabix 报索引比数据旧。
-4. 用 IGV 打开三个 session 验收。
-5. 更新 `link.md`（本地和 Argos 各一份）以及工作区 `HANDOFF.md`，把这一阶段提交 GPT 审查（PMA 项目对话），再请用户分别确认两个分支是否合并。
-
-如果某个任务失败：看对应的 `.err` 和 `.out`。所有脚本都是幂等的：删掉对应的输出目录，用同一个 commit 的 clone 重跑即可。
+1. 用户决定是否把 v1.1 审计报告送到 PMA 项目的 GPT 对话“聚类分析意义”。
+2. 不经用户批准不开始：L2（bin/阈值敏感性、区域类稳定性、Complex Portal 审核）、新模块提名、SRP158854 的处理、分支合并。
 
 ## 5. 关键发现
+
+- **v1.1 审计（详见报告 §0）：** 复合物找回保留（AUROC 0.81，CI 0.77–0.85；FDR ≤ 0.05 有 170/373）。Hep G2 内部按蛋白的结构和 CTCF 跨细胞类型的差异，在控制同研究和同深度后消失（推翻）。未收录候选对只有 63/300 通过跨研究加留一检验。
+- **SRP158854：** 这一个研究的 58 个 ESR1 实验贡献了 ESR1 一半的占据区间，造成 CTCF–ESR1 的假共占据。
 
 - **定义问题：** 坐标完全相同才去重，只去掉了约 4% 的行。所以浏览用的是“同一蛋白重叠 peak 合并”的轻量版：蛋白缩小约 6.25 倍，组蛋白缩小约 39 倍。
 - **旧候选为什么错：** Codex 的旧候选 a3c0c68 把同时有 hg19 和 hg38 记录的实验 ID 当成“元数据歧义”，丢掉了 98.6% 的行。修复后的 d84d98b 和 v1 逐个实验完全一致。

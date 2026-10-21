@@ -858,3 +858,18 @@ the targets in GC content and k-mer composition.
 - Motif enrichment is a property of the sequences: it shows which motif classes these regions carry.
 - It does not show which protein binds there.
 - Promoter-associated GC-rich motifs are expected to dominate control G. Controls A and S are the checks on that.
+
+**Run 1 → run 2 revision (2026-10-21, before any result was read).**
+- *Problem.* HOMER `homer2 bg` sorts targets into 10 GC/CpG bins and trims every bin to the bin with the fewest
+  matches. Run 1 drew G candidates only from outside top20, which removes nearly all CpG islands. The CpG-rich
+  bin then found almost no matches, and the controls collapsed to 40 (protein top1), 920 (protein top5) and
+  220 (protein top5 promoter) sequences. A controls had the same problem in milder form, at 2,800–9,700.
+- *Fix.*
+  - The G pool for tier t excludes only the tier-t set of the same class.
+  - It includes every eligible promoter bin, plus 500,000 random eligible distal bins.
+  - The promoter and distal strata draw from those parts only.
+  - A pools take 20 candidates per target in each stratum.
+  - Targets are capped at 10,000 per set and controls are 2 × targets. SEA run time scales with sequence length
+    × motifs, and 50,000 × 500 bp per set was far beyond what the question needs.
+- *Check.* `runs_summary.tsv` flags any comparison whose control is under half the requested size as
+  SMALL_CONTROL.

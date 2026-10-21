@@ -2,13 +2,16 @@
 
 usage: 26_motif_enrichment_prep.py <bins500.npz> <hotspot_regions_v2 dir> <blacklist.bed.gz> <genes.gtf>
                                     <motif_metadata.tsv> <motifs_raw.meme> <step3b reference_tiers dir> <chrom.sizes> <out_dir>
-Env: PMA_MOTIF_CAP (50000), PMA_MOTIF_SEED (1), PMA_ATAC_N (18651), PMA_DNASE_N (2086).
+Env: PMA_MOTIF_CAP (10000), PMA_MOTIF_SEED (1), PMA_ATAC_N (18651), PMA_DNASE_N (2086).
 
 Writes to out_dir:
   targets/<class>_<tier>[_<stratum>].bed   one 500 bp summit bin per region, sampled down to the cap
-  pools/G_<class>[_<stratum>].bed           candidate 500 bp bins for homer2 bg -bg: up to PMA_G_POOL (500,000) bins
-                                            sampled from blacklist-free bins outside the class top20 set (own RNG,
-                                            seed + 100). -bgr over the whole genome ran out of memory (§18.3).
+  pools/G_<class>_<tier>[_<stratum>].bed    candidate 500 bp bins for homer2 bg -bg, from blacklist-free bins outside the
+                                            same-tier set of the class: every eligible promoter bin (so CpG-island
+                                            targets have matches) plus PMA_G_POOL (500,000) random eligible distal bins
+                                            (own RNG, seed + 100). Promoter stratum: promoter bins only; distal: distal only.
+                                            Run 1 excluded all top20 bins: HOMER's equal-per-GC-bin rule then left
+                                            40–920 control sequences for protein top1/top5 (§18.3).
   pools/A_protein_<tier>.bed                accessibility-stratified candidate bins outside the same-tier protein set
                                             (homer2 bg -bg); N for A = min(targets, pool // 2)
   motifs/{JASPAR2026_CORE_vert_nr,PMA_HIGH,PMA_MEDIUM,PMA_LOW}.meme and motif_annotation.tsv
@@ -25,8 +28,8 @@ import pandas as pd
 
 BIN = 500
 TIERS = ["top20", "top10", "top5", "top1"]
-CAP = int(os.environ.get("PMA_MOTIF_CAP", "50000")); SEED = int(os.environ.get("PMA_MOTIF_SEED", "1"))
-NSTRATA = 20; POOL_PER_TARGET = 5; PROM_FLANK = 1000; G_POOL = int(os.environ.get("PMA_G_POOL", "500000"))
+CAP = int(os.environ.get("PMA_MOTIF_CAP", "10000")); SEED = int(os.environ.get("PMA_MOTIF_SEED", "1"))
+NSTRATA = 20; POOL_PER_TARGET = 20; PROM_FLANK = 1000; G_POOL = int(os.environ.get("PMA_G_POOL", "500000"))
 
 
 def ecdf_rank(v):
@@ -111,13 +114,6 @@ def main(npz, hsdir, blpath, gtf, meta, rawmeme, tiersdir, sizes_path, out):
     manifest = []
     score = {"protein": P.astype(float), "open": openscore}
     for cls in ("protein", "open"):
-        top20 = hs_mask(cls, "top20")
-        elig = ~black & ~top20
-        for name, m in (("", elig), ("_promoter", elig & prom), ("_distal", elig & ~prom)):
-            cand = np.flatnonzero(m)
-            gp = np.sort(rng_g.choice(cand, G_POOL, replace=False)) if cand.size > G_POOL else cand
-            bins_bed(out / "pools" / f"G_{cls}{name}.bed", gp, offs, chroms, sizes)
-            summ["pools"][f"G_{cls}{name}"] = {"eligible_bins": int(cand.size), "bins": int(gp.size), "pct_promoter": float(100 * prom[gp].mean())}
         for tier in TIERS:
             reg = read_regions(Path(hsdir) / f"PMA_hotspot_{cls}_{tier}.bed")
             sb = summit_bins(reg, offs, cidx, score[cls])
@@ -126,11 +122,18 @@ def main(npz, hsdir, blpath, gtf, meta, rawmeme, tiersdir, sizes_path, out):
             summ["targets"][tid] = {"regions": len(reg), "sequences": int(sb.size), "pct_promoter": float(100 * prom[sb].mean()),
                                     "median_proteins": float(np.median(P[sb])), "median_openscore": float(np.median(openscore[sb]))}
             nbg = min(2 * sb.size, 100000)
-            manifest.append({"comparison": f"G_{tid}", "target": f"targets/{tid}.bed", "mode": "bg", "pool": f"pools/G_{cls}.bed", "N": nbg})
+            same = hs_mask(cls, tier); elig = ~black & ~same
+            pe, de = np.flatnonzero(elig & prom), np.flatnonzero(elig & ~prom)
+            dsel = np.sort(rng_g.choice(de, G_POOL, replace=False)) if de.size > G_POOL else de
+            for name, gp in (("", np.sort(np.concatenate([pe, dsel]))), ("_promoter", pe), ("_distal", dsel)):
+                if name and tier != "top5":
+                    continue
+                bins_bed(out / "pools" / f"G_{tid}{name}.bed", gp, offs, chroms, sizes)
+                summ["pools"][f"G_{tid}{name}"] = {"bins": int(gp.size), "pct_promoter": float(100 * prom[gp].mean())}
+            manifest.append({"comparison": f"G_{tid}", "target": f"targets/{tid}.bed", "mode": "bg", "pool": f"pools/G_{tid}.bed", "N": nbg})
             if cls == "protein":  # accessibility-matched pool
                 edges = np.unique(np.quantile(openscore[sb], np.linspace(0, 1, NSTRATA + 1)))
                 st_t = np.clip(np.searchsorted(edges, openscore[sb], side="right") - 1, 0, len(edges) - 2)
-                same = hs_mask(cls, tier)
                 cand = np.flatnonzero(~black & ~same & (openscore >= edges[0]) & (openscore <= edges[-1]))
                 st_c = np.clip(np.searchsorted(edges, openscore[cand], side="right") - 1, 0, len(edges) - 2)
                 pool, short = [], 0
@@ -151,7 +154,7 @@ def main(npz, hsdir, blpath, gtf, meta, rawmeme, tiersdir, sizes_path, out):
                     s2 = sb[m[sb]]; t2 = f"{tid}_{name}"; bins_bed(out / "targets" / f"{t2}.bed", s2, offs, chroms, sizes)
                     summ["targets"][t2] = {"sequences": int(s2.size)}
                     manifest.append({"comparison": f"S_{t2}", "target": f"targets/{t2}.bed", "mode": "bg",
-                                     "pool": f"pools/G_{cls}_{name}.bed", "N": min(2 * s2.size, 100000)})
+                                     "pool": f"pools/G_{tid}_{name}.bed", "N": min(2 * s2.size, 100000)})
     pd.DataFrame(manifest).to_csv(out / "manifest.tsv", sep="\t", index=False)
 
     # motif libraries + annotation

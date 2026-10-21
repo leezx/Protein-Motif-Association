@@ -55,7 +55,10 @@ def main(prep, out):
             s = s[s["ID"].notna()]
             s = s.assign(comparison=c, library=lib)
             rows.append(s)
-    pd.DataFrame(runs).to_csv(out / "runs_summary.tsv", sep="\t", index=False)
+    RS = pd.DataFrame(runs).merge(man[["comparison", "N"]].rename(columns={"N": "n_bg_requested"}), on="comparison", how="left")
+    RS["bg_fraction_of_requested"] = RS.n_bg / RS.n_bg_requested
+    RS["control_flag"] = np.where(RS.bg_fraction_of_requested < 0.5, "SMALL_CONTROL", "ok")  # HOMER equal-per-GC-bin shrinkage
+    RS.to_csv(out / "runs_summary.tsv", sep="\t", index=False)
     A = pd.concat(rows, ignore_index=True)
     A = A.rename(columns={"ID": "motif_id", "TP%": "TP_pct", "FP%": "FP_pct"})
     # SEA ran per motif chunk: recompute E (p × motifs in library) and BH q over the whole library, in log10.

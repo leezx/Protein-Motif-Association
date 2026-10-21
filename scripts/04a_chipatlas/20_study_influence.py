@@ -123,6 +123,8 @@ def main(bed, ann, blp, sizes_path, study_tsv, v11_dir, out, workers=6):
     bench = json.loads((v11_dir / "benchmark_validation.json").read_text()); p95 = bench["pair_jaccard_p95"]
     pairs = list(csv.DictReader(open(v11_dir / "pair_study_validation.tsv"), delimiter="\t"))
     tier_rows = []
+    skipped = sum(r["protein_a"] not in idx or r["protein_b"] not in idx for r in pairs)
+    pairs = [r for r in pairs if r["protein_a"] in idx and r["protein_b"] in idx]
     for r in pairs:
         full = float(r["jaccard_noHOT"]); lo = float(r["loso_min_jaccard"]) if r["loso_min_jaccard"] else float("nan")
         if r["status"] == "study_robust":
@@ -194,7 +196,7 @@ def main(bed, ann, blp, sizes_path, study_tsv, v11_dir, out, workers=6):
                 selected={r["protein"]: {k: r[k] for k in ("n_studies", "max_influence", "top_study", "top_study_experiments")}
                           for r in infl_rows if r["protein"] in ("ESR1", "CTCF", "HMGA1", "PPARA", "SMARCA4", "SMARCC2", "SMARCE1")},
                 tiers={f"{k}|{t}|context_replicated={c}": v for (k, t, c), v in sorted(tiers.items())},
-                pair_jaccard_p95=p95, srp158854_experiments=len(qc_rows), baf=baf_summary)
+                pair_jaccard_p95=p95, pairs_skipped_missing_protein=skipped, srp158854_experiments=len(qc_rows), baf=baf_summary)
     (out / "summary.json").write_text(val.dumps(summ) + "\n")
     print(val.dumps(summ)[:4000])
 

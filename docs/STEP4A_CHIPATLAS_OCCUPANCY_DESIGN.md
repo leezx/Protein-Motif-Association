@@ -508,3 +508,55 @@ Why 10,000 rather than 100,000:
 | Histone | 40,444 | 37,762 | 2,682 single-cell iCELL8 CUT&Tag removed, ~2,700 peaks |
 
 The pre-filter tracks are kept under `light_v1/preFilter/` for comparison.
+
+## 13. Protein-level co-occupancy (DBP modules), v1 discovery scan (user request 2026-10-20)
+
+**Question.** Does genome-wide ChIP-seq co-occupancy recover known protein complexes after control for peak density,
+hotspots and cell context? Only after that check may unannotated DBP modules be considered. Outputs are called
+*DBP co-occupancy modules*, never protein complexes. Pooled co-occupancy across cell types is not co-binding in
+one cell.
+
+**Region universe.**
+- Fixed 500-bp genome bins, so overlap chaining is impossible.
+- ENCODE v2 blacklist bins are removed.
+- The universe is the bins occupied by at least one selected protein.
+
+**Proteins.**
+- HGNC-symbol targets of v1 Output A in the classes Sequence-specific TF, Architectural/cohesin, Chromatin remodeler,
+  Histone reader, Histone writer/eraser and Transcription machinery (annotation v1.1).
+- At least 3 experiments in the analysed context.
+- Other/ambiguous and non-gene labels are excluded.
+
+**Occupancy.**
+- Protein p occupies bin b if b overlaps peaks of at least k_p distinct experiments of p.
+- k_p = max(2, ⌈0.05 · n_exp(p)⌉), a reproducibility floor that scales with how often p was profiled.
+- Proteins with fewer than 500 occupied bins are dropped.
+
+**Similarity**, for every protein pair with bin sets A and B:
+- J = |A∩B| / |A∪B| (baseline);
+- O/E = |A∩B| · N / (|A| · |B|), with N the universe size; log2 O/E corrects for occupancy breadth.
+
+**Hotspot control.** The analysis is repeated without HOT bins, defined as the top 1 % of bins by number of
+occupying proteins.
+
+**Cell-context control.** The analysis is repeated within K-562 and within Hep G2 (experiments of that ChIP-Atlas
+cell type only, k_p = max(1, ⌈0.05 · n⌉), at least 2 experiments).
+
+**Clustering.** Average-linkage hierarchical clustering on 1 − J and on −log2 O/E. The heatmap carries a
+protein-class colour bar.
+
+**Benchmark** (independent reference: Complex Portal human, 2026-10-21, UniProt → HGNC).
+- Pairs of selected proteins that share a complex versus all other pairs:
+  - AUROC of J and of log2 O/E;
+  - the median within-complex similarity against 1,000 size-matched random sets.
+- Named checks, which are expectations to test, not results:
+  - cohesin (RAD21, SMC1A, SMC3, STAG1/2) and CTCF;
+  - BAF (SMARCA4, SMARCC1/2, SMARCB1, ARID1A/B);
+  - Mediator (MED*);
+  - PRC2 (EZH2, SUZ12, EED);
+  - NuRD (CHD4, HDAC1/2, MTA1/2).
+
+**Outputs:** `result/cooccupancy_v1/<context>/`
+- `proteins.tsv`, `pair_similarity.tsv.gz`, `linkage.tsv`;
+- `heatmap_jaccard.png`, `heatmap_log2oe.png`;
+- `benchmark.json`, `complex_recovery.tsv`.

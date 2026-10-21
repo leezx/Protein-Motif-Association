@@ -2,8 +2,9 @@
 
 usage: 17_experiment_sensitivity.py <embedding.npz> <clusters.tsv> <study_provenance.tsv> <out_dir>
 Variants: V0 raw (all 50 components); V1 without component 1; V2 neighbours from the same peak-count decile;
-V3 neighbours from other studies; V4 = V2 + V3. For each factor: observed and expected same-label fraction,
-fold enrichment and kappa = (obs - exp) / (1 - exp). Within-cell-type and within-protein views under V0 and V4.
+V3 neighbours from other studies; V4 = V2 + V3. For each factor: observed same-label fraction, global and
+conditional expectation (§17 B), kappa on the conditional expectation, permutation p, and anchors with 10 eligible
+neighbours. Within-cell-type and within-protein views under V0, V2, V3 and V4.
 """
 import collections
 import csv
@@ -36,27 +37,55 @@ def neighbours(E, groups=None, forbid=None, k=K, chunk=2000):
     return out
 
 
-def score(nn, lab, subset=None):
+def score(nn, lab, grp=None, forb=None, strata=None, n_perm=200, seed=20261021):
+    """Observed same-label fraction among neighbours and two expectations (§17 B):
+    - expected_global: sum of squared label frequencies (v1.1);
+    - expected_conditional: per anchor, the same-label fraction of its eligible-neighbour set (same `grp`, other
+      `forb`, not itself), averaged over anchors.
+    kappa uses the conditional expectation; kappa_global is kept for comparison with v1.1. p_perm: labels permuted
+    within `strata` (peak deciles) with the neighbour graph fixed."""
+    import pandas as pd
     lab = np.asarray(lab, dtype=object)
-    rows = np.arange(len(lab)) if subset is None else subset
     ok = lab != "."
-    obs = []
-    for i in rows:
-        if not ok[i]:
-            continue
-        nb = [j for j in nn[i] if j >= 0 and ok[j] and (subset is None or j in sset)] if subset is not None else [j for j in nn[i] if j >= 0 and ok[j]]
-        if nb:
-            obs.append(np.mean([lab[j] == lab[i] for j in nb]))
-    pool = lab[rows][ok[rows]]
-    cnt = collections.Counter(pool); n = len(pool)
-    exp = sum((v / n) ** 2 for v in cnt.values()) if n else float("nan")
-    o = float(np.mean(obs)) if obs else float("nan")
-    return dict(n=len(obs), levels=len(cnt), observed=round(o, 4), expected=round(exp, 4),
-                fold=round(o / exp, 2) if exp else None, kappa=round((o - exp) / (1 - exp), 4) if exp < 1 else None)
+    codes = pd.factorize(lab)[0]
+    valid = (nn >= 0) & ok[np.clip(nn, 0, None)]
+    has = ok & valid.any(axis=1)
+
+    def obs_of(c):
+        same = (c[np.clip(nn, 0, None)] == c[:, None]) & valid
+        return same.sum(axis=1)[has] / valid.sum(axis=1)[has]
+    o = float(np.mean(obs_of(codes))) if has.any() else float("nan")
+    df = pd.DataFrame({"lab": codes, "ok": ok, "g": grp if grp is not None else 0, "f": forb if forb is not None else 0})
+    d = df[df.ok]
+    n_g = d.groupby("g").size(); n_gl = d.groupby(["g", "lab"]).size()
+    tot = df["g"].map(n_g).fillna(0).to_numpy() - 1
+    same = pd.Series(list(zip(df.g, df.lab))).map(n_gl).fillna(0).to_numpy() - 1
+    if forb is not None:
+        n_gf = d.groupby(["g", "f"]).size(); n_gfl = d.groupby(["g", "f", "lab"]).size()
+        tot = tot - (pd.Series(list(zip(df.g, df.f))).map(n_gf).fillna(0).to_numpy() - 1)
+        same = same - (pd.Series(list(zip(df.g, df.f, df.lab))).map(n_gfl).fillna(0).to_numpy() - 1)
+    sel = has & (tot > 0)
+    exp_c = float(np.mean(same[sel] / tot[sel])) if sel.any() else float("nan")
+    cnt = collections.Counter(lab[ok]); n = int(ok.sum())
+    exp_g = sum((v / n) ** 2 for v in cnt.values()) if n else float("nan")
+    rng = np.random.default_rng(seed)
+    st = strata if strata is not None else np.zeros(len(lab), dtype=int)
+    ge = 0
+    okidx = np.where(ok)[0]
+    for _ in range(n_perm):
+        c = codes.copy()
+        for s_ in np.unique(st[okidx]):
+            m = okidx[st[okidx] == s_]; c[m] = c[rng.permutation(m)]
+        ge += np.mean(obs_of(c)) >= o
+    return dict(n=int(has.sum()), n_full_10_neighbours=int((ok & (valid.sum(axis=1) == K)).sum()), levels=len(cnt),
+                observed=round(o, 4), expected_global=round(exp_g, 4), expected_conditional=round(exp_c, 4),
+                fold=round(o / exp_c, 2) if exp_c else None,
+                kappa=round((o - exp_c) / (1 - exp_c), 4) if exp_c < 1 else None,
+                kappa_global=round((o - exp_g) / (1 - exp_g), 4) if exp_g < 1 else None,
+                p_perm=round((1 + ge) / (1 + n_perm), 4))
 
 
 def main(npz, clusters, study_tsv, out):
-    global sset
     out = Path(out); out.mkdir(parents=True, exist_ok=True)
     d = np.load(npz, allow_pickle=False)
     Z, ids = d["Z"], [str(x) for x in d["ids"]]
@@ -66,13 +95,13 @@ def main(npz, clusters, study_tsv, out):
     dec = np.array([meta[e]["peak_decile"] for e in ids], dtype=object)
     st = np.array([study.get(e, "single:" + e) for e in ids], dtype=object)
     E0 = normalize(Z); E1 = normalize(Z[:, 1:])
-    variants = {"V0_raw": neighbours(E0), "V1_drop_comp1": neighbours(E1),
-                "V2_same_peak_decile": neighbours(E0, groups=dec), "V3_other_study": neighbours(E0, forbid=st),
-                "V4_same_decile_other_study": neighbours(E0, groups=dec, forbid=st)}
+    spec = {"V0_raw": (E0, None, None), "V1_drop_comp1": (E1, None, None), "V2_same_peak_decile": (E0, dec, None),
+            "V3_other_study": (E0, None, st), "V4_same_decile_other_study": (E0, dec, st)}
     rows = []
-    for v, nn in variants.items():
+    for v, (E, g, fb) in spec.items():
+        nn = neighbours(E, groups=g, forbid=fb)
         for f in FACTORS:
-            rows.append(dict(variant=v, view="all", factor=f, **score(nn, lab[f])))
+            rows.append(dict(variant=v, view="all", factor=f, **score(nn, lab[f], g, fb, dec)))
     # controlled views: recompute neighbours inside each subset
     top_ct = ["K-562", "Hep G2", "MCF-7"]
     top_p = ["CTCF", "ESR1", "AR", "FOXA1"]
@@ -81,15 +110,18 @@ def main(npz, clusters, study_tsv, out):
             sub = np.where(lab[key] == val)[0]
             if len(sub) < 30:
                 continue
-            for v, kw in (("V0_raw", {}), ("V4_same_decile_other_study", {"groups": dec[sub], "forbid": st[sub]})):
-                nn = neighbours(E0[sub], **kw)
+            for v, g, fb in (("V0_raw", None, None), ("V2_same_peak_decile", dec[sub], None),
+                             ("V3_other_study", None, st[sub]), ("V4_same_decile_other_study", dec[sub], st[sub])):
+                nn = neighbours(E0[sub], groups=g, forbid=fb)
                 for f in fs:
-                    rows.append(dict(variant=v, view=f"{key}={val}", factor=f, **score(nn, lab[f][sub])))
+                    rows.append(dict(variant=v, view=f"{key}={val}", factor=f, **score(nn, lab[f][sub], g, fb, dec[sub])))
     with open(out / "experiment_confounder_sensitivity.tsv", "w") as w:
         cols = list(rows[0]); w.write("\t".join(cols) + "\n")
         for r in rows:
             w.write("\t".join(str(r[c]) for c in cols) + "\n")
-    summ = {f"{r['variant']}|{r['view']}|{r['factor']}": (r["fold"], r["kappa"]) for r in rows if r["view"] == "all"}
+    summ = {f"{r['variant']}|{r['view']}|{r['factor']}": dict(kappa=r["kappa"], kappa_global=r["kappa_global"],
+                                                               p_perm=r["p_perm"], n=r["n"], n_full=r["n_full_10_neighbours"])
+            for r in rows}
     summ["n_studies"] = int(len(set(st))); summ["experiments"] = len(ids)
     (out / "sensitivity_summary.json").write_text(json.dumps(summ, indent=1) + "\n")
     print(json.dumps(summ, indent=0))

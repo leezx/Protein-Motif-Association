@@ -24,7 +24,8 @@ from scipy import sparse
 from scipy.cluster import hierarchy
 from scipy.spatial.distance import squareform
 
-BIN = 500
+BIN = int(os.environ.get("PMA_BIN", "500"))  # §17 L2 sensitivity; default 500 bp
+KFRAC = float(os.environ.get("PMA_KFRAC", "0.05"))  # §17 L2 sensitivity; default 5 %
 CLASSES = {"Sequence-specific TF", "Architectural/cohesin", "Chromatin remodeler", "Histone reader",
            "Histone writer/eraser", "Transcription machinery"}
 NAMED = {"cohesin+CTCF": ["CTCF", "RAD21", "SMC1A", "SMC3", "STAG1", "STAG2"],
@@ -150,8 +151,9 @@ def build_occupancy(bed, ann, blp, sizes_path, context="all", workers=5):
     min_exp = 3 if context == "all" else 2
     genes = sorted(g for g in cls if n_exp[g] >= min_exp)
     prot = {g: i for i, g in enumerate(genes)}
-    kp = np.array([max(floor, math.ceil(0.05 * n_exp[g])) for g in genes])
+    kp = np.array([max(floor, math.ceil(KFRAC * n_exp[g])) for g in genes])
     assert len(exps) < 1 << 16 and len(genes) < 1 << 23
+    assert sum(int(l.split("\t")[1]) // BIN + 1 for l in Path(sizes_path).read_text().splitlines() if l) < 1 << 24
     sizes = {l.split("\t")[0]: int(l.split("\t")[1]) for l in Path(sizes_path).read_text().splitlines() if l}
     chroms = [c for c in subprocess.run(["tabix", "-l", bed], capture_output=True, text=True, check=True).stdout.split()
               if c in sizes and (not os.environ.get("PMA_CHROMS") or c in os.environ["PMA_CHROMS"].split(","))]

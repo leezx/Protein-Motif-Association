@@ -138,6 +138,7 @@ def main(bed, exp_tab, counts, ann, blp, sizes_path, out, workers=4):
     corr = [float(np.corrcoef(Z[:, i], depth)[0, 1]) for i in range(Z.shape[1])]
     keepc = [i for i, r in enumerate(corr) if abs(r) <= 0.7]
     E = normalize(Z[:, keepc])
+    np.savez_compressed(out / "embedding.npz", Z=Z, ids=np.array(ids), depth=depth, corr=np.array(corr))
     with open(out / "svd_depth_correlation.tsv", "w") as w:
         w.write("component\texplained_variance_ratio\tr_log10_peaks\tkept\n")
         for i, r in enumerate(corr):

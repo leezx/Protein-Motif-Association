@@ -3,7 +3,7 @@
 # usage: 01_footprint_tracks.sh <variant> <raw_dir> <chrom.sizes> <out_dir> [liftOver] [chain]
 #   variant: vierstra2020_fpr0.001 | vierstra2020_fpr0.01 |
 #            funk2020_dnase_hint | funk2020_dnase_wellington | funk2020_faire_hint | funk2020_faire_wellington |
-#            neph2012_fdr0.01   (hg19 -> hg38 with liftOver + chain)
+#            neph2012_fdr0.01 (hg19 -> hg38) | boyle2011_hg18 (hg18 -> hg38); both need liftOver + chain
 # Writes <out_dir>/<variant>/: footprints.bed.gz (chrom start end sample; unique, merged within sample, sorted),
 #   samples.tsv, <variant>.samples.bedGraph.gz(+.tbi), <variant>.samples.bw, then qc.json via 02_footprint_track_qc.py.
 # Signal = number of samples with a footprint covering the base. Needs bedtools, bgzip, tabix, bedGraphToBigWig, python.
@@ -14,6 +14,12 @@ NP=${NSLOTS:-4}; export LC_ALL=C OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NU
 mkdir -p "$OUT/tmp"; cd "$OUT"
 CHR='^chr([0-9]+|X|Y)\t'
 SORT="sort -S 8G --parallel=$NP -T $OUT/tmp"
+
+lift() {  # tmp/src.bed (name = sample|id) -> stdout hg38 chrom start end sample; liftover.json records losses
+  "$LIFT" tmp/src.bed "$CHAIN" tmp/hg38.bed tmp/unmapped.bed 2> tmp/liftover.log
+  echo "{\"source_footprints\": $(wc -l < tmp/src.bed), \"lifted\": $(wc -l < tmp/hg38.bed), \"unmapped\": $(grep -vc '^#' tmp/unmapped.bed || true), \"chain\": \"$(basename "$CHAIN")\"}" > liftover.json
+  awk 'BEGIN{OFS="\t"}{split($4,a,"|"); print $1,$2,$3,a[1]}' tmp/hg38.bed
+}
 
 emit() {  # -> stdout: chrom start end sample (unsorted, may contain duplicates)
   case $V in
@@ -29,10 +35,14 @@ emit() {  # -> stdout: chrom start end sample (unsorted, may contain duplicates)
         zcat "$f" | awk -v s="$s" 'BEGIN{OFS="\t"} !/^#/ {print $1,$7,$8,s}'
       done ;;
     neph2012_fdr0.01)
-      zcat "$RAW"/jan2011_all.footprints.gz | awk 'BEGIN{OFS="\t"}{print $1,$2,$3,$4"|"NR}' > tmp/hg19.bed
-      "$LIFT" tmp/hg19.bed "$CHAIN" tmp/hg38.bed tmp/unmapped.bed 2> tmp/liftover.log
-      echo "{\"hg19_footprints\": $(wc -l < tmp/hg19.bed), \"lifted\": $(wc -l < tmp/hg38.bed), \"unmapped\": $(grep -vc '^#' tmp/unmapped.bed || true)}" > liftover.json
-      awk 'BEGIN{OFS="\t"}{split($4,a,"|"); print $1,$2,$3,a[1]}' tmp/hg38.bed ;;
+      zcat "$RAW"/jan2011_all.footprints.gz | awk 'BEGIN{OFS="\t"}{print $1,$2,$3,$4"|"NR}' > tmp/src.bed
+      lift ;;
+    boyle2011_hg18)  # Furey lab per-cell-line footprints, native hg18 (their hg19 files are liftovers); Combined_GM excluded
+      for f in "$RAW"/*_footprints_hg18.bed; do
+        s=$(basename "$f" _footprints_hg18.bed); [ "$s" = Combined_GM ] && continue
+        awk -v s="$s" 'BEGIN{OFS="\t"} !/^(track|browser|#)/ {print $1,$2,$3,s"|"NR}' "$f"
+      done > tmp/src.bed
+      lift ;;
     *) echo "unknown variant $V" >&2; exit 2 ;;
   esac
 }

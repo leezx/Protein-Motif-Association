@@ -12,11 +12,11 @@ User request (2026-10-21):
 | Source | Per-sample footprints | Build | Samples | Used |
 |---|---|---|---|---|
 | Vierstra et al. 2020 *Nature* (Altius, footprint-tools) | `per.dataset/<sample>/interval.all.fps.<FPR>.bed.gz`, FPR 1e-4 … 0.2 | hg38 | 243 DNase-seq | yes, at FPR 0.001 and 0.01 |
-| Funk et al. 2020 *Cell Rep* (ENCODE DNase/FAIRE; HINT and Wellington) | FILER2 mirror `TF-footprint-atlas/<assay>/bed14/hg38/<ENCSR>.<tissue>_<method>_<seed>-footprint.bed.gz`. Rows are footprint × motif hits; footprint coordinates are in columns 7–8. The paper's NeMO link is dead. | hg38 | 155 DNase + 6 FAIRE experiments (163/6 files per method) | yes: DNase and FAIRE × HINT and Wellington, alignment seed 20 only (seed 16 is the same data with a different aligner seed) |
+| Funk et al. 2020 *Cell Rep* (ENCODE DNase/FAIRE; HINT and Wellington) | FILER2 mirror `TF-footprint-atlas/<assay>/bed14/hg38/<ENCSR>.<tissue>_<method>_<seed>-footprint.bed.gz`. Rows are footprint × motif hits; footprint coordinates are in columns 7–8. The paper's NeMO link is dead. | hg38 | 155 DNase + 6 FAIRE experiments (162/6 seed-20 files per method) | yes: DNase and FAIRE × HINT and Wellington, alignment seed 20 only (seed 16 is the same data with a different aligner seed) |
 | Neph et al. 2012 *Nature* (UW ENCODE) | EBI `integration_data_jan2011/byDataType/footprints/jan2011/all.footprints.gz`: a single file with a cell-type column, FDR 1% | hg19 | 41 cell types | yes, lifted to hg38 with UCSC liftOver; unmapped count recorded |
 | Boyle et al. 2011 *Genome Res* (Furey lab) | per-cell-line BED (`<line>_footprints_hg18.bed`) + `Combined_GM` + `All_footprints_hg18.tgz` | hg18 native (their hg19 = liftover) | 7 lines (GM12891, GM12892, H1 ES, HeLa-S3, HUVEC, K562, NHEK) | yes: hg18 → hg38 liftOver, track `boyle2011_hg18` (Combined_GM kept in raw, not counted) |
 | footprintDB (Sebastian 2014 *Bioinformatics*) | — (motif/TF interface database) | — | — | no genomic footprints |
-| PRINT / scPrinter (Hu 2025 *Nature*, Zenodo 15399859) | no footprint BEDs; 6 example PBMC TFBS-score bigWigs (Bcell/Monocyte/Tcell × 2) | (hg38 tutorial) | 6 tutorial pseudo-bulks | raw only (continuous TFBS score, not footprint calls; no count track) |
+| PRINT / scPrinter (Hu 2025 *Nature*, Zenodo 15399859) | no footprint BEDs; 6 example PBMC TFBS-score bigWigs (Bcell/Monocyte/Tcell × 2) | hg38 (verified: chr1 = 248,956,422) | 6 tutorial pseudo-bulks | raw only (continuous TFBS score, not footprint calls; no count track) |
 | GTRD | site not reachable on 2026-10-21 (timeouts) | — | — | not verified |
 | TOBIAS | no precomputed human atlas (only mouse embryo results on figshare) | — | — | no |
 
@@ -44,7 +44,7 @@ User request (2026-10-21):
 
 ## Layout
 
-- One dataset per source: `DATA/2.PROJECTS/PMA/footprint_{vierstra2020,funk2020,neph2012}/`.
+- One dataset per source: `DATA/2.PROJECTS/PMA/footprint_{vierstra2020,funk2020,neph2012,boyle2011,print2025}/`, each with `link.md`.
   - `raw/2026-10-21/` holds the downloads with MD5SUMS.
   - `processed/tracks_v1/<variant>/` holds `footprints.bed.gz`, `samples.tsv`, `<variant>.samples.{bw,bedGraph.gz}`
     and `qc.json`, plus the blacklist splits.
@@ -66,3 +66,27 @@ footprints.
 Any output converted with liftOver carries `liftedFrom<Build>` in its file and track names, and sits next to a
 `LIFTOVER_NOTICE.txt` that gives the source build, chain and mapped/unmapped counts. `03_lift_bed.sh` refuses
 an output name without `liftedFrom`. Native hg38 sources (Vierstra, Funk) never carry the tag.
+
+## Results (2026-10-21, code f47a405, Argos SGE)
+
+All 8 tracks pass QC: value conservation, range, sort order, and 600 tabix recounts with 0 mismatches.
+
+| Track | Samples | Footprints | Covered bp | Max |
+|---|---|---|---|---|
+| vierstra2020_fpr0.001 | 243 | 67,994,177 | 126,682,025 | 243 |
+| vierstra2020_fpr0.01 | 243 | 159,657,310 | 295,118,513 | 243 |
+| funk2020_dnase_hint | 162 | 227,734,229 | 674,243,146 | 159 |
+| funk2020_dnase_wellington | 162 | 50,508,583 | 344,356,673 | 162 |
+| funk2020_faire_hint | 6 | 7,653,614 | 138,446,127 | 6 |
+| funk2020_faire_wellington | 6 | 1,548,930 | 33,032,496 | 6 |
+| neph2012_fdr0.01_liftedFromHg19 | 41 | 45,085,507 | 156,624,943 | 41 |
+| boyle2011_liftedFromHg18 | 7 | 1,352,143 | 21,429,673 | 7 |
+
+Liftover losses:
+
+| Input | Source footprints | Unmapped |
+|---|---|---|
+| Neph per-sample | 45,096,726 | 4,000 |
+| Boyle per-sample | 1,423,510 | 667 |
+| Neph combined | 8,374,968 | 778 |
+| Boyle Combined_GM | 225,799 | 112 |

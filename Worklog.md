@@ -517,3 +517,13 @@ External execution remains blocked only by absent authorized Linux x86_64 builde
 读取了章程、冻结 v0.2、Step 4a/4b 合同、Git 分支与 PR #5–#8。发现 Step 4a 基线合同为逐实验峰，而 PR #6–#7 另建坐标唯一 BED6；README 原“当前 Step 1 pilot”已滞后。原 checkout `task_20261018_step4b_setup_fix@7eccace` 的已修改 Worklog 和未跟踪的 Figures、benchmark、design 文件均保留原样，未并入本分支。U/D/X 未见独立统一版本，标为 UNKNOWN；UDE 总状态 AMBER，不把未合并结果或索引本身视为批准。
 
 本次是文档索引，不运行外部分析、不改变设计基线或合并任何现有 PR。交接记录见 `docs/handoff/2026-10-26-ude-index.zh-CN.md`；待本 PR 审核后，才考虑把索引并入基线。章程 100% 终点不变，本次只提高来源与审批状态可追溯性，不计入科学完成百分比。
+
+## 2026-10-26 16:33 EDT — UDE 对账：纳入 KB 设计档案，登记未批准提案
+
+按用户指示，把 `/Volumes/Stelligen_SSD/Stelligen/Zhixins-KB/2026-GPT-Project-PMA.md` 作为设计/探索来源纳入 UDE 对账。该文件是 GPT 对话档案（7,674 行；sha256 `ff50036f54f31dd94924c097764a56c87a8b8a49c5a0dba7087a3e342e934faa`；273,975 bytes；mtime 2026-10-21 19:22 EDT），不是已批准设计。按内容拆分：假说进入理解层（H-01–H-06），设计提案进入设计层（P-01–P-09），全部标为未批准；没有新增 UDE 目录，也没有移动正式合同。
+
+**分级结果**：L3 四项——P-01 region-centric 证据矩阵、P-04 hotspot/Tn5/normal–cancer 扩展、P-06 DBD–motif 轨道、P-08 Genome Biology pan-cancer + BAF + Fig. 1–5；它们与章程 non-goals（recruitment grammar、Fig. 3+）或 v0.2 两张主图的冻结范围冲突，采纳须用户决定并重新批准 Design。L2 四项——P-02 饱和分析、P-03 bias-aware post-hoc footprint validation、P-05 bigWig 定义与 normalized occupancy、P-09 representative vs full-raw 归因 benchmark；其中 P-03 与 D-04 的检测/评估语义冲突。L1 一项——P-07 不新建通用 de novo motif reference。
+
+**对账发现**：KB 的 29,778 motif 计数早于仓库 v0.3 结果（101,228 unique / 24,194 core），标为历史值；39,099 experiments 与 Step 4a 合同一致但仍以结果文档为准。Worklog tracker 仍写 Step 3/4/5 not started、总体 20%，CODEX_HANDOFF 写 33%；handoff 的 last live-verified HEAD 停留 `ba26845`/`515cd76`，合并后 tip 为 `7eccace`/`6c2e323`。这些差异登记为 X-06 与 HD-04，不擅自改历史数字。
+
+**验证**：`CURRENT.yaml` 用 PyYAML 解析通过；UDE 内相对链接 0 断链；`git diff --check` 通过。未运行外部分析、未改设计基线、未合并任何 PR；PR #9 仍待 PMA 固定审核会话结论，合并需用户单独确认。

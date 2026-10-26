@@ -1,41 +1,157 @@
+# PMA UDE 当前状态。未知的 U/D/X 版本不由文件名、分支名或审核记录推定。
+# 所有相对路径从本文件所在的 UDE/ 目录解析；仓库路径从仓库根解析。
 schema: pma-ude-current-1
-updated_at: '2026-10-26 15:59 EDT'
+updated_at: '2026-10-26 16:33 EDT'
 status: AMBER
-status_reason: '项目目标和已有合同可追溯；多项后续设计与结果仍在未合并分支或本地未跟踪文件中，尚不能作为统一的已批准当前基线。'
+status_reason: '项目身份与冻结范围可追溯；理解层仅有报告级证据，设计层存在未解决的合同冲突和一批未批准的外部提案，执行层分散在已集成基线、开放 PR 与其他分支，且 Worklog/handoff 的状态数字不一致。'
 project:
   id: PMA
   charter: docs/PROJECT_CHARTER.md
   frozen_scope: design/PMA_pseudo_figures_v0.2.md
-  endpoint: '人类 protein–motif association reference、证据分级及 Figure 1/2；详见 charter Part 1'
+  endpoint: '人类 protein–motif association reference、证据分级及 Figure 1/2；详见 charter Part 1。UDE 不重新定义 100% 标准。'
 repository_snapshot:
   indexed_base_ref: origin/step4b-atac-footprinting
   indexed_base_commit: 6c2e323fc80cc3e05f9de05282d1bbce49ba98fa
+  ude_branch: task_20261026_ude_index
+  ude_pr: 9
+  ude_pr_head: 4a656a9b68d64fbc436c07ebbb14abd0fd5dd3a9
+  ude_pr_state: open_unmerged
   original_checkout_branch: task_20261018_step4b_setup_fix
   original_checkout_commit: 7eccace
   original_checkout_dirty: true
-  note: '原 checkout 的 Worklog.md 已修改，并有未跟踪的 Figures、benchmark 与 design/protein_binding_resources.md；本 UDE 分支不搬运或覆盖它们。'
-layers:
-  understanding:
-    version: unknown
-    state: '项目问题在冻结 v0.2 中明确；逐项证据和假说未有独立批准的 U 版本。'
-    current: UDE/understanding/CURRENT.md
-  design:
-    version: unknown
-    based_on_understanding: 'design/PMA_pseudo_figures_v0.2.md@d4a05dc4365147c14c02444c95050af20c4c0f8b'
-    baseline_commit: 6c2e323fc80cc3e05f9de05282d1bbce49ba98fa
-    state: '冻结范围与分步设计已在基线中；各文件内的审批声明需按对应审核记录理解。'
-    current: UDE/design/CURRENT.md
-  execution:
-    version: unknown
-    design_baseline: 'origin/step4b-atac-footprinting@6c2e323fc80cc3e05f9de05282d1bbce49ba98fa'
-    state: '基线已含 PR #4；PR #5–#8 和其他研究分支未合并，不纳入已集成执行。'
-    current: UDE/execution/CURRENT.md
+  note: '原 checkout 的 Worklog.md 已修改，并有未跟踪的 Figures、benchmark 与 design/protein_binding_resources.md；本 UDE 分支不搬运、暂存或覆盖它们。'
+sources:
+  - id: SRC-KB-PMA-2026
+    path: /Volumes/Stelligen_SSD/Stelligen/Zhixins-KB/2026-GPT-Project-PMA.md
+    sha256: ff50036f54f31dd94924c097764a56c87a8b8a49c5a0dba7087a3e342e934faa
+    bytes: 273975
+    mtime: '2026-10-21 19:22 EDT'
+    classification: '外部 GPT 对话档案：包含 Understanding 假说、探索性分析提案和未批准的设计提案。'
+    authority: '对仓库无权威；不是已批准设计、证据或执行许可。其中的数字若与仓库结果文档冲突，以仓库结果文档为准并标为历史值。'
+    indexed_in: UDE/design/CURRENT.md
+understanding:
+  version: unknown
+  reason: '没有独立接受的人类 UDE Understanding 版本；条目仅为来源分类。'
+  current: UDE/understanding/CURRENT.md
+  established: [U-01, U-02, U-03]
+  hypotheses: [H-01, H-02, H-03, H-04, H-05, H-06]
+  evidence: [E-01, E-02, E-03, E-04, E-05, E-06]
+  open_questions: [Q-01, Q-02, Q-03, Q-04, Q-05, Q-06, Q-07, Q-08]
+design:
+  version: unknown
+  based_on_understanding: 'design/PMA_pseudo_figures_v0.2.md@d4a05dc4365147c14c02444c95050af20c4c0f8b；人类接受记录 unknown'
+  baseline_commit: 6c2e323fc80cc3e05f9de05282d1bbce49ba98fa
+  current: UDE/design/CURRENT.md
+  items:
+    - id: D-01
+      status: frozen_scope
+    - id: D-02
+      status: step_contracts_motif_reference
+    - id: D-03
+      status: step_contract_4a_experiment_resolved
+    - id: D-04
+      status: step_contract_4b_benchmark
+    - id: D-05
+      status: open_change_conflicts_with_D-03
+    - id: D-06
+      status: unmerged_followup_outside_baseline
+  proposals:
+    - id: P-01
+      title: 'Region-centric regulatory evidence matrix（以基因组区域为行）'
+      source: 'SRC-KB-PMA-2026 §PMA Human Regulatory Region Reference（L2）；§human genome motif instance saturation（L447）'
+      class: L3
+      status: proposed_unapproved
+      affects: [U-01, D-01, Q-03, Q-04]
+    - id: P-02
+      title: 'Motif instance 饱和/可穷尽性分析'
+      source: 'SRC-KB-PMA-2026 §human genome motif instance saturation（L447）；§可以穷尽motif吗（L1920）'
+      class: L2
+      status: proposed_unapproved
+      affects: [H-04, U-01, D-01]
+    - id: P-03
+      title: 'Bias-aware post-hoc footprint validation（raw detection + 多模型 bias annotation）'
+      source: 'SRC-KB-PMA-2026 §PMA的footprint部分重大创新（L4094）'
+      class: L2
+      status: proposed_unapproved
+      affects: [H-01, H-06, D-04, Q-02]
+    - id: P-04
+      title: 'Hotspot / Tn5 bias atlas / normal–cancer atlas 等五项扩展'
+      source: 'SRC-KB-PMA-2026 §PMA整体重大进展（L4541）'
+      class: L3
+      status: proposed_unapproved_park
+      affects: [D-01, Q-05]
+    - id: P-05
+      title: 'bigWig 数学定义与 normalized occupancy'
+      source: 'SRC-KB-PMA-2026 §PMA重大进展ChIP-Altas整合（L4863）'
+      class: L2
+      status: proposed_unapproved
+      affects: [E-03, D-01, D-03]
+    - id: P-06
+      title: 'DBD–motif joint embedding；反向只做候选 DBD/family 排序'
+      source: 'SRC-KB-PMA-2026 §PMA-DBD-motif model（L5227）；§结构生物学研究DNA-Protein interaction（L6211）'
+      class: L3
+      status: proposed_unapproved
+      affects: [U-01, D-01, Q-05]
+    - id: P-07
+      title: '不新建通用 de novo motif reference；复用 Factorbook/ENCODE 等'
+      source: 'SRC-KB-PMA-2026 §PMA纳入最全denovo motif DB（L6697）；§PMA denovo motifs（L6872）'
+      class: L1
+      status: informational_constraint
+      affects: [D-02, H-05]
+    - id: P-08
+      title: 'Genome Biology 架构：pan-cancer interactome + BAF case study + DL 模块 + Fig.1–5'
+      source: 'SRC-KB-PMA-2026 §PMA genome biology架构（L6995）'
+      class: L3
+      status: proposed_unapproved
+      affects: [U-01, D-01, Q-05]
+    - id: P-09
+      title: 'Application 1：representative vs full-raw motif scanning 的下游归因 benchmark'
+      source: 'SRC-KB-PMA-2026 §PMA genome biology架构 §6 关键技术风险（L7514）'
+      class: L2
+      status: proposed_unapproved
+      affects: [H-05, D-02]
+execution:
+  version: unknown
+  design_baseline: 'origin/step4b-atac-footprinting@6c2e323fc80cc3e05f9de05282d1bbce49ba98fa'
+  current: UDE/execution/CURRENT.md
+  evidence: [X-01, X-02, X-03, X-04, X-05, X-06]
 external_active_prs_as_observed_2026_10_26:
-  - 5
-  - 6
-  - 7
-  - 8
+  - number: 5
+    head: c1f9329cd395eff82d2374184c3e1f7cc674922c
+    state: OPEN
+  - number: 6
+    head: 3c0e48e699073726b9ef7453644cabbe8b277ca4
+    state: OPEN
+  - number: 7
+    head: 3b2c6dcea2a52b63a8207e42aa09b732762a9079
+    state: OPEN
+  - number: 8
+    head: 01fc1c62a36a1b3603c775f0cfb09394ad03e5a7
+    state: OPEN
+  - number: 9
+    head: 4a656a9b68d64fbc436c07ebbb14abd0fd5dd3a9
+    state: OPEN
+pending_decisions:
+  - id: HD-01
+    question: '接受、替换还是并存 Step 4a 逐实验峰产物（D-03）与坐标唯一 BED6（D-05）？'
+    owner: user
+    blocks: [X-02, Q-01, Step 4a closure]
+  - id: HD-02
+    question: 'KB 外部提案中哪些进入 PMA：region-centric（P-01）、pan-cancer/BAF（P-08）、DBD（P-06）、扩展五项（P-04）？'
+    owner: user
+    blocks: [D-01, Q-05]
+    note: '任一项采纳均为 L3，需重新批准 Design，并暂停受影响执行。'
+  - id: HD-03
+    question: 'Step 4b 是否采用 P-03 的多模型 bias annotation，还是按 D-04 现有合同继续？'
+    owner: user + GPT design review
+    blocks: [D-04, Q-02]
+  - id: HD-04
+    question: '项目进度以哪个数字为准：Worklog tracker 20%、CODEX_HANDOFF 33%，还是重新核算？'
+    owner: user
+    blocks: [X-06]
 governance:
   approval: 'UDE 索引为待审草案；不授予设计变更、外部运行或合并许可。'
   canonical_log: Worklog.md
   canonical_handoff: docs/handoff/
+  review_conversation: 'PMA 固定阶段审核会话（见 docs/PROJECT_CHARTER.md Part 1）'
+  merge_rule: '每个 PR 合并都需用户单独明确确认。'

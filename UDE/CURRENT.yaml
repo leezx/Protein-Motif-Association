@@ -1,0 +1,41 @@
+schema: pma-ude-current-1
+updated_at: '2026-10-26 15:59 EDT'
+status: AMBER
+status_reason: '项目目标和已有合同可追溯；多项后续设计与结果仍在未合并分支或本地未跟踪文件中，尚不能作为统一的已批准当前基线。'
+project:
+  id: PMA
+  charter: docs/PROJECT_CHARTER.md
+  frozen_scope: design/PMA_pseudo_figures_v0.2.md
+  endpoint: '人类 protein–motif association reference、证据分级及 Figure 1/2；详见 charter Part 1'
+repository_snapshot:
+  indexed_base_ref: origin/step4b-atac-footprinting
+  indexed_base_commit: 6c2e323fc80cc3e05f9de05282d1bbce49ba98fa
+  original_checkout_branch: task_20261018_step4b_setup_fix
+  original_checkout_commit: 7eccace
+  original_checkout_dirty: true
+  note: '原 checkout 的 Worklog.md 已修改，并有未跟踪的 Figures、benchmark 与 design/protein_binding_resources.md；本 UDE 分支不搬运或覆盖它们。'
+layers:
+  understanding:
+    version: unknown
+    state: '项目问题在冻结 v0.2 中明确；逐项证据和假说未有独立批准的 U 版本。'
+    current: UDE/understanding/CURRENT.md
+  design:
+    version: unknown
+    based_on_understanding: 'design/PMA_pseudo_figures_v0.2.md@d4a05dc4365147c14c02444c95050af20c4c0f8b'
+    baseline_commit: 6c2e323fc80cc3e05f9de05282d1bbce49ba98fa
+    state: '冻结范围与分步设计已在基线中；各文件内的审批声明需按对应审核记录理解。'
+    current: UDE/design/CURRENT.md
+  execution:
+    version: unknown
+    design_baseline: 'origin/step4b-atac-footprinting@6c2e323fc80cc3e05f9de05282d1bbce49ba98fa'
+    state: '基线已含 PR #4；PR #5–#8 和其他研究分支未合并，不纳入已集成执行。'
+    current: UDE/execution/CURRENT.md
+external_active_prs_as_observed_2026_10_26:
+  - 5
+  - 6
+  - 7
+  - 8
+governance:
+  approval: 'UDE 索引为待审草案；不授予设计变更、外部运行或合并许可。'
+  canonical_log: Worklog.md
+  canonical_handoff: docs/handoff/

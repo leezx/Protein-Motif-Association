@@ -16,12 +16,17 @@ PMA is an association reference, not a recruitment-mechanism study.
 - [`design/PMA_pseudo_figures_v0.2.md`](design/PMA_pseudo_figures_v0.2.md)
   — current frozen design (v0.1 kept for history).
 - [`Worklog.md`](Worklog.md) — chronological log and progress tracker.
+- [`UDE/CURRENT.md`](UDE/CURRENT.md) — indexed Understanding, Design and
+  Execution state, with source authority and open discrepancies. The step
+  contracts stay in their existing paths.
 
 ## Current status
 
-v0.2 scope frozen. Active workstream: **PMA Human Motif Reference**
-(`design/motif_resources.md`). Step 1 is a Codebook 2026 vs JASPAR 2026
-architecture pilot (`docs/STEP1_MOTIF_PILOT_DESIGN.md`).
+v0.2 project scope is frozen. The integrated `step4b-atac-footprinting`
+branch contains the motif reference, Step 4a and the Step 4b setup work;
+additional BED6 and footprint work remains on separate branches and open
+PRs. Check [`UDE/CURRENT.md`](UDE/CURRENT.md) and the current Git/PR state
+before treating a later result as integrated or accepted.
 
 ## Data
 

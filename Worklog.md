@@ -509,3 +509,11 @@ Checked local build capability read-only: host is Darwin arm64, Docker CLI exist
 GPT reviewed exact PR #4 HEAD `515cd767053f6fe83760ecba39b625734a5bb19b` against builder code HEAD `b43b8772b5c357a05125428e6c997b4e3d299fbf`, confirmed PR OPEN/unmerged, exact remote SHA, and that only Worklog/CODEX_HANDOFF/dated handoff changed. Verdict `APPROVE`; audit accuracy, PR/handoff consistency, and scope-control passed with zero blockers. GPT confirmed the code approval was not expanded into Docker, Argos, install/CLI/smoke/full-run, or merge permission. Formal GitHub review registration remains HTTP 403; decision is in the persistent GPT conversation.
 
 External execution remains blocked only by absent authorized Linux x86_64 builder. Local check found Darwin arm64, Docker CLI without socket/daemon, no alternative OCI runtime, and no configured remote builder. Asked the user to choose Docker Desktop admin authorization (user must accept OS prompt) or provide an authorized external Linux builder. No Docker/bundle/Argos/data/environment/analysis/merge action occurred.
+
+## 2026-10-26 15:59 EDT — 建立 PMA UDE 状态索引草案
+
+按用户要求使用 `ude-review` 整理仓库。在独立 worktree 的 `task_20261026_ude_index` 分支，以 `origin/step4b-atac-footprinting@6c2e323` 为可重复的 Git 基线，新增 `UDE/` 的六个核心文件，索引项目目标、理解证据、原位设计合同、已集成执行与未合并 PR；README 指向索引。未搬动正式合同、Worklog、handoff、代码或数据。
+
+读取了章程、冻结 v0.2、Step 4a/4b 合同、Git 分支与 PR #5–#8。发现 Step 4a 基线合同为逐实验峰，而 PR #6–#7 另建坐标唯一 BED6；README 原“当前 Step 1 pilot”已滞后。原 checkout `task_20261018_step4b_setup_fix@7eccace` 的已修改 Worklog 和未跟踪的 Figures、benchmark、design 文件均保留原样，未并入本分支。U/D/X 未见独立统一版本，标为 UNKNOWN；UDE 总状态 AMBER，不把未合并结果或索引本身视为批准。
+
+本次是文档索引，不运行外部分析、不改变设计基线或合并任何现有 PR。交接记录见 `docs/handoff/2026-10-26-ude-index.zh-CN.md`；待本 PR 审核后，才考虑把索引并入基线。章程 100% 终点不变，本次只提高来源与审批状态可追溯性，不计入科学完成百分比。

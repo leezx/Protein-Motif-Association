@@ -40,3 +40,6 @@ $PMA/motif_reference/processed/v0.3_raw_layer/PMA_motifs_raw.meme HO14_SOX9.H14C
 j47=$(echo "$ENV; R_LIBS_USER=/home/zz950/softwares/R_lib_4 $RS $CODE/47_ht29_dtag_deseq.R $OUT/counts $B/cutrun_pipeline" | \
   qsub -terse -q all.q -pe smp 1 -l h_vmem=24G -hold_jid $j45 -N cq47 -o $OUT/logs/47.log -j y -cwd)
 echo "jobs: 45=$j45 46=${js#,} 46a=$j46 47=$j47"
+# Review round 1 (run separately): 50 (SOX motifs) then 51 (checks)
+#   python 50_sox_motif_scan.py $OUT/counts/regions.bed <meme> <fasta> $OUT/pma/sox_motifs.tsv.gz 1e-4
+#   Rscript 51_ht29_review_checks.R $OUT

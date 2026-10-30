@@ -182,3 +182,9 @@ evidence is null after covariates (1.26, CI 0.87–1.83). PMA SOX-family occupan
 
 **Result doc**: `Figures/ContextQuery/ContextQuery.sox9_baf.result.md`. **Open**: dTAG schedule to confirm;
 choice of next direction (doc §7); not reviewed by GPT.
+
+**2026-10-30 — GPT review round 1 (REQUEST_CHANGES; push approved, no merge)**: scripts 50–52. dTAG schedule not
+recorded in metadata → day labels only. SMARCC1 relative drop at SOX9 vs SMARCC1-only sites is matched by IgG
+background (D4 −0.20 to −0.29) → v0.1 §3.4 withdrawn; ATAC-lost vs not-lost SMARCC1 drop is replicate-consistent and
+exceeds IgG (relative signal only). SOX-family ChIP (non-SOX9, external) given 6 SOX PWMs + baseline ATAC/SOX9:
+OR 2.22 (1.78–2.77), CV AUROC +0.005–0.015, positive only in the high-motif tertile. BAF null result robust.

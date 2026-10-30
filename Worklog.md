@@ -188,3 +188,4 @@ recorded in metadata → day labels only. SMARCC1 relative drop at SOX9 vs SMARC
 background (D4 −0.20 to −0.29) → v0.1 §3.4 withdrawn; ATAC-lost vs not-lost SMARCC1 drop is replicate-consistent and
 exceeds IgG (relative signal only). SOX-family ChIP (non-SOX9, external) given 6 SOX PWMs + baseline ATAC/SOX9:
 OR 2.22 (1.78–2.77), CV AUROC +0.005–0.015, positive only in the high-motif tertile. BAF null result robust.
+User confirmed the time design (2026-10-30): D2, D4 = SOX9 degradation; D7, D10, D13 = SOX9 recovery.

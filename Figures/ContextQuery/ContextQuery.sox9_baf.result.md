@@ -28,7 +28,7 @@ HT29 dTAG-SOX9 时间序列，全部来自同一测序批次（Novogene 22CYWGLT
 | CUT&RUN H3K27ac / H3K4me3 | 同上 | 2 | 本轮未用（H3K27ac 峰数只有 95–4,491，质量不足） |
 | RNA-seq | `rna_pipeline/` | — | 本轮未用 |
 
-**时间设计未经 metadata 确认（审核回合 1）。** SOX9 CUT&RUN 信号（library-size 归一化，SOX9 位点中位 log2FC）为 D2 −1.12、D4 −2.14、D7 −1.50、D10 −0.37、D13 0.00。项目的 sample sheet（`sampleAnno/`、`atac.sample.csv`）和 notebook 都没有记录给药或洗脱日期。已有 notebook 里的 "Fold_Recover" 来自另一个 D0/D4/D9 实验（D9 vs D4），不能用于本时间序列。因此本文只使用 D2、D4、D7、D10、D13 这些天数标签。下文的"降解"仅指 SOX9 CUT&RUN 信号下降，"恢复"仅指信号回升，**不表示 dTAG 洗脱时间**。这三个层面的时间也可能不同：SOX9 蛋白、SOX9 染色质占据、可及性。
+**时间设计（用户确认，2026-10-30）：D2、D4 为 SOX9 降解期，D7、D10、D13 为 SOX9 恢复期。** 这与 SOX9 CUT&RUN 信号一致（library-size 归一化，SOX9 位点中位 log2FC：D2 −1.12，D4 −2.14，D7 −1.50，D10 −0.37，D13 0.00）。项目的 sample sheet 和 notebook 里没有书面记录，以用户确认为准。SOX9 染色质占据在 D7 仍明显偏低，D10–D13 才回到基线；可及性在 D7 已基本恢复（§3.1）。所以"恢复期"指撤除降解条件后的阶段，不表示各层面同步恢复。
 
 **Spike-in 不可用：** E. coli carry-over 在**所有** D4 CUT&RUN 文库中都约低 10 倍，IgG 也一样（例：DMSO_IgG_1 18,671 对 vs D4_IgG_1 982 对），属于文库批次效应。按 spike-in 归一化会把 SOX9 在 D4 变成"上升 +1.41"，与峰数（13k → 300）矛盾。因此 CUT&RUN 主分析用总片段数（library size）归一化，spike-in 和 median-of-ratios 只作为敏感性分析写进 `T0_depletion.tsv`。
 
@@ -120,7 +120,7 @@ HT29 dTAG-SOX9 时间序列，全部来自同一测序批次（Novogene 22CYWGLT
 
 ## 5. 局限
 
-- 时间设计（降解 / 洗脱）在 metadata 中没有记录，只使用天数标签（§1）。
+- 时间设计由用户确认（D2、D4 降解；D7、D10、D13 恢复），没有书面 metadata（§1）。
 - CUT&RUN 的 spike-in 失效，绝对占据变化无法确定，只做位点组间比较。CUT&RUN 文库小（0.2–0.5 M 片段），单位点估计噪声大，DESeq2 在 CUT&RUN 上几乎没有单位点显著结果。
 - "SOX9 结合"用的是 DMSO HA-SOX9 CUT&RUN 两个重复都有峰，约 6k 个区域。依赖性判定只基于 D4 vs DMSO 一个比较，DMSO 只有 D13 一个时间点的对照。
 - 区域全集限于 HT29 开放染色质，不评估 SOX9 让关闭区域打开的情形；D4 时 SOX9 位点有 121 个上升。
@@ -154,7 +154,7 @@ HT29 dTAG-SOX9 时间序列，全部来自同一测序批次（Novogene 22CYWGLT
 
 ## 7. 需要你决定 / 确认（v0.2）
 
-1. dTAG 给药 / 洗脱日期：metadata 中没有记录，请提供实验记录。在拿到记录之前，文中只用天数标签。
+1. ~~dTAG 时间设计~~：用户已确认，D2、D4 为降解期，D7、D10、D13 为恢复期。
 2. GPT 回合 1 选定方向 (b)，只做一次最小 motif-adjusted 验证（已完成，§8.2），完成后收敛。(a) 和 (c) 暂不开展。
 3. 合并需要 GPT 读取已 push 的源码和结果后再审。
 
@@ -208,7 +208,7 @@ HT29 dTAG-SOX9 时间序列，全部来自同一测序批次（Novogene 22CYWGLT
 
 | 要求 | 处理 |
 |---|---|
-| 核对 dTAG 时间设计 | metadata 中没有记录，改为只用天数标签；请用户提供实验记录 |
+| 核对 dTAG 时间设计 | metadata 中没有记录；用户确认 D2、D4 为降解期，D7、D10、D13 为恢复期，恢复使用 degradation / recovery 术语 |
 | SMARCC1 两个重复是否一致 | 方向一致，但 SOX9 位点 vs 仅 SMARCC1 位点的比较被 IgG 背景解释，撤回 v0.1 §3.4；ATAC 丢失 vs 未丢失的比较保留为相对信号 |
 | SOX ChIP vs motif vs 联合 | 完成：控制 motif 后 ChIP 仍有独立贡献，但判别力增益小，且依赖 motif 强度 |
 | 区分是否控制初始 SOX9 占据 | 完成（B0 / B1） |

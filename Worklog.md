@@ -142,3 +142,24 @@ For Step 3: F16 read collection-specific quality from the membership
 table; F17 experiment count is not cluster size.
 
 **Next**: PR #3 merged 2026-10-16 (a19666f) on user confirmation; Step 3 design on v0.2.1.
+
+## 2026-10-30 — Hotspot follow-up: protein support, context, HT29 ATAC (branch task_20261030_hotspot_followup)
+
+**Scope**: exploratory, user-directed; hotspot expansion (P-04) is still an unapproved L3 proposal, so this
+does not change the design baseline or FG-1 progress. G1 (TODO #3) put on hold by the user the same day.
+
+**What** (scripts `04a_chipatlas/29–42`; results under `DATA/2.PROJECTS/PMA/occupancy_chipatlas/result/`):
+- `hotspot_protein_support_v1` (29–30): proteins per hotspot with >= 2 independent experiments; DBP
+  (Lambert 2018) counts and shares; QC PASS (300-region light-BED recount, 0 mismatches).
+- `hotspot_annotation_v1` (31, 33): 500 bp bin annotation (TSS, ENCODE cCRE V4, CpG, GC); covariates
+  explain R² 0.71 of log occupancy; ~9 % of top1 bins remain residual hotspots, mostly distal.
+- `hotspot_context_v1` (32, 34, 35): breadth across 21 cell types, consistency, Jaccard, replicate
+  noise ceiling. `hotspot_matched_v1` (36): batch-matched HepG2 vs K562 (107 target-lab sets).
+- `hotspot_ht29_atac_v1` (37–42): HT29 DMSO_1 ATAC vs hotspots in both directions, genome coverage vs
+  recall (2.83 Gb universe), combined figure A–K.
+- Raw annotation inputs: `raw/2026-10-30_region_annotation/` (cCRE V4, UCSC CpG islands; MD5SUMS).
+
+**Result docs**: `Figures/Figure1/Figure1.hotspot_{protein_support,context,ht29_atac}.result.md`.
+
+**Open**: 3D genome annotation of hotspots added as TODO #10 (HD-10); core + extension reference
+proposal (GPT) awaits a user decision. Not reviewed by GPT yet.

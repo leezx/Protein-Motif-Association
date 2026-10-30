@@ -142,3 +142,34 @@ For Step 3: F16 read collection-specific quality from the membership
 table; F17 experiment count is not cluster size.
 
 **Next**: PR #3 merged 2026-10-16 (a19666f) on user confirmation; Step 3 design on v0.2.1.
+
+
+## 2026-10-30 EDT — ChIP-Atlas mm10 占据图谱（Step 4a §19）
+
+**做了什么**
+- 用户要求按 hg38 的方法做 mouse mm10；范围：核心 BED6+18 + 实验表、light BED、证据轨道（含 blacklist 拆分）；基因命名只用 MGI。
+- 分支 `task_20261030_chipatlas_mm10`（基于 `task_20261020_chipatlas_light_bed`），commit eb182f4：
+  - `genome_config.py`：`PMA_GENOME=hg38|mm10`，文件名、参考、基因命名空间、release 名都从这里取；
+  - MGI 映射（`MRK_List1.rpt`，含 withdrawn 旧符号）+ `config/chipatlas_antigen_exceptions.mm10.tsv`；
+  - TF 集合与蛋白分类用 MGI GO 注释（`29_go_class_annotation.py`）；AnimalTFDB 被网站防火墙拦截，未使用；
+  - `run_tracks.sh` 新增 `classes`、`labels` 模式；runner 在基因组配置失败时立即退出；
+  - `03_finalize.py` 对账分类修正：experimentList 同一 ID 会按基因组重复出现（411,513 个 ID），旧代码取最后一行，导致 other_genome 计数错误。
+- 验证：hg38 默认输出与改动前逐字节一致（01 全量元数据；02 用 20 万行合成 chr1 数据）；mm10 元数据 28,085 个实验，approved_exact 21,544，previous 196，manual 20，unmapped 3（`Fo`）；mm10 前 20 万行冒烟测试 0 拒绝、0 排序错误、行数对账通过。
+- GO 规则分类顺序在与 hg38 v1.1 共有的 685 个基因上标定，一致率 81.6%；mouse tf/cap 轨道是 GO 规则分类，不是人工分类。
+- Argos：原始数据下载到 `occupancy_chipatlas_mm10/raw/2026-10-30/`，下载完成后 `watch.sh` 自动提交 SGE 作业链。
+
+**进度**
+- 项目整体（章程定义的 100% 是人类参考）：`36% → 36%（+0%）`；mm10 是扩展，单独计量。
+- mm10 子项目（100% = 原始数据核验 + 代码 + 核心构建 + light/轨道 + QC 与登记）：`0% → 40%（+40%）`
+
+  | 部分 | 权重 | 状态 | 卡点 |
+  |---|---|---|---|
+  | 原始数据下载与核验 | 15% | 进行中（约 10%） | 无 |
+  | 代码参数化与测试 | 25% | 完成 | 无 |
+  | 核心 BED6+18（run_4a） | 25% | 等待下载 | 下载 |
+  | light BED + 轨道 + IGV | 25% | 等待核心 | 核心 |
+  | QC 复核与登记 | 10% | 登记已写（约 5%） | GO 分类需人工复核 |
+
+- 这是工程进度，不代表 mouse 蛋白–motif 关联结论。
+
+**下一步**：检查 `claude_sge_mm10_20261030/*.status` 与各 QC JSON；完成后更新 dataset `link.md` 与索引；PR 审阅/合并由用户决定。

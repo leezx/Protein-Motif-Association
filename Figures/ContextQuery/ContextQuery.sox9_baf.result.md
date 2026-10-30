@@ -5,7 +5,7 @@
 - 设计来源：`UDE/design/history/Context-conditioned Regulatory Evidence Atlas-v1.0.md`（GPT，§八 "PMA Context Query v0.1 — SOX9–BAF"）
 - 代码：`scripts/04a_chipatlas/45–52`（45 counts，46 PMA evidence，47 DESeq2，48 tests，49 figure；审核回合 1：50 SOX motifs，51 checks，52 figure；SGE 提交脚本 `45_47_context_query_jobs.sh`）
 - 结果：`DATA/2.PROJECTS/PMA/occupancy_chipatlas/result/context_query_ht29_sox9baf_v1/`（Argos 同路径，`counts/` 和 `pma/` 的大文件只在 Argos）
-- 图：`…/context_query_ht29_sox9baf_v1/figures/ContextQuery_SOX9BAF.{pdf,png}`（A–J）；审核补充图 `ContextQuery_SOX9BAF_review1.{pdf,png}`（A–D）
+- 图：`…/context_query_ht29_sox9baf_v1/figures/ContextQuery_SOX9BAF.{pdf,png}`（A–J；A 中的 SMARCC1 曲线和 H 图已在图上标注为"仅描述"，见 §8.1）；审核补充图 `ContextQuery_SOX9BAF_review1.{pdf,png}`（A–D）
 - 审核：GPT 回合 1（2026-10-30）为 REQUEST_CHANGES，要求核对 dTAG 时间设计和 SMARCC1 重复一致性，并补一项 SOX 家族 ChIP vs motif 比较；批准 push，暂不合并。处理结果见 §8。
 - 状态：探索性 application，**不是 L3 验收**；没有改 G1（HOLD，HD-11）和 FG-1 进度。
 

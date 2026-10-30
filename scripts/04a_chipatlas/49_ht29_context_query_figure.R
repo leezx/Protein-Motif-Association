@@ -2,14 +2,15 @@
 # usage: Rscript 49_ht29_context_query_figure.R <query dir of 48> <out_dir>
 # A depletion / recovery (CUT&RUN library-size normalised, ATAC); B, C, D calibration of PMA evidence against HT29 observations;
 # E, F SOX9-dependent loss vs BAF evidence; G recovery trajectories; H SMARCC1 vs ATAC change; I co-regulator ranking;
-# J mechanism classes of SOX9-bound regions.
+# J mechanism classes of SOX9-bound regions. A (SMARCC1 curves) and H are descriptive only after review round 1
+# (IgG background, Result 8.1); they are labelled as such.
 suppressPackageStartupMessages({library(data.table); library(ggplot2); library(patchwork); library(scales); library(ggrepel)})
 args <- commandArgs(trailingOnly = TRUE)
 q <- args[1]; out <- args[2]
 dir.create(out, showWarnings = FALSE, recursive = TRUE)
 theme_set(theme_classic(base_size = 7) + theme(legend.key.size = unit(2.6, "mm"), legend.text = element_text(size = 5.5),
                                                legend.title = element_text(size = 6), plot.tag = element_text(face = "bold"),
-                                               plot.title = element_text(size = 7)))
+                                               plot.title = element_text(size = 7), plot.subtitle = element_text(size = 5.5, colour = "#b2182b")))
 DAYS <- c("DMSO", "D2", "D4", "D7", "D10", "D13")
 EV <- c(Observed = "#b2182b", Supported = "#ef8a62", Inferred = "#92c5de", Unknown = "#bdbdbd")
 rd <- function(f) fread(file.path(q, f))
@@ -20,11 +21,14 @@ t0 <- t0[!(grepl("CUT&RUN", assay) & norm != "libsize")]
 t0 <- rbind(t0, unique(t0[, .(norm, assay, contrast = "DMSO_vs_DMSO", median_log2FC = 0, share_down = 0, n)]))
 t0[, day := factor(sub("_vs_DMSO", "", contrast), DAYS)]
 A <- ggplot(t0, aes(day, median_log2FC, colour = assay, group = assay)) +
+  annotate("rect", xmin = 1.5, xmax = 3.5, ymin = -Inf, ymax = Inf, fill = "grey90") +
   geom_hline(yintercept = 0, linewidth = 0.3, colour = "grey60") + geom_line(linewidth = 0.5) + geom_point(size = 1) +
   scale_colour_manual(values = c("SOX9 CUT&RUN at SOX9 sites" = "#08519c", "SMARCC1 CUT&RUN at SOX9+SMARCC1 sites" = "#b2182b",
                                  "SMARCC1 CUT&RUN at SMARCC1-only sites" = "#fc9272", "ATAC at SOX9 sites" = "#238b45",
                                  "ATAC at non-SOX9 sites" = "#a1d99b"), name = NULL) +
-  labs(x = "dTAG time course", y = "Median log2FC vs DMSO", title = "SOX9 depletion and recovery") +
+  annotate("text", x = c(2.5, 5), y = 0.2, label = c("degradation", "recovery"), size = 1.9, colour = "grey30") +
+  labs(x = "dTAG time course", y = "Median log2FC vs DMSO", title = "SOX9 degradation (D2-D4) and recovery (D7-D13)",
+       subtitle = "SMARCC1 curves: descriptive only, not above IgG background (Result 8.1)") +
   guides(colour = guide_legend(ncol = 2)) + theme(legend.position = "bottom", legend.margin = margin(0, 0, 0, 0))
 
 # B: AUROC of cross-context scores for HT29 observations
@@ -90,10 +94,12 @@ H <- ggplot(h, aes(atac_log2FC_D4, smarcc1cnr_log2FC_D4)) + geom_bin2d(bins = 60
   scale_fill_viridis_c(trans = "log10", name = "regions") +
   geom_hline(yintercept = 0, linewidth = 0.3, colour = "grey60") + geom_vline(xintercept = 0, linewidth = 0.3, colour = "grey60") +
   annotate("text", x = -Inf, y = Inf, hjust = -0.05, vjust = 1.2, size = 1.9, lineheight = 0.9,
-           label = sprintf("rho = %.2f, n = %s\nSMARCC1 median: ATAC-lost %.2f\nvs not lost %.2f, P = %.0e",
-                           t4$spearman_smarcc1_vs_atac_D4, comma(t4$n), t4$smarcc1_lfc_lost, t4$smarcc1_lfc_notlost,
-                           t4$wilcox_p)) +
-  labs(x = "ATAC log2FC D4", y = "SMARCC1 CUT&RUN log2FC D4 (library size)")
+           label = sprintf("rho = %.2f, n = %s\nSMARCC1 median: ATAC-lost %.2f vs not lost %.2f",
+                           t4$spearman_smarcc1_vs_atac_D4, comma(t4$n), t4$smarcc1_lfc_lost, t4$smarcc1_lfc_notlost)) +
+  labs(x = "ATAC log2FC D4", y = "SMARCC1 CUT&RUN log2FC D4 (library size)",
+       title = "Descriptive only (Result 8.1)",
+       subtitle = "Relative signal; IgG background explains part of it; region P values not used") +
+  theme(plot.title = element_text(colour = "#b2182b"))
 
 # I: co-regulator ranking
 t5 <- rd("T5_coregulator_rank.tsv")

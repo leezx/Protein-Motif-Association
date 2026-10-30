@@ -1,7 +1,7 @@
 """Step 4a §12: experiment inclusion for the accessibility and histone evidence tracks.
 
 usage: 11_experiment_filter.py <experimentList.tab> <peak_counts_all.tsv> <out.tsv> [min_peaks=10000]
-One row per hg38 experiment of class ATAC-Seq, DNase-seq or Histone:
+One row per PMA_GENOME (genome_config.py) experiment of class ATAC-Seq, DNase-seq or Histone:
   experiment_id, class, n_peaks, include, reasons (';' separated), title
 Rules (user decision 2026-10-20):
   single_cell        title/attributes mention single-cell / single-nucleus, sc/snATAC, sci-ATAC, 10x/Chromium,
@@ -14,6 +14,8 @@ Word boundaries throughout: 'placenta' is not PLAC-seq and 'genome' is not NOMe.
 """
 import re
 import sys
+
+import genome_config as gc
 
 SC = re.compile(r"single[- _]?(cell|nucle(us|i)\b)|\b(sc|sn)[- _]?(ATAC|DNase|CUT|ChIP)|\bsci[- ]?(ATAC|ChIP)\b|\b10x Genomics\b"
                 r"|\bchromium\b|\bmultiome|\bSHARE[- ]?seq\b|\bSNARE[- ]?seq\b|\bdroplet|\bscCUT&?Tag\b|\bscChIP", re.I)
@@ -47,7 +49,7 @@ def main(explist, counts, out, min_peaks=10000):
         w.write("experiment_id\tclass\tn_peaks\tinclude\treasons\ttitle\n")
         for line in open(explist, encoding="utf-8", errors="replace"):
             f = line.rstrip("\n").split("\t")
-            if len(f) < 9 or f[1] != "hg38" or f[2] not in CLASSES:
+            if len(f) < 9 or f[1] != gc.G or f[2] not in CLASSES:
                 continue
             p = peaks.get(f[0], 0); r = []
             if SC.search(" ".join(f[5:])):

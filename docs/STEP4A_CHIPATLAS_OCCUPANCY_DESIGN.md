@@ -873,3 +873,68 @@ the targets in GC content and k-mer composition.
     × motifs, and 50,000 × 500 bp per set was far beyond what the question needs.
 - *Check.* `runs_summary.tsv` flags any comparison whose control is under half the requested size as
   SMALL_CONTROL.
+
+## 19. Mouse mm10 build (user request 2026-10-30)
+
+**Request.** Build the mouse (mm10) atlas from ChIP-Atlas with the same method as hg38. User decisions 2026-10-30:
+- scope = core Output A/B (§3–§8) + light per-target BEDs (§10) + evidence tracks (§11–§12, incl. blacklist split);
+  co-occupancy, clustering, hotspots and motif enrichment (§13–§18) are out of scope for this build;
+- gene nomenclature = MGI only (no human orthology layer).
+
+**19.1 Code.** One code path for both genomes. `PMA_GENOME = hg38 (default) | mm10` selects
+`scripts/04a_chipatlas/genome_config.py` (raw release, archive and reference file names, gene namespace, release
+name, tabix checks). With the default, hg38 outputs are byte-identical to the pre-change code (checked on the full
+experimentList for `01`, and on synthetic chr1 rows for `02`). Output names: `PMA_chipatlas_mm10_*`.
+Column names follow the namespace: `antigen_mgi_symbol`, `antigen_mgi_id` take the place of the HGNC columns at the
+same positions (BED6+18 column 9–10), so downstream scripts, which use column positions, need no change.
+
+**19.2 Data.** Separate dataset `DATA/2.PROJECTS/PMA/occupancy_chipatlas_mm10/` (`config/pma_env.sh` switches
+`PMA_OCC*` on `PMA_GENOME`). Raw release `raw/2026-10-30/`:
+
+| File | Release | Note |
+|---|---|---|
+| `experimentList.tab` (+ file/antigen/celltype lists) | 2026-10-14 | same metadata snapshot as hg38 v1 |
+| `allPeaks_light.mm10.05.bed.gz` | 2026-09-26 | 15,427,670,963 bytes, MACS2 q < 1e-5 |
+| `reference/MRK_List1.rpt` | MGI, downloaded 2026-10-30 | markers incl. withdrawn (previous symbols) |
+| `reference/mgi.gaf.gz`, `go-basic.obo` | GO Consortium | GO annotations of MGI genes; ontology |
+| `reference/mm10-blacklist.v2.bed.gz` | Boyle-Lab v2 | |
+| `reference/mm10.chrom.sizes` | UCSC | UCSC contig names, as in the ChIP-Atlas peaks |
+
+Release name `PMA_ChIPAtlas_mm10_20260926peaks_20261014meta_v1`.
+
+**19.3 Mouse-specific rules (rules_version stays 4a.v1; antibody/context/QC rules unchanged).**
+- *Antigen → MGI.* Same priority as §5.1 on MGI genes (Marker Type `Gene`): exact approved symbol > manual exception
+  (`config/chipatlas_antigen_exceptions.mm10.tsv`) > unique previous (withdrawn → current) > unique synonym.
+  Metadata check (28,085 in-scope experiments: 24,555 TFs and others + 3,530 RNA polymerase): approved_exact 21,544,
+  complex_or_family 3,532, tag_only 2,363, non_gene_target 427, previous_symbol 196, manual_curated 20, unmapped 3
+  (`Fo`). Upper-case spellings (INO80, CEBPA, RAF1) are manual exceptions, not a new status. `RFP` is a tag, not the
+  unrelated withdrawn MGI symbol.
+- *TF set and `target_category`.* No Lambert-equivalent list from MGI; the TF set is MGI genes annotated to
+  GO:0003700 (DNA-binding transcription factor activity) or a descendant; NOT-qualified and ND annotations excluded.
+  The chromatin-regulator test (§5.1) runs on the names of the matched GO rule terms in place of HGNC gene groups.
+- *Protein class annotation for tf/cap tracks and the class split.* hg38 uses the curated v1.1 table. For mm10,
+  `29_go_class_annotation.py` writes `PMA_chipatlas_mm10_protein_class_annotation.go_v1.csv` (same columns): first
+  matching GO rule in the order TF (GO:0003700) > histone writer/eraser > transcription machinery > histone reader >
+  chromatin remodeler > architectural/cohesin; CTCF/CTCFL by symbol rule (as hg38 v1.1); else Other/ambiguous.
+  Rule terms are checked against the ontology; a missing or obsolete term stops the run. The order was chosen on the
+  685 genes shared with hg38 v1.1 (upper-cased symbol, a calibration check only): 559 agree (81.6 %). Draft class
+  counts (897 genes): TF 429, writer/eraser 65, machinery 51, reader 41, remodeler 36, architectural 14, other 261.
+  **The mouse tf/cap tracks are GO-rule classes, not curated classes**; say so wherever they are used.
+- *Histone labels.* `08_histone_labels.py` unchanged, fed from the light histone targets (`run_tracks.sh labels`).
+
+**19.4 Fix found by the mm10 smoke test (applies to both genomes).** `experimentList.tab` has one row per
+(experiment, genome); 411,513 IDs appear more than once (e.g. mm10 and mm9). `03_finalize.py` kept the last row per
+ID, so archive experiments were mis-counted as `other_genome` in the reconciliation report. Categories now use the
+row of the build genome. Peak inclusion was never affected (`01` filters on genome). The hg38 v1 report would change
+only in this category split if rebuilt.
+
+**19.5 Run (Argos, SGE all.q).** Job chain, each step with `/usr/bin/time -v` and a status file:
+1. `run_4a.sh` (core);
+2. after 1: `run_light.sh protein`, `run_tracks.sh classes`, `protein`, `pol`, `mask_protein`, `mask_pol`;
+3. after 1: `run_tracks.sh filter`, `run_light.sh histone`, `labels`, `histone`, `mask_histone`;
+4. after 3: `atac`, `mask_atac`; `dnase`, `mask_dnase`;
+5. after 2–4: IGV sessions (`09_igv_session.py`, raw / noBlacklist / blacklistOnly).
+hg38 peak RSS was ≤ 3.2 GB per step; mm10 is smaller (15.4 vs 21.4 GB archive).
+
+**19.6 Checks before use.** Same gates as hg38: reconciliation `rows_accounted`, zero sort violations, tabix
+retrieval, per-step QC JSON PASS (light BED, tracks, mask), and a review of the GO-rule class table.

@@ -1,0 +1,22 @@
+# Step 4a §19 manual antigen exceptions for mm10 (rules_version 4a.v1), tab-separated; same semantics as the
+# hg38 table. Applied after an exact MGI approved-symbol match and before previous/alias lookup.
+# Symbols are MGI approved symbols; complexes, fusions and families list candidates without a single MGI ID.
+antigen_raw	status	mgi_symbol	candidates	modification	note
+RNA polymerase I	complex_or_family	.	Polr1a	.	Pol I complex
+RNA polymerase II	complex_or_family	.	Polr2a	.	Pol II complex; most ChIP antibodies (8WG16, 4H8, N-20) recognise RPB1/Polr2a
+RNA polymerase III	complex_or_family	.	Polr3a;Polr3b;Polr3d;Polr3g	.	Pol III complex
+INO80	manual_curated	Ino80	.	.	upper-case spelling of the MGI symbol
+CEBPA	manual_curated	Cebpa	.	.	upper-case spelling of the MGI symbol
+RAF1	manual_curated	Raf1	.	.	upper-case spelling of the MGI symbol
+Hdgf2	manual_curated	Hdgfl2	.	.	HDGF-related protein 2 (Hdgfrp2 -> Hdgfl2)
+AML1-ETO	complex_or_family	.	Runx1;Runx1t1	.	fusion protein Runx1::Runx1t1
+RFP	tag_only	.	.	.	red fluorescent protein tag; MGI withdrawn symbol RFP is unrelated
+Dendra2	tag_only	.	.	.	photoconvertible fluorescent protein tag
+Cas9	non_gene_target	.	.	.	exogenous bacterial protein
+HBx	non_gene_target	.	.	.	viral protein (HBV X)
+Succinyllysine	non_gene_target	.	.	.	protein modification
+Propionyllysine	non_gene_target	.	.	.	protein modification
+Butyryllysine	non_gene_target	.	.	.	protein modification
+Crotonyl lysine	non_gene_target	.	.	.	protein modification
+Lysin homocysteine	non_gene_target	.	.	.	protein modification
+ADP-ribose	non_gene_target	.	.	.	protein modification

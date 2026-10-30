@@ -1,4 +1,4 @@
-"""Step 4a §11: split the occupancy evidence tracks at the ENCODE hg38 blacklist v2 (base-wise).
+"""Step 4a §11: split the occupancy evidence tracks at the ENCODE blacklist v2 of the genome (base-wise).
 
 usage: 10_mask_blacklist.py <blacklist.bed.gz> <chrom.sizes> <in_dir> <out_noBlacklist_dir> <out_blacklistOnly_dir>
 Every <in_dir>/*.bedGraph.gz is split into the part outside the blacklist (noBlacklist) and the part inside it

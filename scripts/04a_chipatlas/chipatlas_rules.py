@@ -32,24 +32,113 @@ def load_hgnc(path):
     return appr, prev, alias, groups
 
 
+def load_mgi(path, go_groups=None):
+    """MGI MRK_List1.rpt (current + withdrawn markers), same shape as load_hgnc. Only Marker Type 'Gene'.
+    previous = withdrawn symbol -> current symbol(s); alias = MGI synonyms; groups = go_groups (§19.3) or {}."""
+    appr, prev, alias = {}, {}, {}
+    rows = list(csv.DictReader(open(path, encoding="utf-8"), delimiter="\t"))
+    for r in rows:
+        if r["Marker Type"] == "Gene" and r["Status"] == "O":
+            s = r["Marker Symbol"]
+            appr[s] = r["MGI Accession ID"]
+            for p in filter(None, (r["Marker Synonyms (pipe-separated)"] or "").split("|")):
+                alias.setdefault(p.upper(), set()).add(s)
+    for r in rows:
+        if r["Marker Type"] == "Gene" and r["Status"] == "W":
+            for c in (r["Current Marker Symbol (if withdrawn)"] or "").split(","):
+                if c.strip() in appr:
+                    prev.setdefault(r["Marker Symbol"].upper(), set()).add(c.strip())
+    return appr, prev, alias, dict(go_groups or {})
+
+
+# GO rules for mouse classes (§19.3): first matching class wins; a term matches itself and its is_a/part_of
+# descendants. Class names follow the hg38 protein class annotation.
+GO_CLASSES = [  # order calibrated on the 685 genes shared with hg38 v1.1 (upper-cased symbols): 559 agree (81.6 %)
+    ("Sequence-specific TF", ["GO:0003700"]),
+    ("Histone writer/eraser", ["GO:0042054", "GO:0032452", "GO:0004402", "GO:0004407"]),
+    ("Transcription machinery", ["GO:0016591", "GO:0000428", "GO:0016592", "GO:0005669", "GO:0005672",
+                                 "GO:0005673", "GO:0005674", "GO:0000439", "GO:0005675", "GO:0032021",
+                                 "GO:0032044", "GO:0008023", "GO:0070691"]),
+    ("Histone reader", ["GO:0140566"]),
+    ("Chromatin remodeler", ["GO:0140658", "GO:0016514", "GO:0031011", "GO:0016581", "GO:0016589", "GO:0070603"]),
+    ("Architectural/cohesin", ["GO:0008278", "GO:0000796", "GO:0090694", "GO:0030915"]),
+]
+GO_SYMBOL_CLASS = {"Ctcf": "Architectural/cohesin", "Ctcfl": "Architectural/cohesin"}  # CTCF as in hg38 v1.1
+TF_TERM = "GO:0003700"
+
+
+def load_go_classes(gaf, obo):
+    """-> (gene class dict {symbol: (class, matched term names)}, tf symbol set). Excludes NOT qualifiers and ND.
+    Fails if a rule term is missing or obsolete in the ontology."""
+    import gzip
+    names, obsolete, parents, cur = {}, set(), {}, None
+    for line in open(obo, encoding="utf-8"):
+        line = line.rstrip("\n")
+        if line == "[Term]" or line.startswith("[Typedef]"):
+            cur = None if line != "[Term]" else ""
+        elif cur is not None and line.startswith("id: "):
+            cur = line[4:]; parents[cur] = set()
+        elif cur and line.startswith("name: "):
+            names[cur] = line[6:]
+        elif cur and line == "is_obsolete: true":
+            obsolete.add(cur)
+        elif cur and line.startswith("is_a: "):
+            parents[cur].add(line[6:16])
+        elif cur and line.startswith("relationship: part_of "):
+            parents[cur].add(line[22:32])
+    rule_terms = {t for _, ts in GO_CLASSES for t in ts}
+    bad = sorted(t for t in rule_terms if t not in names or t in obsolete)
+    assert not bad, f"GO rule terms missing or obsolete: {bad}"
+    memo = {}
+
+    def anc(t):
+        if t not in memo:
+            memo[t] = set()
+            memo[t] = {t}.union(*(anc(p) for p in parents.get(t, ())))
+        return memo[t]
+    gene_terms = {}
+    with gzip.open(gaf, "rt", encoding="utf-8") as f:
+        for line in f:
+            if line.startswith("!"):
+                continue
+            c = line.split("\t")
+            if len(c) < 7 or "NOT" in c[3] or c[6] == "ND":
+                continue
+            gene_terms.setdefault(c[2], set()).update(anc(c[4]) & rule_terms)
+    classes = {}
+    for s, ts in gene_terms.items():
+        for k, rule in GO_CLASSES:
+            hit = sorted(t for t in rule if t in ts)
+            if hit:
+                classes[s] = (k, ";".join(f"{t} {names[t]}" for t in hit))
+                break
+    for s, k in GO_SYMBOL_CLASS.items():
+        classes[s] = (k, f"symbol rule ({k})")
+    tf = {s for s, ts in gene_terms.items() if TF_TERM in ts}
+    return classes, tf
+
+
 def load_exceptions(path):
-    """antigen_raw -> (status, symbol_or_dot, candidates, modification, note)."""
+    """antigen_raw -> (status, symbol_or_dot, candidates, modification, note). Symbol column: hgnc_symbol or
+    mgi_symbol."""
     out = {}
     with open(path, encoding="utf-8") as f:
         for r in csv.DictReader((line for line in f if not line.startswith("#")), delimiter="\t"):
-            out[r["antigen_raw"]] = (r["status"], r["hgnc_symbol"], r["candidates"], r["modification"], r["note"])
+            sym = r.get("hgnc_symbol", r.get("mgi_symbol"))
+            out[r["antigen_raw"]] = (r["status"], sym, r["candidates"], r["modification"], r["note"])
     return out
 
 
-def map_antigen(raw, hgnc, exceptions):
-    """-> dict(symbol, hgnc_id, method, status, candidates, modification). Priority: exact approved >
-    manual exception (overrides known symbol collisions, e.g. TAZ) > unique previous > unique alias."""
-    appr, prev, alias, _ = hgnc
+def map_antigen(raw, genes, exceptions, ns="hgnc"):
+    """-> dict(symbol, hgnc_id, method, status, candidates, modification); hgnc_id holds the gene ID of
+    namespace ns (HGNC or MGI). Priority: exact approved > manual exception (overrides known symbol collisions,
+    e.g. TAZ) > unique previous > unique alias."""
+    appr, prev, alias, _ = genes
     a = raw.strip()
     res = dict(symbol=MISSING, hgnc_id=MISSING, method=MISSING, status="unmapped", candidates=MISSING,
                modification=MISSING)
     if a in appr:
-        return {**res, "symbol": a, "hgnc_id": appr[a], "method": "hgnc_approved", "status": "approved_exact"}
+        return {**res, "symbol": a, "hgnc_id": appr[a], "method": f"{ns}_approved", "status": "approved_exact"}
     if a in exceptions:
         st, sym, cand, mod, _ = exceptions[a]
         r = {**res, "method": "manual_exception", "status": st, "candidates": cand or MISSING,
@@ -65,9 +154,9 @@ def map_antigen(raw, hgnc, exceptions):
         hits = d.get(a.upper(), set())
         if len(hits) == 1:
             s = next(iter(hits))
-            return {**res, "symbol": s, "hgnc_id": appr[s], "method": f"hgnc_{st}", "status": st}
+            return {**res, "symbol": s, "hgnc_id": appr[s], "method": f"{ns}_{st}", "status": st}
         if len(hits) > 1:
-            return {**res, "method": f"hgnc_{st}", "status": "ambiguous", "candidates": ";".join(sorted(hits))}
+            return {**res, "method": f"{ns}_{st}", "status": "ambiguous", "candidates": ";".join(sorted(hits))}
     return res
 
 
@@ -78,7 +167,7 @@ CHROMATIN_GROUP = re.compile(r"chromatin|histone|bromodomain|SWI/SNF|polycomb|ly
 
 
 def target_category(antigen_class, m, tf_set, groups):
-    if antigen_class == "RNA polymerase" or (m["symbol"] != MISSING and m["symbol"].startswith("POLR")):
+    if antigen_class == "RNA polymerase" or (m["symbol"] != MISSING and m["symbol"].upper().startswith("POLR")):
         return "polymerase"
     if m["symbol"] == MISSING:
         return "ambiguous_or_unmapped"

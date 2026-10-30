@@ -11,6 +11,8 @@ across tracks are not comparable.
 import sys
 from xml.sax.saxutils import quoteattr
 
+import genome_config as gc
+
 TRACKS = [
     ("tracks_atac/atac_celltypes.bw", "ATAC cell-type diversity", "0,150,200"),
     ("tracks_atac/atac_experiments.bw", "ATAC experiments", "100,180,210"),
@@ -33,7 +35,8 @@ TRACKS = [
 ]
 
 
-def main(out, locus="chr4:15966228-16085729", variant=""):
+def main(out, locus=None, variant=""):
+    locus = locus or {"hg38": "chr4:15966228-16085729", "mm10": "chr5:43990000-44110000"}[gc.G]  # PROM1 / Prom1
     tracks = [(p.replace("/", f"{variant}/", 1),
                n + (f" [{variant.strip('_')}]" if variant else ""), c) for p, n, c in TRACKS]
     res = "\n".join(f"        <Resource path={quoteattr(p)}/>" for p, _, _ in tracks)
@@ -42,7 +45,7 @@ def main(out, locus="chr4:15966228-16085729", variant=""):
         f"color=\"{c}\" fontSize=\"10\" height=\"50\" id={quoteattr(p)} name={quoteattr(n)} renderer=\"BAR_CHART\" "
         f"visible=\"true\" windowFunction=\"max\"/>" for p, n, c in tracks)
     xml = f"""<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<Session genome="hg38" hasGeneTrack="true" hasSequenceTrack="true" locus="{locus}" relativePaths="true" version="8">
+<Session genome="{gc.G}" hasGeneTrack="true" hasSequenceTrack="true" locus="{locus}" relativePaths="true" version="8">
     <Resources>
 {res}
     </Resources>

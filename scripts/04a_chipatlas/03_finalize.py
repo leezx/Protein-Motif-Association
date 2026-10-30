@@ -3,8 +3,8 @@
 usage: 03_finalize.py <raw_release_dir> <stage_dir> <release_dir>
 Inputs (stage_dir): experiments_stage1.tsv.gz, peak_counts_all.tsv (every experiment ID in the archive, any class),
 peak_counts_included.tsv, peaks_summary.json, metadata_reconciliation.json, rejected_records.tsv.
-Release dir must already hold PMA_chipatlas_hg38_occupancy.bed.gz (+ .tbi). Writes there:
-  PMA_chipatlas_hg38_experiments.tsv.gz, PMA_chipatlas_hg38_occupancy.as, schema.json,
+Release dir must already hold PMA_chipatlas_<genome>_occupancy.bed.gz (+ .tbi; genome = PMA_GENOME). Writes there:
+  PMA_chipatlas_<genome>_experiments.tsv.gz, PMA_chipatlas_<genome>_occupancy.as, schema.json,
   reconciliation_report.json, MANIFEST.json
 """
 import hashlib
@@ -16,10 +16,12 @@ from pathlib import Path
 import pandas as pd
 
 import chipatlas_rules as cr
+import genome_config as gc
 
-RELEASE = "PMA_ChIPAtlas_hg38_20260926peaks_20261014meta_v1"
+RELEASE = gc.CFG["release"]
+NS, AUTH = gc.CFG["gene_ns"], gc.CFG["gene_authority"]
 A_COLS = [  # name, autoSql type, description
-    ("chrom", "string", "Reference sequence chromosome or scaffold (source naming, hg38)"),
+    ("chrom", "string", f"Reference sequence chromosome or scaffold (source naming, {gc.G})"),
     ("chromStart", "uint", "Start position, 0-based"),
     ("chromEnd", "uint", "End position, half-open"),
     ("name", "string", "ChIP-Atlas experiment accession (SRX/ERX/DRX)"),
@@ -27,8 +29,8 @@ A_COLS = [  # name, autoSql type, description
     ("strand", "char[1]", "Always ."),
     ("macs2_qscore", "float", "-10*log10(MACS2 q-value), raw, uncapped (q < 1e-5 archive)"),
     ("antigen_raw", "string", "ChIP-Atlas curated antigen"),
-    ("antigen_hgnc_symbol", "string", "HGNC approved symbol or ."),
-    ("antigen_hgnc_id", "string", "HGNC ID or ."),
+    (gc.SYM_COL, "string", f"{AUTH} approved symbol or ."),
+    (gc.ID_COL, "string", f"{AUTH} ID or ."),
     ("antigen_map_status", "string", "approved_exact|previous_symbol|unique_alias|manual_curated|ambiguous|"
                                      "complex_or_family|tag_only|non_gene_target|unmapped"),
     ("antigen_class", "string", "ChIP-Atlas antigen class"),
@@ -57,7 +59,7 @@ def sha256(p):
 
 def main(raw, stage, rel):
     raw, stage, rel = Path(raw), Path(stage), Path(rel)
-    bed = rel / "PMA_chipatlas_hg38_occupancy.bed.gz"
+    bed = rel / f"{gc.PREFIX}_occupancy.bed.gz"
     assert bed.exists() and Path(str(bed) + ".tbi").exists(), "occupancy BED and tabix index must exist"
     b = pd.read_csv(stage / "experiments_stage1.tsv.gz", sep="\t", dtype=str, keep_default_na=False)
     inc = pd.read_csv(stage / "peak_counts_included.tsv", sep="\t", dtype={"n_peaks_in_archive": int})
@@ -74,20 +76,23 @@ def main(raw, stage, rel):
     cols = [c for c in b.columns if c not in ("title", "attributes_raw", "metadata_release", "rules_version")] + \
         ["title", "attributes_raw", "metadata_release", "rules_version"]
     b = b[cols]
-    b.to_csv(rel / "PMA_chipatlas_hg38_experiments.tsv.gz", sep="\t", index=False)
+    b.to_csv(rel / f"{gc.PREFIX}_experiments.tsv.gz", sep="\t", index=False)
 
     # reconciliation: every experiment ID in the archive is in scope, out of scope (other class / genome) or
     # missing from the metadata snapshot (quarantined)
-    meta_cls = {}
+    # one experimentList row per (experiment, genome): an ID may also be listed for another assembly (hg19, mm39)
+    meta_ids, meta_g = set(), set()
     with open(raw / "experimentList.tab", encoding="utf-8", errors="replace") as f:
         for line in f:
             r = line.split("\t", 4)
             if len(r) >= 3:
-                meta_cls[r[0]] = (r[1], r[2])
+                meta_ids.add(r[0])
+                if r[1] == gc.G:
+                    meta_g.add(r[0])
     scope = set(b.experiment_id)
     cat = allc.experiment_id.map(lambda i: "in_scope" if i in scope else
-                                 ("missing_from_metadata" if i not in meta_cls else
-                                  ("other_genome" if meta_cls[i][0] != "hg38" else "out_of_scope_class")))
+                                 ("missing_from_metadata" if i not in meta_ids else
+                                  ("other_genome" if i not in meta_g else "out_of_scope_class")))
     by = allc.assign(cat=cat).groupby("cat").n.agg(["count", "sum"])
     ps = json.loads((stage / "peaks_summary.json").read_text())
     md = json.loads((stage / "metadata_reconciliation.json").read_text())
@@ -111,13 +116,13 @@ def main(raw, stage, rel):
     assert rec["rows_accounted"], "row accounting failed"
     (rel / "reconciliation_report.json").write_text(json.dumps(rec, indent=1) + "\n")
 
-    as_txt = ['table PMA_chipatlas_hg38_occupancy', f'"{RELEASE}: ChIP-Atlas hg38 TF/other-protein and RNA '
+    as_txt = [f'table {gc.PREFIX}_occupancy', f'"{RELEASE}: ChIP-Atlas {gc.G} TF/other-protein and RNA '
               'polymerase ChIP-seq peaks (MACS2 q < 1e-5), one row per experiment peak"', "("]
     as_txt += [f'    {t} {n};    "{d}"' for n, t, d in A_COLS] + [")"]
-    (rel / "PMA_chipatlas_hg38_occupancy.as").write_text("\n".join(as_txt) + "\n")
+    (rel / f"{gc.PREFIX}_occupancy.as").write_text("\n".join(as_txt) + "\n")
     schema = dict(release=RELEASE, format="BED6+18, 0-based half-open, bgzip + tabix, no header",
                   columns=[dict(index=i + 1, name=n, type=t, description=d) for i, (n, t, d) in enumerate(A_COLS)],
-                  missing_value=".", key="name = experiment_id in PMA_chipatlas_hg38_experiments.tsv.gz",
+                  missing_value=".", key=f"name = experiment_id in {gc.PREFIX}_experiments.tsv.gz",
                   notes=["A row is a ChIP-Atlas peak interval of one experiment: evidence of chromatin association "
                          "of the assayed antigen, not proof of direct DNA contact; no merging across experiments.",
                          "Filtering macs2_qscore >= 100 / >= 200 is a peak-score view of the q < 1e-5 calls; it is "
@@ -133,13 +138,11 @@ def main(raw, stage, rel):
     outputs = {p.name: sha256(p) for p in sorted(rel.glob("*")) if p.is_file() and p.name != "MANIFEST.json"}
     man = dict(release=RELEASE, design="docs/STEP4A_CHIPATLAS_OCCUPANCY_DESIGN.md", code_commit=commit,
                rules_version=cr.RULES_VERSION,
-               sources=dict(peaks="https://chip-atlas.dbcls.jp/data/hg38/allPeaks_light/allPeaks_light.hg38.05.bed.gz "
-                                  "(Last-Modified 2026-09-26)",
+               sources=dict(peaks=f"https://chip-atlas.dbcls.jp/data/{gc.G}/allPeaks_light/{gc.CFG['peaks']} "
+                                  f"(Last-Modified {gc.CFG['peaks_date']})",
                             metadata="https://chip-atlas.dbcls.jp/data/metadata/experimentList.tab "
                                      "(Last-Modified 2026-10-14)",
-                            hgnc="hgnc_complete_set.txt downloaded 2026-10-17",
-                            blacklist="ENCODE hg38 blacklist v2 (Boyle-Lab/Blacklist)",
-                            tf_list="Lambert et al. 2018 TF_names_v_1.01"),
+                            **gc.CFG["sources"]),
                counts=dict(experiments=len(b), experiments_with_peaks=int((b.n_peaks_in_archive > 0).sum()),
                            peak_rows=ps["rows_out"]),
                input_sha256=inputs, output_sha256=outputs)

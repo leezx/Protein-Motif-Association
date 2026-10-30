@@ -1,7 +1,7 @@
 """Step 4a §11: split the light protein BED (§10) by primary class; bgzip + tabix + bigBed per class.
 
 usage: 06_split_by_class.py <protein_nr.bed.gz> <class_annotation.csv> <chrom.sizes> <out_dir>
-Class from the annotation by target (= HGNC symbol); targets without one go to Non_gene_label.
+Class from the annotation by target (= HGNC / MGI symbol); targets without one go to Non_gene_label.
 Asserts that the class files together hold every input row exactly once.
 """
 import csv
@@ -10,6 +10,8 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+
+import genome_config as gc
 
 
 def main(bed, ann, sizes, out):
@@ -21,12 +23,12 @@ def main(bed, ann, sizes, out):
         n_in += 1
         k = re.sub(r"[^A-Za-z0-9]+", "_", cls.get(line.split("\t", 4)[3], "Non-gene label")).strip("_")
         if k not in fh:
-            fh[k] = open(out / f"PMA_chipatlas_hg38_protein_nr.{k}.bed", "w"); n[k] = 0
+            fh[k] = open(out / f"{gc.PREFIX}_protein_nr.{k}.bed", "w"); n[k] = 0
         fh[k].write(line); n[k] += 1
     assert p.wait() == 0
     for k, h in fh.items():
         h.close()
-        b = out / f"PMA_chipatlas_hg38_protein_nr.{k}.bed"
+        b = out / f"{gc.PREFIX}_protein_nr.{k}.bed"
         subprocess.run(["bedToBigBed", "-type=bed6", "-tab", str(b), sizes, str(b.with_suffix(".bb"))], check=True)
         subprocess.run(["bgzip", "-f", str(b)], check=True)
         subprocess.run(["tabix", "-f", "-p", "bed", str(b) + ".gz"], check=True)

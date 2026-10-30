@@ -2,10 +2,10 @@
 
 usage: <in-scope 5-column peak rows> | 02_peaks.py <stage_dir> <reference_dir> | bgzip > occupancy.bed.gz
 Reads <stage_dir>/annotation_suffix.tsv (01_experiments.py). Per row:
-  integrity (chrom in hg38.chrom.sizes, 0 <= start < end <= length, finite score, known experiment) ->
+  integrity (chrom in <genome>.chrom.sizes (PMA_GENOME, genome_config.py), 0 <= start < end <= length, finite score, known experiment) ->
   otherwise <stage_dir>/rejected_records.tsv with a reason;
   sort check (each chrom one contiguous block, starts non-decreasing) -> counted, never assumed;
-  blacklist_majority_overlap when > 50 % of the peak overlaps ENCODE hg38 blacklist v2.
+  blacklist_majority_overlap when > 50 % of the peak overlaps the ENCODE <genome> blacklist v2.
 Writes <stage_dir>/peaks_summary.json and <stage_dir>/peak_counts_included.tsv at the end.
 """
 import bisect
@@ -15,6 +15,8 @@ import json
 import math
 import sys
 from pathlib import Path
+
+import genome_config as gc
 
 
 def load_blacklist(path):
@@ -38,8 +40,8 @@ def load_blacklist(path):
 
 def main(stage, ref):
     stage, ref = Path(stage), Path(ref)
-    sizes = dict((c, int(n)) for c, n in (line.split() for line in open(ref / "hg38.chrom.sizes")))
-    bl = load_blacklist(ref / "hg38-blacklist.v2.bed.gz")
+    sizes = dict((c, int(n)) for c, n in (line.split() for line in open(ref / gc.CFG["sizes"])))
+    bl = load_blacklist(ref / gc.CFG["blacklist"])
     ann = {}
     with open(stage / "annotation_suffix.tsv", encoding="utf-8") as f:
         for line in f:
@@ -68,7 +70,7 @@ def main(stage, ref):
             except ValueError:
                 si = ei = qv = None
             if L is None:
-                reason = "chrom_not_in_hg38_sizes"
+                reason = f"chrom_not_in_{gc.G}_sizes"
             elif si is None or not math.isfinite(qv):
                 reason = "non_numeric"
             elif not (0 <= si < ei <= L):

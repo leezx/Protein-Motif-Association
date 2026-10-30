@@ -11,7 +11,10 @@ export PMA_MOTIF_PROCESSED="${PMA_MOTIF}/processed"
 export PMA_MOTIF_RESULT="${PMA_MOTIF}/result"
 export PMA_MEME_BIN="${BIO_SOFTWARES}/tools/meme-5.5.9/bin"
 export PMA_HGNC_MAP="${BIO_DATA}/1.Databases/HGNC_gene_id_mapping/processed/v0.1/hgnc_symbol_ensembl_map.tsv"
-export PMA_OCC="${PMA_DATA}/occupancy_chipatlas"
+# PMA_GENOME=hg38 (default) | mm10 selects the ChIP-Atlas occupancy dataset (Step 4a §19).
+export PMA_GENOME="${PMA_GENOME:-hg38}"
+if [[ "$PMA_GENOME" == hg38 ]]; then export PMA_OCC="${PMA_DATA}/occupancy_chipatlas"
+else export PMA_OCC="${PMA_DATA}/occupancy_chipatlas_${PMA_GENOME}"; fi
 export PMA_OCC_RAW="${PMA_OCC}/raw"
 export PMA_OCC_PROCESSED="${PMA_OCC}/processed"
 export PMA_OCC_RESULT="${PMA_OCC}/result"

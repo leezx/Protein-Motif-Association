@@ -163,3 +163,22 @@ does not change the design baseline or FG-1 progress. G1 (TODO #3) put on hold b
 
 **Open**: 3D genome annotation of hotspots added as TODO #10 (HD-10); core + extension reference
 proposal (GPT) awaits a user decision. Not reviewed by GPT yet.
+
+## 2026-10-30 — Context Query v0.1: HT29 SOX9–BAF × PMA (branch task_20261030_context_atlas_sox9baf)
+
+**Scope**: exploratory application from the GPT design note `UDE/design/history/Context-conditioned
+Regulatory Evidence Atlas-v1.0.md` (§8 minimal deliverable); not an approved design change; FG-1 unchanged,
+G1 stays on HOLD (HD-11).
+
+**What** (scripts `04a_chipatlas/45–49`, SGE wrapper `45_47_context_query_jobs.sh`; results
+`DATA/2.PROJECTS/PMA/occupancy_chipatlas/result/context_query_ht29_sox9baf_v1/`): 249,725 HT29 consensus ATAC
+regions; dTAG-SOX9 time course ATAC + SOX9/SMARCC1 CUT&RUN (DESeq2; CUT&RUN library-size normalised because the
+E. coli spike-in fails QC in the D4 batch); PMA per-region × target experiment evidence; tests T0–T5 and figure A–J.
+
+**Result**: the design's hypothesis (BAF-associated loci are preferentially SOX9-dependent) is not supported:
+HT29 SMARCC1 occupancy is negatively associated with D4 ATAC loss at SOX9 sites (adjusted OR 0.39), PMA BAF
+evidence is null after covariates (1.26, CI 0.87–1.83). PMA SOX-family occupancy (SOX10/8/9/13/5) ranks top among
+810 targets. SMARCC1 at SOX9 sites drops with SOX9 (D4 −0.69 vs −0.21 log2 at SMARCC1-only sites).
+
+**Result doc**: `Figures/ContextQuery/ContextQuery.sox9_baf.result.md`. **Open**: dTAG schedule to confirm;
+choice of next direction (doc §7); not reviewed by GPT.

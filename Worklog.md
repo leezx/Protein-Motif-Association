@@ -189,3 +189,10 @@ background (D4 −0.20 to −0.29) → v0.1 §3.4 withdrawn; ATAC-lost vs not-lo
 exceeds IgG (relative signal only). SOX-family ChIP (non-SOX9, external) given 6 SOX PWMs + baseline ATAC/SOX9:
 OR 2.22 (1.78–2.77), CV AUROC +0.005–0.015, positive only in the high-motif tertile. BAF null result robust.
 User confirmed the time design (2026-10-30): D2, D4 = SOX9 degradation; D7, D10, D13 = SOX9 recovery.
+
+## 2026-10-30 — Paper-ideas v2.0: Gate A / Gate B / Y3 (branch task_20261030_paper_ideas_v2)
+
+- Plan: UDE/design/paper_ideas_v2_plan_v0.1 → GPT v0.2 (+ impl addendum) → preflight FAIL (4 fixes) → PASS. Code `scripts/06_gates/60–72`.
+- Gate B (HT29 SOX9 dependency): baseline-only regions from DMSO ATAC peaks (90,983); DESeq2 alpha 0.05; primary 4,424 SOX9-bound regions, 721 lost at D4. B3 (B2 + fold-specific PMA SVD20, non-HT-29) vs B2: ΔAP +0.027 (95% CI +0.012 to +0.044); NC2 p = 0.005; NC3/NC4/LOCO stable; Y2 R² 0.39 → 0.47; gut-only PMA no gain. **GO** (GPT: predictive, not mechanistic). HGNC-only post-hoc unchanged.
+- Gate A (anchor-DBP co-occupancy): 23 evaluable anchors; matched primary (8 balanced) ΔAP(M2−M1) +0.109, null p = 0.005; full candidates +0.034 (CI −0.009 to +0.087); gain concentrated in bZIP. Frozen code INCONCLUSIVE; adjudicated **CONDITIONAL**; closed (HD-15). BioPlex 3.0 downloaded (user-approved), support only; DepMap exploratory without signal.
+- Y3 (gene-level RNA response): RNA DE (RSEM, tximport-equivalent normalisation verified, apeglm); contract v0.2 (GPT) with SOX9-bound primary universe (3,912 genes), NC1 link-specificity and NC2 occupancy nulls; smoke run passed; preflight submitted.

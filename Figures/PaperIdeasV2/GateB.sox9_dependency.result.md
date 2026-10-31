@@ -1,7 +1,7 @@
 # Gate B result — PMA-derived protein occupancy architecture improves prediction of SOX9-loss-associated chromatin responses in HT29 cells（GO，预测性）
 
 > **文档性质：** 内部分析结果稿，非投稿版本。
-> **版本：** v0.2，2026-10-30。v0.2 按 GPT 结果审核（`UDE/design/paper_ideas_v2_gateB_review1.md`，APPROVE / GO，预测性而非机制性）修改措辞并补充 QA。
+> **版本：** v0.3，2026-10-31。v0.2 按 GPT 结果审核（`UDE/design/paper_ideas_v2_gateB_review1.md`，APPROVE / GO，预测性而非机制性）修改措辞并补充 QA；v0.3 加入 NC2 按染色体保持的修复审计（§7，GPT Gate V 终审要求），**GO confirmed**。
 > **设计：** `UDE/design/paper_ideas_v2_plan_v0.2.md`（GPT 原文）+ `paper_ideas_v2_plan_v0.2_impl.md`，计算前冻结；预检两轮（review1 FAIL → `paper_ideas_v2_preflight_fix.md` → review2 PASS）。
 > **代码：** 分支 `task_20261030_paper_ideas_v2`，`scripts/06_gates/62–66, 68`；正式运行用的 `64_gateB_model.R` md5 `5507a62f…`（Argos `code_real/`）。
 > **结果目录：** `DATA/2.PROJECTS/PMA/occupancy_chipatlas/result/gateB_sox9_dependency_v1/`（本地与 Argos；大文件只在 Argos）。
@@ -16,7 +16,7 @@
 **预注册判定：GO（6/6 条判据满足）。**
 
 1. **主比较：** 在已有 ATAC、motif、RNA、SOX9/SMARCC1/H3K27ac/H3K4me3 CUT&RUN 以及 PMA 占据蛋白数和覆盖度（B2）之上，加入 PMA 的 20 维蛋白占据结构（B3，不含任何 HT-29 实验），D4 ATAC 丢失的 out-of-fold AP 从 0.631 升到 0.659，**ΔAP = +0.027（染色体 bootstrap 95% CI +0.012 到 +0.044）**，超过预注册最小值 0.020。
-2. **增益来自蛋白特异的占据模式，而不只是占据数量：** 在 ATAC × 占据蛋白数 × promoter 层内置换区域的占据行（保持蛋白数与可及性，打乱是哪些蛋白），200 次全部低于观察值（置换 p = 0.005，第 95 百分位 −0.0006）。保持每个蛋白广度的打乱参考（20 次）全部 ≤ −0.0003。SVD20 也可能编码未测量的染色质状态或细胞类型相关的占据特征，因此这里只说"蛋白特异的占据模式携带增量预测信息"，不说"蛋白身份决定 SOX9 依赖"。
+2. **增益来自蛋白特异的占据模式，而不只是占据数量：** 在 ATAC × 占据蛋白数 × promoter 层内置换区域的占据行（保持蛋白数与可及性，打乱是哪些蛋白），200 次全部低于观察值（置换 p = 0.005，第 95 百分位 −0.0006）。原 NC2 未限定染色体；按染色体保持重跑 200 次后第 95 百分位 +0.0012、最大 +0.0053，仍全部低于观察值（p = 0.005，§7）。保持每个蛋白广度的打乱参考（20 次）全部 ≤ −0.0003。SVD20 也可能编码未测量的染色质状态或细胞类型相关的占据特征，因此这里只说"蛋白特异的占据模式携带增量预测信息"，不说"蛋白身份决定 SOX9 依赖"。
 3. **稳健：** 去掉相距 < 2 kb 的近邻区域 +0.029；5 种其他染色体分组 +0.023 到 +0.031；逐一剔除染色体后 +0.025 到 +0.032。单条染色体分别计算时方向并不一致：≥ 5 个阳性的 20 条染色体中 13 条为正（单染色体阳性少，AP 不稳定）。
 4. **连续结局方向一致：** D4 log2FC 的 held-out R² 0.39 → 0.47，Spearman 0.59 → 0.65。
 5. **只用肠道背景的 PMA 没有增益（+0.004，CI −0.006 到 +0.013）。** 完整参考优于肠道限定参考；但两者的数据规模、蛋白覆盖和实验数都不同，不能据此区分"参考广度"与"细胞背景多样性"的贡献。
@@ -120,3 +120,29 @@ AUROC：B2 0.881，B3 0.893。
 - GPT 结果审核：APPROVE / GO（6/6），认定为预测性 GO，不是机制性 GO。审核基于提交的结果，没有独立复跑代码（分支未 push）。
 - Y3（基因层面 RNA 响应）：批准立项设计，正式运行前需提交冻结合同。
 - Gate C、Virtual ChIP-seq 继续 HOLD。
+
+## 7. 修复审计：NC2 按染色体保持（2026-10-31）
+
+### 为什么做
+
+Gate V 预检复审 2 指出：NC2 分层不含染色体时，测试染色体区域的占据行可被换到训练染色体，进入该 fold 的 SVD 拟合。这不泄漏 Y1 标签，但置换零分布的特征隔离与主分析不一致。Gate B 的 `64_gateB_model.R` 有同样写法；GPT Gate V 终审（`UDE/design/paper_ideas_v2_gateV_final_review.md` §3）要求只重跑 NC2，并预先规定：观察值仍超过新 NC2 第 95 百分位 → GO confirmed；否则降为 CONDITIONAL；审计不完整 → NOT EVALUABLE。
+
+### 做了什么
+
+`scripts/06_gates/81_gateB_nc2_chrom.R`（md5 `568fa750…`，Argos `code_real/`）：与 64 相同的特征、universe、臂、fold、嵌入和 ridge；读取冻结的 OOF 预测与 fold 划分并断言一致；分层改为染色体 × ATAC 三分位 × 蛋白数五分位 × promoter，200 次，每次重新按 fold 嵌入并重拟合 B3；每次置换独立审计文件。原模型输出与原 NC2 不改动（`64` md5 `5507a62f…`）。结果在 `model/nc2_chrom_correction/`。
+
+### 得到什么结果
+
+| 项 | 原 NC2 | 按染色体 NC2 |
+|---|---|---|
+| 第 95 百分位 | −0.0006 | +0.0012 |
+| 最大值 | +0.0026 | +0.0053 |
+| 观察 ΔAP（冻结） | +0.0275 | +0.0275 |
+| 置换 p | 0.005 | 0.005 |
+
+QA：489 个 strata（单元素 94，中位大小 6）；每次置换实际改变来源的区域中位 88.9%（最小 87.9%）；跨染色体交换 0；1,000 次嵌入拟合，隔离违规 0。
+
+### 结论
+
+**Gate B GO confirmed。** 按染色体保持后零分布略上移，但观察值仍比 200 次置换的最大值高约 5 倍。主估计、CI、Y1 与判定阈值都未改动。
+

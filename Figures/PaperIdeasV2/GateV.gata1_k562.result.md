@@ -1,7 +1,7 @@
 # Gate V result — PMA occupancy architecture improves prediction of GATA1-CRISPRi accessibility loss in K562（GO，独立体系复现 Gate B）
 
 > **文档性质：** 内部分析结果稿，非投稿版本。
-> **版本：** v0.1，2026-10-31，待 GPT 终审。
+> **版本：** v0.2，2026-10-31。v0.2 按 GPT 终审（`UDE/design/paper_ideas_v2_gateV_final_review.md`，APPROVE / GO）修改措辞。
 > **设计：** `UDE/design/paper_ideas_v2_gateV_contract_v0.1.md` + 预检修订 v0.2（`paper_ideas_v2_gateV_preflight_review1.md`）+ `paper_ideas_v2_gateV_model_contract_v0.2.md`；预检三轮（review1 FAIL → `paper_ideas_v2_gateV_preflight_fix.md` → review2 结局 PASS、代码两项修复 → review3 PREFLIGHT PASS）。计算前冻结。
 > **数据：** GSE168851 Spear-ATAC K562 LargeScreen peak matrix（用户批准下载，MD5 记录在 `raw/2026-10-30_gse168851/`）。
 > **代码：** 分支 `task_20261030_paper_ideas_v2`，`scripts/06_gates/74–80`；正式运行用的 `79_gateV_model.R` md5 `bf1f39d5…`（Argos `code_real/`）。
@@ -16,14 +16,16 @@
 
 **预注册判定：GO（5/5 条判据满足）。**
 
-1. **主比较：** 在 NT ATAC、外部 ATAC 先验、序列与 GATA motif、GATA1 ChIP 支持、K562 H3K27ac / H3K4me3 支持以及 PMA 占据蛋白数和覆盖度（B2）之上，加入 PMA 20 维占据结构（B3，剔除全部 2,402 个 K-562 实验），GATA1 CRISPRi 后 ATAC 丢失的 out-of-fold AP 从 0.622 升到 0.652，**ΔAP = +0.0295（染色体 bootstrap 95% CI +0.0245 到 +0.0350）**；AUROC 0.850 → 0.860。效应量与 Gate B（+0.027）接近。
+1. **主比较：** 在 NT ATAC、外部 ATAC 先验、序列与 GATA motif、GATA1 ChIP 支持、K562 H3K27ac / H3K4me3 支持以及 PMA 占据蛋白数和覆盖度（B2）之上，加入 PMA 20 维占据结构（B3，剔除全部 2,402 个 K-562 实验），GATA1 CRISPRi 后 ATAC 丢失的 out-of-fold AP 从 0.622 升到 0.652，**ΔAP = +0.0295（染色体 bootstrap 95% CI +0.0245 到 +0.0350）**；AUROC 0.850 → 0.860。数值上与 Gate B（+0.027）接近，但两者 universe、阳性比例与基线特征不同，不能作为同质效应合并。
 2. **增益来自蛋白特异的占据模式：** 按染色体 × NT ATAC 三分位 × 蛋白数五分位 × promoter 置换占据行（每次约 96% 的区域换了来源，跨染色体交换 0），200 次的 ΔAP 范围 −0.0010 到 +0.0037，第 95 百分位 +0.0024，全部低于观察值（置换 p = 0.005，即 200 次下的最小值）。
-3. **三个 GATA1 guide 一致：** 用合并模型的 OOF 预测、各 guide 自己可检验的区域评价，ΔAP 分别为 +0.031（CI +0.017 到 +0.044）、+0.026（+0.008 到 +0.042）、+0.028（+0.014 到 +0.044）。guide 标签与合并标签共享 NT 细胞和数据，不是独立实验复制。
-4. **稳健：** 逐一剔除染色体后 +0.028 到 +0.031；单条染色体分别计算时 23 条中 22 条为正（chr20 −0.005）。只保留 ≥ 2 个 ChIP-Atlas K-562 ATAC 实验覆盖的 peak（17,106 个，独立于本筛选）后 ΔAP +0.0295，结果不依赖 pooled peak calling 引入的区域。
+3. **三个不同的 GATA1 sgRNA 方向一致：** 用合并模型的 OOF 预测、各 guide 自己可检验的区域评价，ΔAP 分别为 +0.031（CI +0.017 到 +0.044）、+0.026（+0.008 到 +0.042）、+0.028（+0.014 到 +0.044）。guide 标签与合并标签共享 NT 细胞和数据，不是独立实验复制。
+4. **稳健：** 逐一剔除染色体后 +0.028 到 +0.031；单条染色体分别计算时 23 条中 22 条为正（chr20 −0.005）。只保留 ≥ 2 个 ChIP-Atlas K-562 ATAC 实验覆盖的 peak（17,106 个，独立于本筛选）后 ΔAP +0.0295，结果对外部可及性证据筛选稳健（这些区域仍来自 pooled-called peak，不能证明完全不受 pooled peak calling 影响）。
 5. **连续结局方向一致：** 合并 log2FC 的 held-out R² 0.26 → 0.31，Spearman 0.53 → 0.58。
 6. **亚组（次要）：** promoter +0.038、proximal +0.022、distal +0.030；GATA motif 低 / 中 / 高 +0.036 / +0.032 / +0.025，增益不局限于 motif 强的区域。
 
-**结论（拟，待 GPT 审定）：** In K562 cells, a PMA-derived protein occupancy representation built without any K562 experiment improved prediction of chromatin accessibility loss after GATA1 CRISPRi beyond baseline accessibility, sequence and GATA motifs, external GATA1 occupancy, K562 histone marks and overall occupancy density (ΔAP 0.0295; 95% chromosome-cluster bootstrap CI 0.0245–0.0350), exceeding the preregistered threshold and a chromosome-preserving conditional occupancy permutation null. The gain was concordant across three independent GATA1 guides. Together with Gate B, this is an independent-system replication of the incremental predictive value of PMA occupancy architecture across two transcription factors, cell lines and perturbation modalities. It does not establish zero-shot transfer, physical protein assemblies or causal cofactors.
+**结论（GPT 审定措辞）：** In K562 cells, a PMA-derived protein occupancy representation constructed without K562 experiments improved the prediction of GATA1-CRISPRi-associated chromatin accessibility loss beyond baseline accessibility, DNA sequence motifs, external GATA1 occupancy, K562 histone-mark evidence, and overall protein occupancy density. The improvement in out-of-fold average precision was 0.0295 (95% chromosome-cluster bootstrap CI, 0.0245–0.0350), exceeding the preregistered minimum effect threshold and a chromosome-preserving conditional occupancy permutation null. Positive predictive gains were observed when the pooled model was evaluated against the outcomes of each of three distinct GATA1-targeting sgRNAs, although these evaluations shared underlying data and controls. The gain was also robust to chromosome exclusion and restriction to peaks supported by an independent K562 accessibility reference. Together with the HT29 SOX9 degradation results, these findings support the reproducibility of incremental predictive information from PMA-derived occupancy patterns across two transcription factors, cellular contexts, and perturbation modalities, using context-specific model retraining. These results do not establish zero-shot transfer, direct physical protein assemblies, causal cofactors, or gene-level transcriptional response prediction.
+
+**GPT 终审：** APPROVE / GO（5/5）。核验基于执行端记录（代码 md5、1,010 次隔离审计、200 次置换完整性），未独立重跑。SVD20 也可能编码 B2 未完全控制的染色质状态、蛋白组合偏好或实验来源结构，因此只说"占据模式携带增量预测信息"。
 
 ## 1. 结局与 universe
 
@@ -80,8 +82,9 @@ B1 − B0 只有 +0.004：主 universe 本身已限定为 GATA1 结合区域，C
 3. GATA1 结合来自外部 ChIP-Atlas，不是本实验测量；没有基线 RNA 与辅因子 CUT&RUN，B2 比 Gate B 弱。
 4. guide 层面的评价与合并标签共享数据和 NT 对照。
 5. 染色体 bootstrap CI 不包含模型拟合的随机性（打乱标签 SMOKE 中 ΔAP +0.005 的 CI 也不含 0），因此 GO 依赖 NC2 与 0.02 阈值的联合判据。
-6. **Gate B 的 NC2 需复核：** Gate V 复审 2 指出 NC2 分层未包含染色体会让测试染色体的占据行进入训练嵌入。Gate B 的 `64_gateB_model.R` 有同样写法（只影响零分布，不影响标签或主估计）。是否按染色体保持方式重跑 Gate B NC2，交 GPT 终审决定。
+6. **Gate B 的 NC2 需复核：** Gate V 复审 2 指出 NC2 分层未包含染色体会让测试染色体的占据行进入训练嵌入。Gate B 的 `64_gateB_model.R` 有同样写法（只影响零分布，不影响标签或主估计）。GPT 终审要求只按染色体保持方式重跑 Gate B NC2（200 次，不重拟合主模型），结果见 Gate B 结果稿 v0.3。
 
 ## 5. 下一步（按合同）
 
-- 结果提交 GPT 终审。无论结论如何，Gate V 按预注册收尾，不更换 TF、数据集或模型。
+- Gate V 关闭，不再优化；不追加其他 TF、细胞系或模型。
+- 唯一后续计算：Gate B NC2 按染色体保持方式的定向修复审计；完成后 Paper-ideas v2.0 标记 COMPLETE。

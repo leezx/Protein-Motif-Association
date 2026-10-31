@@ -212,7 +212,8 @@ nc1 <- rbindlist(mclapply(seq_len(n_nc1), function(k) {
   st <- f$nc1_strat[pr_idx]; for (s in unique(st)) { ii <- pr_idx[st == s]; perm[ii] <- ii[sample.int(length(ii))] }
   P2 <- lapply(CF$B2, function(v) v[perm]); P3 <- lapply(CF$B3, function(v) v[perm])
   e2 <- gene_stage(U, base, P2); e3 <- gene_stage(U, base, P3)
-  data.table(perm = k, d_rho = rho(e3, O$y3) - rho(e2, O$y3), rho_GB2_perm = rho(e2, O$y3), rho_GB3_perm = rho(e3, O$y3))
+  data.table(perm = k, d_rho = rho(e3, O$y3) - rho(e2, O$y3), rho_GB2_perm = rho(e2, O$y3), rho_GB3_perm = rho(e3, O$y3),
+             moved = mean(perm[pr_idx] != pr_idx))
 }, mc.cores = cores))
 # ---- NC2: occupancy identity (B3 cross-fits redone on permuted occupancy rows) ----
 f[, nc2_strat := paste(cut(atac_log2cpm, unique(quantile(atac_log2cpm[prim], 0:3 / 3)), include.lowest = TRUE, labels = FALSE),
@@ -223,6 +224,11 @@ nc2 <- unlist(mclapply(seq_len(n_nc2), function(k) {
   P3 <- crossfit("B3", Bm[rm_, ], f$prim, f$prim, paste0("NC2_", k))
   rho(gene_stage(U, base, P3), O$y3) - rho(O$GB2, O$y3)
 }, mc.cores = cores))
+# QA-1 (Y3 preflight review): how much of the primary region set NC1 can actually rearrange
+sz <- table(f$nc1_strat[pr_idx])
+fwrite(data.table(n_regions = length(pr_idx), n_strata = length(sz), singleton_strata = sum(sz == 1),
+                  share_in_rearrangeable_strata = sum(sz[sz >= 2]) / length(pr_idx), share_in_strata_ge5 = sum(sz[sz >= 5]) / length(pr_idx),
+                  mean_share_moved = mean(nc1$moved), min_share_moved = min(nc1$moved)), file.path(out, "nc1_qa.tsv"), sep = "\t")
 negc <- rbind(nc1[, .(control = "NC1_link_specificity", k = perm, d_rho)], data.table(control = "NC2_occupancy_identity", k = seq_along(nc2), d_rho = nc2))
 fwrite(negc, file.path(out, "negative_controls.tsv"), sep = "\t"); fwrite(nc1, file.path(out, "nc1_detail.tsv"), sep = "\t")
 
@@ -242,7 +248,8 @@ crit <- c(c1 = cmpt$d_rho >= 0.02, c2 = cmpt$ci_lo > 0, c3 = cmpt$d_rho > quanti
 decision <- if (all(crit)) "GO" else if (cmpt$d_rho > 0 && cmpt$ci_lo > 0) "CONDITIONAL" else
   if (cmpt$ci_hi < 0.02 && (cmpt$ci_lo <= 0 || cmpt$d_rho <= quantile(nc1$d_rho, 0.95))) "NO-GO" else "INCONCLUSIVE"
 write_json(list(comparison = cmpt, nc1_p95 = quantile(nc1$d_rho, 0.95), nc1_p = (1 + sum(nc1$d_rho >= cmpt$d_rho)) / (1 + nrow(nc1)),
-                nc1_rho_GB2_perm_mean = mean(nc1$rho_GB2_perm), nc2_max = max(nc2), isolation_rows = nrow(iso),
+                nc1_rho_GB2_perm_mean = mean(nc1$rho_GB2_perm), nc1_mean_share_moved = mean(nc1$moved), nc2_max = max(nc2),
+                nc2_p = (1 + sum(nc2 >= cmpt$d_rho)) / (1 + length(nc2)), nc2_min_achievable_p = 1 / (1 + length(nc2)), isolation_rows = nrow(iso),
                 isolation_violations = sum(iso$violations, na.rm = TRUE), criteria = as.list(crit), decision = decision,
                 n_nc1 = n_nc1, n_nc2 = n_nc2), file.path(out, "decision.json"), auto_unbox = TRUE, pretty = TRUE, digits = 6)
 print(cmpt); print(sens); print(crit); cat("DECISION:", decision, "\n")

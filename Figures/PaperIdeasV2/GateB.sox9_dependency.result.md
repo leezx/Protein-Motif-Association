@@ -1,7 +1,7 @@
-# Gate B result — 在 HT29 中，PMA 蛋白占据结构对 SOX9 降解后的 ATAC 丢失有增量预测力（GO）
+# Gate B result — PMA-derived protein occupancy architecture improves prediction of SOX9-loss-associated chromatin responses in HT29 cells（GO，预测性）
 
 > **文档性质：** 内部分析结果稿，非投稿版本。
-> **版本：** v0.1，2026-10-30。
+> **版本：** v0.2，2026-10-30。v0.2 按 GPT 结果审核（`UDE/design/paper_ideas_v2_gateB_review1.md`，APPROVE / GO，预测性而非机制性）修改措辞并补充 QA。
 > **设计：** `UDE/design/paper_ideas_v2_plan_v0.2.md`（GPT 原文）+ `paper_ideas_v2_plan_v0.2_impl.md`，计算前冻结；预检两轮（review1 FAIL → `paper_ideas_v2_preflight_fix.md` → review2 PASS）。
 > **代码：** 分支 `task_20261030_paper_ideas_v2`，`scripts/06_gates/62–66, 68`；正式运行用的 `64_gateB_model.R` md5 `5507a62f…`（Argos `code_real/`）。
 > **结果目录：** `DATA/2.PROJECTS/PMA/occupancy_chipatlas/result/gateB_sox9_dependency_v1/`（本地与 Argos；大文件只在 Argos）。
@@ -16,13 +16,13 @@
 **预注册判定：GO（6/6 条判据满足）。**
 
 1. **主比较：** 在已有 ATAC、motif、RNA、SOX9/SMARCC1/H3K27ac/H3K4me3 CUT&RUN 以及 PMA 占据蛋白数和覆盖度（B2）之上，加入 PMA 的 20 维蛋白占据结构（B3，不含任何 HT-29 实验），D4 ATAC 丢失的 out-of-fold AP 从 0.631 升到 0.659，**ΔAP = +0.027（染色体 bootstrap 95% CI +0.012 到 +0.044）**，超过预注册最小值 0.020。
-2. **蛋白身份才是信息来源：** 在 ATAC × 占据蛋白数 × promoter 层内置换区域的占据行（保持蛋白数与可及性，打乱是哪些蛋白），200 次全部低于观察值（置换 p = 0.005，第 95 百分位 −0.0006）。保持每个蛋白广度的打乱参考（20 次）全部 ≤ −0.0003。
-3. **稳健：** 去掉相距 < 2 kb 的近邻区域 +0.029；5 种其他染色体分组 +0.023 到 +0.031；逐一剔除染色体后 +0.025 到 +0.032。
+2. **增益来自蛋白特异的占据模式，而不只是占据数量：** 在 ATAC × 占据蛋白数 × promoter 层内置换区域的占据行（保持蛋白数与可及性，打乱是哪些蛋白），200 次全部低于观察值（置换 p = 0.005，第 95 百分位 −0.0006）。保持每个蛋白广度的打乱参考（20 次）全部 ≤ −0.0003。SVD20 也可能编码未测量的染色质状态或细胞类型相关的占据特征，因此这里只说"蛋白特异的占据模式携带增量预测信息"，不说"蛋白身份决定 SOX9 依赖"。
+3. **稳健：** 去掉相距 < 2 kb 的近邻区域 +0.029；5 种其他染色体分组 +0.023 到 +0.031；逐一剔除染色体后 +0.025 到 +0.032。单条染色体分别计算时方向并不一致：≥ 5 个阳性的 20 条染色体中 13 条为正（单染色体阳性少，AP 不稳定）。
 4. **连续结局方向一致：** D4 log2FC 的 held-out R² 0.39 → 0.47，Spearman 0.59 → 0.65。
-5. **只用肠道背景的 PMA 没有增益（+0.004，CI −0.006 到 +0.013）。** 信息来自跨背景的大参考，而不是与 HT29 相近的少数细胞系。
+5. **只用肠道背景的 PMA 没有增益（+0.004，CI −0.006 到 +0.013）。** 完整参考优于肠道限定参考；但两者的数据规模、蛋白覆盖和实验数都不同，不能据此区分"参考广度"与"细胞背景多样性"的贡献。
 6. **没有单个蛋白被选出：** 逐蛋白弹性网（探索性）在 lambda.1se 下所有蛋白系数为 0。增益分布在占据结构上，目前不能归到某个具体辅因子。
 
-**结论（限定）：** 在 HT29 中，调控元件跨背景的蛋白占据结构，对"哪些 SOX9 结合位点在 SOX9 降解后关闭"提供了超出本细胞实测染色质信号的、可重复的增量信息。这支持 Paper-ideas v2.0 的中心假说 H2，但证据只来自一个细胞系、一个扰动。
+**结论（GPT 审定措辞）：** In HT29 cells, a PMA-derived protein occupancy representation improved prediction of chromatin accessibility loss following SOX9 degradation beyond baseline accessibility, sequence motifs, gene expression, experimentally measured SOX9 occupancy, chromatin-associated CUT&RUN signals, and overall protein occupancy density. The increase in out-of-fold average precision was 0.027 (95% chromosome-cluster bootstrap CI, 0.012–0.044), exceeding the preregistered minimum effect threshold. Conditional occupancy permutations abolished the incremental predictive gain, supporting the contribution of protein-specific occupancy patterns rather than occupancy density alone. Continuous accessibility changes showed concordant improvements in predictive performance. These results establish incremental predictive value for PMA-derived occupancy architecture within one HT29 perturbation system. They do not establish direct physical protein assemblies, identify causal cofactors, or demonstrate generalization across cellular contexts.
 
 ## 1. 区域与结局
 
@@ -87,9 +87,10 @@ AUROC：B2 0.881，B3 0.893。
 
 ## 4. 次要分析（图 B-E、B-F）
 
-- **亚组：** 所有预设亚组 ΔAP 都为正。SOX motif 低/中三分位（+0.040 / +0.046）大于高三分位（+0.021），即 motif 弱的位点上 PMA 补充的信息更多。Promoter +0.083 只有 25 个阳性，不作解读。
+- **亚组：** 所有预设亚组 ΔAP 都为正。SOX motif 低/中三分位（+0.040 / +0.046）大于高三分位（+0.021），提示 motif 弱的位点上 PMA 补充的信息可能更多；但三组阳性率与基线 AP 不同，绝对 ΔAP 不能直接比较，只作支持性观察。Promoter +0.083 只有 25 个阳性，不作解读。
+- **Y2 的增益没有独立的不确定性区间**，只作支持性证据。
 - **Y2：** R² 0.39 → 0.47，Spearman 0.59 → 0.65，MAE 0.68 → 0.63。
-- **全 baseline universe（不限 SOX9 结合，90,734 个，阳性 1,304）：** ΔAP +0.038。
+- **全 baseline universe（不限 SOX9 结合，90,734 个，阳性 1,304）：** ΔAP +0.038。这里 padj 为 NA 的区域（独立过滤 44,091 个）记为阴性，是 NA → 0 的敏感性分析，AP 不能与主分析直接比较（QA-1）。
 - **NA → 0（5,290 个）：** ΔAP +0.029。
 
 ## 5. 局限
@@ -114,7 +115,8 @@ AUROC：B2 0.881，B3 0.893。
 
 结论：增益不依赖非蛋白抗原列。
 
-## 7. 下一步（按 v0.2）
+## 7. 审核与下一步
 
-- Gate B 为 GO：允许另立合同做 Y3（基因层面 RNA 响应），仍需先定义 region–gene 连接与验证方式。
-- Gate C、Virtual ChIP-seq 继续 HOLD，需 GPT 审核两门结果后再议。
+- GPT 结果审核：APPROVE / GO（6/6），认定为预测性 GO，不是机制性 GO。审核基于提交的结果，没有独立复跑代码（分支未 push）。
+- Y3（基因层面 RNA 响应）：批准立项设计，正式运行前需提交冻结合同。
+- Gate C、Virtual ChIP-seq 继续 HOLD。

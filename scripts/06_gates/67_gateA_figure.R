@@ -2,7 +2,7 @@
 # usage: Rscript 67_gateA_figure.R <61 out dir> <figure out dir>
 # A pooled OOF AP of M0/M1/M2 (matched primary, full candidates, bZIP excluded); B M2 - M1 with anchor-bootstrap CI
 # against the MH-permutation null; C per-anchor AP M1 -> M2 (matched); D full-candidate top-k lift; E BioPlex
-# enrichment (support only); F bZIP vs non-bZIP contribution.
+# enrichment (support only); F bZIP vs non-bZIP contribution. C shows all 23 evaluable anchors on the full candidate set.
 suppressPackageStartupMessages({library(data.table); library(ggplot2); library(patchwork); library(scales)})
 a <- commandArgs(trailingOnly = TRUE); d <- a[1]; out <- a[2]
 dir.create(out, showWarnings = FALSE, recursive = TRUE)
@@ -30,14 +30,19 @@ B <- ggplot(null, aes(dAP_M2_M1)) + geom_histogram(bins = 30, fill = "grey75") +
   geom_vline(xintercept = quantile(null$dAP_M2_M1, 0.95), linetype = "dashed", linewidth = 0.3) +
   labs(x = "AP(M2) - AP(M1), matched primary", y = "Permutations",
        title = sprintf("Observed %.4f (95%% CI %.4f to %.4f); null p95 dashed", r$dAP_M2_M1, r$ci_lo_M2_M1, r$ci_hi_M2_M1))
-pa <- fread(file.path(d, "per_anchor.tsv"))
-pa[, gain := AP_M2 > AP_M1]
-pa[, anchor := factor(anchor, pa[order(AP_M2 - AP_M1), anchor])]
-C <- ggplot(pa) + geom_segment(aes(x = AP_M1, xend = AP_M2, y = anchor, yend = anchor, colour = gain),
+pa <- fread(file.path(d, "per_anchor_all_partners.tsv"))
+prim <- fread(file.path(d, "per_anchor.tsv"))$anchor
+bz <- grepl("^(ATF|BATF|CEBP|CREB|DDIT3|FOS|JUN|MAF|NFE2|BACH)", pa$anchor)
+pa[, `:=`(gain = AP_M2 > AP_M1, lab = sprintf("%s%s (%d)", anchor, ifelse(anchor %in% prim, "*", ""), n_pos),
+          fam = ifelse(bz, "bZIP", "other"))]
+pa[, lab := factor(lab, pa[order(AP_M2 - AP_M1), lab])]
+C <- ggplot(pa) + geom_segment(aes(x = AP_M1, xend = AP_M2, y = lab, yend = lab, colour = gain),
                                arrow = arrow(length = unit(1, "mm")), linewidth = 0.4) +
-  geom_point(aes(AP_M1, anchor), size = 0.6, colour = "#6baed6") +
+  geom_point(aes(AP_M1, lab, shape = fam), size = 0.8, colour = "#6baed6") +
   scale_colour_manual(values = c(`TRUE` = "#08519c", `FALSE` = "#b2182b"), labels = c(`TRUE` = "M2 > M1", `FALSE` = "M2 <= M1"), name = NULL) +
-  labs(x = "AP per anchor (matched set)", y = NULL, title = "M1 -> M2 per anchor") + theme(legend.position = "top")
+  scale_shape_manual(values = c(bZIP = 17, other = 16), name = NULL) +
+  labs(x = "AP per anchor (all candidates)", y = NULL, title = "M1 -> M2 per anchor; * = matched primary; (positives)") +
+  theme(legend.position = "top", axis.text.y = element_text(size = 5))
 lift <- fread(file.path(d, "full_candidate_topk.tsv"))
 D <- ggplot(lift, aes(factor(top_k), lift, fill = model)) + geom_col(position = position_dodge(0.8), width = 0.75) +
   scale_fill_manual(values = MC, name = NULL) + labs(x = "Top-ranked pairs (all candidates)", y = "Lift over prevalence",

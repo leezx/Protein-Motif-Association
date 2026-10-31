@@ -18,6 +18,7 @@ RNA: DMSO log2(TPM + 1), mean of 2 replicates, of the gene (protein-coding or ln
 """
 import gzip
 import math
+import os
 import re
 import subprocess
 import sys
@@ -28,6 +29,8 @@ import numpy as np
 import pandas as pd
 from scipy import sparse
 from scipy.io import mmwrite
+
+EXCL_CELL = os.environ.get("PMA_EXCL_CELL", "HT-29")  # target cell type excluded from the reference (Gate V: K-562)
 
 def binary(pairs, col, tot, floor, min_regions, nreg):
     p = pairs[pairs[col] > 0]
@@ -51,7 +54,7 @@ def atac_prior(args):
     for line in proc.stdout:
         f = line.split("\t", 15)
         s, e, srx, ct = int(f[1]), int(f[2]), f[3], f[13]
-        ht = ct == "HT-29"
+        ht = ct == EXCL_CELL
         if not ht:
             seen_other.add(srx)
         i = np.searchsorted(st, e, side="left") - 1
@@ -153,7 +156,7 @@ def main(root, exp_tab, atac_bed, gtf, tpm_csv, peak_dir, threads=8):
     e = e[e.antigen_class.isin(["TFs and others", "RNA polymerase"])].drop_duplicates("experiment_id")
     e["target"] = np.where(e.antigen_hgnc_symbol.fillna(".") != ".", e.antigen_hgnc_symbol,
                            e.antigen_raw.astype(str).str.replace(r"\s+", "_", regex=True))
-    e = e[e.cell_type != "HT-29"]
+    e = e[e.cell_type != EXCL_CELL]
     tot = e.target.value_counts()
     tot_gut = e[e.cell_type_class == "Digestive tract"].target.value_counts()
     pairs = pd.read_csv(root / "pma/pairs.tsv.gz", sep="\t")
@@ -192,7 +195,7 @@ def matrices_only(root, exp_tab):
     e = e[e.antigen_class.isin(["TFs and others", "RNA polymerase"])].drop_duplicates("experiment_id")
     e["target"] = np.where(e.antigen_hgnc_symbol.fillna(".") != ".", e.antigen_hgnc_symbol,
                            e.antigen_raw.astype(str).str.replace(r"\s+", "_", regex=True))
-    e = e[e.cell_type != "HT-29"]
+    e = e[e.cell_type != EXCL_CELL]
     tot, tot_gut = e.target.value_counts(), e[e.cell_type_class == "Digestive tract"].target.value_counts()
     pairs = pd.read_csv(root / "pma/pairs.tsv.gz", sep="\t")
     pairs["ridx"] = pd.Index(reg.region).get_indexer(pairs.region)

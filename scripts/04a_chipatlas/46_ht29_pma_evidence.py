@@ -7,7 +7,8 @@ usage: 46_ht29_pma_evidence.py chrom <regions.bed> <occupancy.bed.gz> <out_dir> 
 chrom mode: streams the v1 Output A rows of one chromosome (tabix; protein + RNA polymerase experiments, the proteins.bw
 universe). Target key = HGNC symbol, else the ChIP-Atlas antigen (whitespace -> _), as in 29_hotspot_protein_support.py.
 For region R and target p, S(R, p) = experiments of p with >= 1 peak overlapping R. Writes parts/<chrom>.pairs.tsv:
-region, target, n_exp, n_celltypes, n_exp_gut (cell type class 'Digestive tract'), n_exp_ht29 (cell type HT-29).
+region, target, n_exp, n_celltypes, n_exp_gut (cell type class 'Digestive tract'), n_exp_ht29 (cell type HT-29, or the
+cell type in env PMA_EXCL_CELL; the column keeps its name).
 annotate mode: per region, the 500 bp bins it overlaps (23_hotspot_bins.py): P_max (distinct ChIP-Atlas proteins),
 max ChIP-Atlas ATAC experiments open, blacklist (any bin); at the bin of the region midpoint: cCRE class, TSS distance
 and class, CpG island, GC (31_hotspot_annotation.py). Motif: log-odds PWM (uniform background, pseudocount 0.01) on
@@ -15,6 +16,7 @@ both strands; n hits with P < p (exact null by score-distribution convolution) a
 chrom parts into pairs.tsv.gz and writes annotation.tsv.gz.
 """
 import bisect
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -23,6 +25,7 @@ import numpy as np
 import pandas as pd
 import pysam
 
+EXCL_CELL = os.environ.get("PMA_EXCL_CELL", "HT-29")  # cell type counted in the last column
 CCRE = ["PLS", "pELS", "dELS", "CA-H3K4me3", "CA-CTCF", "CA-TF", "TF", "CA", "none"]
 BIN = 500
 
@@ -46,7 +49,7 @@ def run_chrom(regions_bed, bed, out_dir, chrom):
             for p, ex in acc.pop(nxt, {}).items():
                 v = list(ex.values())
                 fo.write(f"{name[nxt]}\t{p}\t{len(ex)}\t{len({c for c, _ in v})}\t"
-                         f"{sum(k == 'Digestive tract' for _, k in v)}\t{sum(c == 'HT-29' for c, _ in v)}\n")
+                         f"{sum(k == 'Digestive tract' for _, k in v)}\t{sum(c == EXCL_CELL for c, _ in v)}\n")
             nxt += 1
 
     proc = subprocess.Popen(["tabix", bed, chrom], stdout=subprocess.PIPE, text=True, bufsize=1 << 20)

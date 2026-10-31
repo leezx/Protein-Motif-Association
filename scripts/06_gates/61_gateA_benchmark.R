@@ -104,8 +104,8 @@ fit_predict <- function(D, feats) {
     folds <- as.integer(factor(tr$anchor)) %% 10L + 1L
     cv <- cv.glmnet(as.matrix(tr[, ..feats]), tr$y, family = "binomial", alpha = 0, foldid = folds,
                     type.measure = "deviance")
-    data.table(anchor = a, partner = te$partner, key = te$key,
-               s = as.numeric(predict(cv, as.matrix(te[, ..feats]), s = "lambda.min")))
+    o <- data.table(anchor = a, partner = te$partner, s = as.numeric(predict(cv, as.matrix(te[, ..feats]), s = "lambda.min")))
+    o[, key := te$key][]
   }))
 }
 

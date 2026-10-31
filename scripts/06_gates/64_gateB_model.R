@@ -21,7 +21,8 @@ cores <- if (length(args) >= 2) as.integer(args[2]) else 8L
 n_perm <- if (length(args) >= 3) as.integer(args[3]) else 200L
 na_rule <- if (length(args) >= 4) args[4] else "exclude"  # D4 padj NA (independent filtering): exclude | zero
 SMOKE <- Sys.getenv("SMOKE") == "1"  # code test: outcomes shuffled, nothing interpretable is produced
-out <- file.path(root, if (SMOKE) "model_smoke" else "model"); dir.create(out, showWarnings = FALSE)
+HGNC_ONLY <- Sys.getenv("HGNC_ONLY") == "1"  # post-hoc sensitivity (added after the primary run): approved HGNC symbols only
+out <- file.path(root, if (SMOKE) "model_smoke" else if (HGNC_ONLY) "model_posthoc_hgnc" else "model"); dir.create(out, showWarnings = FALSE)
 f <- fread(file.path(root, "features/features.tsv.gz"))
 de <- fread(file.path(root, "counts/de_ATAC_alpha05.tsv.gz"))[contrast == "D4_vs_DMSO"]
 reg_all <- fread(file.path(root, "counts/regions.bed"), header = FALSE)
@@ -30,6 +31,11 @@ reg_chrom <- reg_all$V1
 Bm <- as(readMM(file.path(root, "features/pma_binary.mtx")), "CsparseMatrix")
 Bg <- as(readMM(file.path(root, "features/pma_binary_gut.mtx")), "CsparseMatrix")
 stopifnot(nrow(Bm) == nrow(reg_all), nrow(Bg) == nrow(reg_all))
+if (HGNC_ONLY) {
+  hg <- readLines(file.path(root, "features/hgnc_symbols.txt"))
+  Bm <- Bm[, fread(file.path(root, "features/proteins.tsv"))$protein %in% hg]
+  Bg <- Bg[, fread(file.path(root, "features/proteins_gut.tsv"))$protein %in% hg]
+}
 f <- merge(f, de[, .(region, log2FC, padj)], by = "region", all.x = TRUE)
 f[, y := as.integer(!is.na(padj) & padj < 0.05 & log2FC < 0)]
 f[, y2 := fifelse(is.na(log2FC), 0, log2FC)]
@@ -69,7 +75,6 @@ fwrite(data.table(chrom = names(FOLD), fold = FOLD, n = U[, .N, by = chrom][matc
 
 ap <- function(s, y) { o <- order(-s); y <- y[o]; if (!any(y == 1)) return(NA_real_); mean(cumsum(y)[y == 1] / which(y == 1)) }
 auroc <- function(s, y) { r <- rank(s); n1 <- sum(y == 1); n0 <- sum(y == 0); (sum(r[y == 1]) - n1 * (n1 + 1) / 2) / (n1 * n0) }
-iso_log <- new.env(); iso_log$rows <- list()
 embed_fold <- function(M, fit_rows, apply_rows) {
   Mt <- M[fit_rows, , drop = FALSE]
   idf <- log1p(nrow(Mt) / pmax(colSums(Mt), 1))
@@ -79,7 +84,9 @@ embed_fold <- function(M, fit_rows, apply_rows) {
   as.matrix(rn(M[apply_rows, , drop = FALSE]) %*% V)
 }
 # M: named list of occupancy matrices (rows = regions.bed order); feats may include the embedding columns of an arm
-oof <- function(d, feats, fold, family = "binomial", yv = "y", M = list(all = Bm, gut = Bg), arm = NULL) {
+AUDIT <- file.path(out, "embedding_isolation.tsv")
+cat("run\tarm\tfold\tpid\tn_fit\ttest_chrom_rows_in_fit\n", file = AUDIT)
+oof <- function(d, feats, fold, family = "binomial", yv = "y", M = list(all = Bm, gut = Bg), arm = NULL, tag = "main") {
   p <- numeric(nrow(d)); fo <- fold[d$chrom]
   X <- as.matrix(d[, setdiff(feats, c(SVD, GUT)), with = FALSE])
   for (k in sort(unique(fo))) {
@@ -89,8 +96,9 @@ oof <- function(d, feats, fold, family = "binomial", yv = "y", M = list(all = Bm
       test_ch <- names(fold)[fold == k]
       fit_rows <- which(reg_chrom %in% names(fold)[fold != k])
       stopifnot(!any(reg_chrom[fit_rows] %in% test_ch))  # fold isolation
-      iso_log$rows[[length(iso_log$rows) + 1]] <- data.table(arm = arm, fold = k, n_fit = length(fit_rows),
-                                                             test_chrom_rows_in_fit = sum(reg_chrom[fit_rows] %in% test_ch))
+      # every fit (incl. forked NC2 / NC3 workers) appends one audit line
+      cat(sprintf("%s\t%s\t%d\t%d\t%d\t%d\n", tag, arm, k, Sys.getpid(), length(fit_rows), sum(reg_chrom[fit_rows] %in% test_ch)),
+          file = AUDIT, append = TRUE)
       E <- embed_fold(M[[EMB[[arm]]$m]], fit_rows, d$ridx)
       colnames(E) <- EMB[[arm]]$cols
       Xk <- cbind(X, E)
@@ -104,7 +112,7 @@ oof <- function(d, feats, fold, family = "binomial", yv = "y", M = list(all = Bm
 P <- U[, .(region, chrom, y, y2, tss_cls, atac_log2cpm, l_deg, sox_motif_margin)]
 for (a in names(ARMS)) P[, (a) := oof(U, ARMS[[a]], FOLD, arm = a)]
 for (a in c("B2", "B3")) P[, (paste0(a, "_y2")) := oof(U, ARMS[[a]], FOLD, "gaussian", "y2", arm = a)]
-fwrite(rbindlist(iso_log$rows), file.path(out, "embedding_isolation.tsv"), sep = "\t")
+
 fwrite(P, file.path(out, "oof_predictions.tsv.gz"), sep = "\t")
 
 bootc <- function(d, pairs, B = 2000L) {
@@ -150,7 +158,7 @@ nc2 <- unlist(mclapply(seq_len(n_perm), function(k) {
   rm_ <- seq_len(nrow(Bm))
   U[, pr := ridx[sample(.N)], by = strat]
   rm_[U$ridx] <- U$pr
-  ap(oof(U, ARMS$B3, FOLD, M = list(all = Bm[rm_, ], gut = Bg), arm = "B3"), U$y) - ap(P$B2, P$y)
+  ap(oof(U, ARMS$B3, FOLD, M = list(all = Bm[rm_, ], gut = Bg), arm = "B3", tag = paste0("NC2_", k)), U$y) - ap(P$B2, P$y)
 }, mc.cores = cores))
 # NC3: each protein's occupancy shuffled within degree deciles (all baseline regions), re-embedded per fold
 deg <- rowSums(Bm); dec <- cut(deg, unique(quantile(deg, 0:10 / 10)), include.lowest = TRUE, labels = FALSE)
@@ -169,15 +177,15 @@ shuffle_ref <- function(seed) {
   sparseMatrix(ii, jj, x = 1, dims = dim(Bm))
 }
 nc3 <- unlist(mclapply(1:20, function(k)
-  ap(oof(U, ARMS$B3, FOLD, M = list(all = shuffle_ref(20261030 + 1000 + k), gut = Bg), arm = "B3"), U$y) - ap(P$B2, P$y),
+  ap(oof(U, ARMS$B3, FOLD, M = list(all = shuffle_ref(20261030 + 1000 + k), gut = Bg), arm = "B3", tag = paste0("NC3_", k)), U$y) - ap(P$B2, P$y),
   mc.cores = cores))
 # NC4a: thin near-duplicates (keep the first region of any run with gaps < 2 kb); NC4b: alternative chromosome groupings
 U[, gap := start - shift(end), by = chrom]
 Ut <- U[is.na(gap) | gap >= 2000]
-nc4 <- data.table(test = "thinned_2kb", n = nrow(Ut), dAP = ap(oof(Ut, ARMS$B3, FOLD, arm = "B3"), Ut$y) - ap(oof(Ut, ARMS$B2, FOLD), Ut$y))
+nc4 <- data.table(test = "thinned_2kb", n = nrow(Ut), dAP = ap(oof(Ut, ARMS$B3, FOLD, arm = "B3", tag = "NC4_thin"), Ut$y) - ap(oof(Ut, ARMS$B2, FOLD), Ut$y))
 for (s in 1:5) { fo <- assign_folds(U, seed = 20261030 + s)
   nc4 <- rbind(nc4, data.table(test = paste0("regroup_", s), n = nrow(U),
-                               dAP = ap(oof(U, ARMS$B3, fo, arm = "B3"), U$y) - ap(oof(U, ARMS$B2, fo), U$y))) }
+                               dAP = ap(oof(U, ARMS$B3, fo, arm = "B3", tag = paste0("NC4_regroup_", s)), U$y) - ap(oof(U, ARMS$B2, fo), U$y))) }
 neg <- rbind(data.table(control = "NC2_identity_permutation", k = seq_along(nc2), dAP = nc2),
              data.table(control = "NC3_coverage_shuffled_reference", k = seq_along(nc3), dAP = nc3))
 fwrite(neg, file.path(out, "negative_controls.tsv"), sep = "\t")
@@ -186,18 +194,19 @@ fwrite(nc4, file.path(out, "nc4_sensitivity.tsv"), sep = "\t")
 # secondary universe: all baseline regions (no SOX9 restriction), B3 vs B2
 Fa <- f[blacklist == FALSE]; FA <- assign_folds(Fa)
 sec <- data.table(universe = "all_baseline_ATAC", n = nrow(Fa), n_pos = sum(Fa$y),
-                  AP_B2 = ap(oof(Fa, ARMS$B2, FA), Fa$y), AP_B3 = ap(oof(Fa, ARMS$B3, FA, arm = "B3"), Fa$y))
+                  AP_B2 = ap(oof(Fa, ARMS$B2, FA), Fa$y), AP_B3 = ap(oof(Fa, ARMS$B3, FA, arm = "B3", tag = "secondary_all"), Fa$y))
 sec[, dAP := AP_B3 - AP_B2]
 # sensitivity: the other NA-padj rule on the primary SOX9 universe
 Uo <- if (na_rule == "exclude") U_all else U_all[!is.na(padj)]; FO <- assign_folds(Uo)
 sec <- rbind(sec, data.table(universe = paste0("sox9_bound_na_", ifelse(na_rule == "exclude", "zero", "exclude")),
                              n = nrow(Uo), n_pos = sum(Uo$y), AP_B2 = ap(oof(Uo, ARMS$B2, FO), Uo$y),
-                             AP_B3 = ap(oof(Uo, ARMS$B3, FO, arm = "B3"), Uo$y)), fill = TRUE)
+                             AP_B3 = ap(oof(Uo, ARMS$B3, FO, arm = "B3", tag = "secondary_na"), Uo$y)), fill = TRUE)
 sec[, dAP := AP_B3 - AP_B2]
 fwrite(sec, file.path(out, "secondary_universe.tsv"), sep = "\t")
 
 # exploratory: per-protein ridge on top of B2 (interpretation only)
 pn <- fread(file.path(root, "features/proteins.tsv"))$protein
+if (HGNC_ONLY) pn <- pn[pn %in% hg]
 Xp <- as.matrix(Bm[U$ridx, , drop = FALSE]); colnames(Xp) <- pn
 keep <- colSums(Xp) >= 30
 Xe <- cbind(scale(as.matrix(U[, ..B2])), Xp[, keep])
@@ -215,7 +224,8 @@ crit <- c(c1 = r$dAP >= 0.02, c2 = r$ci_lo > 0, c3 = r$dAP > p95, c4 = consisten
           c5 = y2[arm == "B3", spearman] >= y2[arm == "B2", spearman], c6 = all(loco$dAP > 0))
 decision <- if (all(crit)) "GO" else if (r$dAP > 0 && r$ci_lo > 0) "CONDITIONAL" else
   if (r$ci_hi < 0.02 && (r$ci_lo <= 0 || r$dAP <= p95)) "NO-GO" else "INCONCLUSIVE"
-res <- list(na_rule = na_rule, n = nrow(P), n_pos = sum(P$y), comparisons = cmp, nc2_p95 = p95, nc2_p = (1 + sum(nc2 >= r$dAP)) / (1 + length(nc2)),
+aud <- fread(AUDIT)
+res <- list(isolation_fits = nrow(aud), isolation_violations = sum(aud$test_chrom_rows_in_fit > 0), na_rule = na_rule, n = nrow(P), n_pos = sum(P$y), comparisons = cmp, nc2_p95 = p95, nc2_p = (1 + sum(nc2 >= r$dAP)) / (1 + length(nc2)),
             nc3_max = max(nc3), criteria = as.list(crit), decision = decision, n_perm = n_perm)
 fwrite(cmp, file.path(out, "baseline_comparison.tsv"), sep = "\t")
 write_json(res, file.path(out, "decision.json"), auto_unbox = TRUE, pretty = TRUE, digits = 6)

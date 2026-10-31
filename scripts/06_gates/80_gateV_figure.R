@@ -47,7 +47,7 @@ D <- ggplot(nc2, aes(dAP)) + geom_histogram(bins = 30, fill = "grey60") +
   geom_vline(xintercept = obs, colour = "#08519c", linewidth = 0.6) +
   geom_vline(xintercept = quantile(nc2$dAP, 0.95), linetype = "dashed", linewidth = 0.3) +
   labs(x = "AP(B3) - AP(B2)", y = "Count",
-       title = sprintf("NC2 (n = %d, within chromosome): observed %.4f (blue), p95 dashed", nrow(nc2), obs))
+       title = sprintf("NC2 within-chromosome (n = %d): obs. %.4f, p95 dashed", nrow(nc2), obs))
 gd <- fread(file.path(d, "guide_validation.tsv"))
 us <- fread(file.path(d, "universe_sensitivity.tsv"))
 ge <- rbind(gd[, .(lab = sprintf("%s\n(+%d / %d)", sub("^sg", "", guide), n_pos, n_testable), dAP, ci_lo, ci_hi, kind = "guide")],
@@ -66,6 +66,7 @@ F <- ggplot(loco, aes(dropped, dAP)) + geom_hline(yintercept = c(0, obs), linety
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, size = 4.5))
 sub <- fread(file.path(d, "subgroups.tsv"))
 sub[, lab := sprintf("%s: %s\n(n=%d, +%d)", ifelse(group == "tss", "TSS", "GATA motif"), level, n, pos)]
+sub[, lab := factor(lab, lab[order(group != "tss", match(level, c("promoter", "proximal", "distal", "low", "mid", "high")))])]
 G <- ggplot(sub, aes(lab, dAP)) + geom_col(fill = "#08519c", width = 0.6) + geom_hline(yintercept = 0, linewidth = 0.3) +
   labs(x = NULL, y = "AP(B3) - AP(B2)", title = "Pre-specified subgroups (secondary)") +
   theme(axis.text.x = element_text(angle = 35, hjust = 1, size = 5))

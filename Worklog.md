@@ -173,3 +173,34 @@ table; F17 experiment count is not cluster size.
 - 这是工程进度，不代表 mouse 蛋白–motif 关联结论。
 
 **下一步**：检查 `claude_sge_mm10_20261030/*.status` 与各 QC JSON；完成后更新 dataset `link.md` 与索引；PR 审阅/合并由用户决定。
+
+
+## 2026-10-30 19:12 EDT — mm10 构建完成（Step 4a §19）
+
+**结果**（Argos `occupancy_chipatlas_mm10/processed/`，代码 eb182f4；所有 SGE 作业 EXIT=0，13 个 QC JSON 全部 PASS）
+- v1 release `PMA_ChIPAtlas_mm10_20260926peaks_20261014meta_v1`：272,929,396 peak，28,085 个实验（26,288 个有 peak），0 拒绝，0 排序错误，行数对账通过，peak 数与元数据 0 不符；blacklist 过半重叠 15,868,314 行；66 条 contig。
+- light BED：protein 41,669,817 区域 / 919 靶标；histone 11,113,403 区域 / 130 标签。
+- 轨道：protein（experiments/proteins/tf/cap）、Pol II/III、histone 8 条、ATAC、DNase，各带 noBlacklist / blacklistOnly；protein 按类拆分 8 类；3 个 IGV session。
+- 实验过滤与 hg38 相同（≥10,000 peak，去单细胞，去非开放）：ATAC 19,438/46,073 保留（单细胞剔除 10,942，低 peak 26,467），DNase 1,151/1,662，histone 46,490。
+
+**问题与处理**
+- `03_finalize.py` 因 OpenBLAS 在 h_vmem 下分配内存失败；BED 与索引已完成，单独补跑 finalize（单线程 BLAS）成功，protein 作业重跑成功。SGE `-hold_jid` 不看退出码，下游作业在 core 失败后照常启动（histone 只依赖已生成的 peak 计数，结果有效）。
+- MANIFEST `code_commit` 为空（`git archive` 部署无 `.git`）；实际代码 eb182f4，已写入 dataset `link.md`。
+- 信号最高点：chr2:98,667,125（blacklist 内）；noBlacklist 最高在 chrUn_GL456392（mm10 blacklist 不覆盖 chrUn/random）；canonical 染色体上为 chr5:147,611,490（14,577 实验，疑似未列入 blacklist 的高信号伪影）。分析用 canonical 视图。
+- 约 55 个组蛋白实验的标签（pr、bhb、me2s/me2a，小鼠变体 H3mm*、TH2A/B）被现有规则归为 pan_or_ambiguous，不进入 histone 实验/多样性轨道；后续扩展 `08_histone_labels.py`。
+
+**进度**
+- 项目整体：`36% → 36%（+0%）`（mm10 为扩展）。
+- mm10 子项目：`40% → 95%（+55%）`
+
+  | 部分 | 权重 | 状态 | 卡点 |
+  |---|---|---|---|
+  | 原始数据下载与核验 | 15% | 完成（大小、gzip -t、MD5；chrom.sizes 与 10x .fai 22 条主染色体一致） | 无 |
+  | 代码参数化与测试 | 25% | 完成 | 无 |
+  | 核心 BED6+18 | 25% | 完成 | 无 |
+  | light BED + 轨道 + IGV | 25% | 完成 | 无 |
+  | QC 复核与登记 | 10% | 登记完成；GO 分类人工复核未做（5%） | 需用户复核 |
+
+- 这是工程/数据资产完成度，不代表 mouse 蛋白–motif 关联结论。
+
+**下一步**：用户复核 GO 规则分类表；决定是否拷贝 `light_v1/` 到 Mac、是否审阅/合并 PR。
